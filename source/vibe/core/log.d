@@ -196,6 +196,12 @@ struct LogLine {
 class Logger {
 	LogLevel minLevel = LogLevel.min;
 
+	/** Whether the logger can handle multiple lines in a single beginLine/endLine.
+
+	   By default log text with newlines gets split into multiple log lines.
+	 */
+	protected bool multilineLogger = false;
+
 	private {
 		LogLine m_curLine;
 		Appender!string m_curLineText;
@@ -204,7 +210,7 @@ class Logger {
 	final bool acceptsLevel(LogLevel value) nothrow pure @safe { return value >= this.minLevel; }
 
 	/** Legacy logging interface relying on dynamic memory allocation.
-		
+
 		Override `beginLine`, `put`, `endLine` instead for a more efficient and
 		possibly allocation-free implementation.
 	*/
@@ -830,14 +836,23 @@ private struct LogOutputRange {
 
 	void put(scope const(char)[] text)
 	{
-		import std.string : indexOf;
-		auto idx = text.indexOf('\n');
-		if (idx >= 0) {
-			logger.put(text[0 .. idx]);
-			logger.endLine();
-			logger.beginLine(info);
-			logger.put(text[idx+1 .. $]);
-		} else logger.put(text);
+		if (text.empty)
+			return;
+
+		if (logger.multilineLogger)
+			logger.put(text);
+		else
+		{
+			auto rng = text.splitter('\n');
+			logger.put(rng.front);
+			rng.popFront;
+			foreach (line; rng)
+			{
+				logger.endLine();
+				logger.beginLine(info);
+				logger.put(line);
+			}
+		}
 	}
 
 	void put(char ch) @trusted { put((&ch)[0 .. 1]); }
@@ -860,6 +875,31 @@ private version (Windows) {
 	enum STD_OUTPUT_HANDLE = cast(DWORD)-11;
 	enum STD_ERROR_HANDLE = cast(DWORD)-12;
 	extern(System) HANDLE GetStdHandle(DWORD nStdHandle);
+}
+
+unittest
+{
+	static class TestLogger : Logger
+	{
+		string[] lines;
+		override void beginLine(ref LogLine msg) { lines.length += 1; }
+		override void put(scope const(char)[] text) { lines[$-1] ~= text; }
+		override void endLine() { }
+	}
+	auto logger = new TestLogger;
+	auto ll = (cast(shared(Logger))logger).lock();
+	auto rng = LogOutputRange(ll, __FILE__, __LINE__, LogLevel.info);
+	rng.formattedWrite("text\nwith\nnewlines");
+	rng.finalize();
+
+	assert(logger.lines == ["text", "with", "newlines"]);
+	logger.lines = null;
+	logger.multilineLogger = true;
+
+	rng = LogOutputRange(ll, __FILE__, __LINE__, LogLevel.info);
+	rng.formattedWrite("text\nwith\nnewlines");
+	rng.finalize();
+	assert(logger.lines == ["text\nwith\nnewlines"]);
 }
 
 unittest { // make sure the default logger doesn't allocate/is usable within finalizers
