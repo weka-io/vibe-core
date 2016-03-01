@@ -1,0 +1,7 @@
+name "vibe-core"
+description "The I/O core library of vibe.d."
+authors "Sönke Ludwig"
+copyright "Copyright © 2016, rejectedsoftware e.K."
+license "MIT"
+
+dependency "eventcore" version="*"
