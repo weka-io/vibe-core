@@ -407,8 +407,8 @@ unittest { // run and join worker task from outside of a task
 private void runWorkerTask_unsafe(CALLABLE, ARGS...)(CALLABLE callable, ref ARGS args)
 {
 	import std.traits : ParameterTypeTuple;
-	import vibe.internal.meta.traits : areConvertibleTo;
-	import vibe.internal.meta.typetuple;
+	import vibe.internal.traits : areConvertibleTo;
+	import vibe.internal.typetuple;
 
 	alias FARGS = ParameterTypeTuple!CALLABLE;
 	static assert(areConvertibleTo!(Group!ARGS, Group!FARGS),
@@ -451,8 +451,8 @@ void runWorkerTaskDist(alias method, T, ARGS...)(shared(T) object, ARGS args)
 private void runWorkerTaskDist_unsafe(CALLABLE, ARGS...)(ref CALLABLE callable, ref ARGS args)
 {
 	import std.traits : ParameterTypeTuple;
-	import vibe.internal.meta.traits : areConvertibleTo;
-	import vibe.internal.meta.typetuple;
+	import vibe.internal.traits : areConvertibleTo;
+	import vibe.internal.typetuple;
 
 	alias FARGS = ParameterTypeTuple!CALLABLE;
 	static assert(areConvertibleTo!(Group!ARGS, Group!FARGS),
@@ -678,7 +678,7 @@ Timer setTimer(Duration timeout, void delegate() nothrow @safe callback, bool pe
 ///
 unittest {
 	void printTime()
-	{
+	@safe nothrow {
 		import std.datetime;
 		logInfo("The time is: %s", Clock.currTime());
 	}
