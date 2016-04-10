@@ -1274,7 +1274,7 @@ package(vibe) void resumeCoreTask(CoreTask ctask, Exception event_exception = nu
 nothrow @safe {
 	assert(ctask.thread is () @trusted { return Thread.getThis(); } (), "Resuming task in foreign thread.");
 	assert(() @trusted nothrow { return ctask.state; } () == Fiber.State.HOLD, "Resuming fiber that is not on HOLD");
-	assert(ctask.m_queue is null, "Manually resuming task that is already scheduled to resumed.");
+	assert(ctask.m_queue is null, "Manually resuming task that is already scheduled to be resumed.");
 
 	if( event_exception ){
 		extrap();
