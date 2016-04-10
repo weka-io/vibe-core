@@ -563,16 +563,21 @@ struct BatchBuffer(T, size_t N = 0) {
 		@property void capacity(size_t n) { assert(n >= m_fill); m_buffer.length = n; }
 	}
 
-	@property bool empty() { return m_first >= m_fill; }
+	@property bool empty() const { return m_first >= m_fill; }
 	@property size_t capacity() const { return m_buffer.length; }
-	@property size_t length() { return m_fill - m_first; }
+	@property size_t length() const { return m_fill - m_first; }
 	@property ref inout(T) front() inout { assert(!empty); return m_buffer[m_first]; }
-	void popFront() { assert(!m_empty); m_first++; }
+	void popFront() { assert(!empty); m_first++; }
 	void popFrontN(size_t n) { assert(n <= length); m_first += n; }
 	inout(T)[] peek() inout { return m_buffer[m_first .. m_fill]; }
 	T[] peekDst() { assert(empty); return m_buffer; }
 	void putN(size_t n) { assert(empty && n <= m_buffer.length); m_fill = n; }
 	void putN(T[] elems) { assert(empty && elems.length <= m_buffer.length); m_buffer[0 .. elems.length] = elems[]; m_fill = elems.length; }
+	void read(T[] dst) {
+		assert(length() >= dst.length);
+		dst[] = m_buffer[0 .. m_fill];
+		m_fill = 0;
+	}
 }
 
 

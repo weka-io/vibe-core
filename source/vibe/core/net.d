@@ -287,11 +287,11 @@ struct TCPConnection {
 	@safe:
 
 	import core.time : seconds;
-	import vibe.internal.array : FixedRingBuffer;
+	import vibe.internal.array : BatchBuffer;
 	//static assert(isConnectionStream!TCPConnection);
 
 	struct Context {
-		FixedRingBuffer!ubyte readBuffer;
+		BatchBuffer!ubyte readBuffer;
 	}
 
 	private {
@@ -381,7 +381,6 @@ mixin(tracer);
 			waitForData();
 			auto n = min(count, m_context.readBuffer.length);
 			m_context.readBuffer.popFrontN(n);
-			if (m_context.readBuffer.empty) m_context.readBuffer.clear(); // start filling at index 0 again
 			count -= n;
 		}
 	}
@@ -395,7 +394,6 @@ mixin(tracer);
 			assert(m_context.readBuffer.length > 0);
 			auto l = min(dst.length, m_context.readBuffer.length);
 			m_context.readBuffer.read(dst[0 .. l]);
-			if (m_context.readBuffer.empty) m_context.readBuffer.clear(); // start filling at index 0 again
 			dst = dst[l .. $];
 		}
 	}
