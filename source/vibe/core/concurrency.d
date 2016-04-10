@@ -1127,6 +1127,8 @@ Future!(ReturnType!CALLABLE) async(CALLABLE, ARGS...)(CALLABLE callable, ARGS ar
 	if (is(typeof(callable(args)) == ReturnType!CALLABLE))
 {
 	import vibe.core.core;
+	import std.functional : toDelegate;
+
 	alias RET = ReturnType!CALLABLE;
 	Future!RET ret;
 	ret.init();
@@ -1136,7 +1138,7 @@ Future!(ReturnType!CALLABLE) async(CALLABLE, ARGS...)(CALLABLE callable, ARGS ar
 	static if (isWeaklyIsolated!CALLABLE && isWeaklyIsolated!ARGS) {
 		ret.m_task = runWorkerTaskH(&compute, ret.m_result, callable, args);
 	} else {
-		ret.m_task = runTask(&compute, ret.m_result, callable, args);
+		ret.m_task = runTask(toDelegate(&compute), ret.m_result, callable, args);
 	}
 	return ret;
 }
@@ -1164,6 +1166,28 @@ unittest {
 	}
 }
 
+///
+unittest {
+	int sum(int a, int b)
+	{
+		return a + b;
+	}
+
+	static int sum2(int a, int b)
+	{
+		return a + b;
+	}
+
+	void test()
+	{
+		// Using a delegate will use runTask internally
+		assert(async(&sum, 2, 3).getResult() == 5);
+
+		// Using a static function will use runTaskWorker internally,
+		// if all arguments are weakly isolated
+		assert(async(&sum2, 2, 3).getResult() == 5);
+	}
+}
 
 /******************************************************************************/
 /* std.concurrency compatible interface for message passing                   */
