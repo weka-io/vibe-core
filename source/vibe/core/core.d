@@ -734,7 +734,9 @@ Timer createTimer(void delegate() nothrow @safe callback)
 		if (callback !is null)
 			callback();
 	}
-	return Timer(eventDriver.createTimer(&cb)); // FIXME: avoid heap closure!
+	auto ret = Timer(eventDriver.createTimer());
+	eventDriver.waitTimer(ret.m_id, &cb); // FIXME: avoid heap closure!
+	return ret;
 }
 
 
