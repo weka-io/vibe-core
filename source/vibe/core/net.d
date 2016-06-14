@@ -14,7 +14,8 @@ import std.functional : toDelegate;
 import std.socket : AddressFamily, UnknownAddress;
 import vibe.core.log;
 import vibe.internal.async;
-
+import core.time : Duration;
+ 
 
 /**
 	Resolves the given host name/IP address string.
@@ -29,13 +30,26 @@ NetworkAddress resolveHost(string host, AddressFamily address_family = AddressFa
 /// ditto
 NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = true)
 {
-	NetworkAddress ret;
-	ret.family = address_family;
-	if (host == "127.0.0.1") {
-		ret.family = AddressFamily.INET;
-		ret.sockAddrInet4.sin_addr.s_addr = 0x0100007F;
-	} else assert(false);
-	return ret;
+	import std.socket : parseAddress;
+	version (Windows) import std.c.windows.winsock : sockaddr_in, sockaddr_in6;
+	else import core.sys.posix.netinet.in_ : sockaddr_in, sockaddr_in6;
+
+	enforce(host.length > 0, "Host name must not be empty.");
+	if (host[0] == ':' || host[0] >= '0' && host[0] <= '9') {
+		auto addr = parseAddress(host);
+		enforce(address_family == AddressFamily.UNSPEC || addr.addressFamily == address_family);
+		NetworkAddress ret;
+		ret.family = addr.addressFamily;
+		switch (addr.addressFamily) with(AddressFamily) {
+			default: throw new Exception("Unsupported address family");
+			case INET: *ret.sockAddrInet4 = *cast(sockaddr_in*)addr.name; break;
+			case INET6: *ret.sockAddrInet6 = *cast(sockaddr_in6*)addr.name; break;
+		}
+		return ret;
+	} else {
+		enforce(use_dns, "Malformed IP address string.");
+		assert(false, "DNS lookup not implemented."); // TODO
+	}
 }
 
 
@@ -103,7 +117,11 @@ TCPConnection connectTCP(NetworkAddress addr)
 
 	scope uaddr = new UnknownAddress;
 	addr.toUnknownAddress(uaddr);
-	auto result = eventDriver.asyncAwait!"connectStream"(uaddr);
+	// FIXME: make this interruptible
+	auto result = asyncAwaitUninterruptible!(ConnectCallback, 
+		cb => eventDriver.connectStream(uaddr, cb)
+		//cb => eventDriver.cancelConnect(cb)
+	);
 	enforce(result[1] == ConnectStatus.connected, "Failed to connect to "~addr.toString()~": "~result[1].to!string);
 	return TCPConnection(result[0]);
 }
@@ -354,7 +372,10 @@ mixin(tracer);
 		// TODO: timeout!!
 		if (m_context.readBuffer.length > 0) return true;
 		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
-		auto res = eventDriver.asyncAwait!"readSocket"(m_socket, m_context.readBuffer.peekDst(), mode);
+		auto res = asyncAwait!(IOCallback,
+			cb => eventDriver.readSocket(m_socket, m_context.readBuffer.peekDst(), mode, cb),
+			cb => eventDriver.cancelRead(m_socket)
+		);
 		logTrace("Socket %s, read %s bytes: %s", res[0], res[2], res[1]);
 
 		assert(m_context.readBuffer.length == 0);
@@ -403,7 +424,9 @@ mixin(tracer);
 mixin(tracer);
 		if (bytes.length == 0) return;
 
-		auto res = eventDriver.asyncAwait!"writeSocket"(m_socket, bytes, IOMode.all);
+		auto res = asyncAwait!(IOCallback,
+			cb => eventDriver.writeSocket(m_socket, bytes, IOMode.all, cb),
+			cb => eventDriver.cancelWrite(m_socket));
 		
 		switch (res[1]) {
 			default:
