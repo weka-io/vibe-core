@@ -102,12 +102,19 @@ int runEventLoop()
 			runTask(toDelegate(&watchExitFlag));
 	} ();
 
-	while (s_scheduler.scheduledTaskCount || eventDriver.waiterCount) {
-		if (eventDriver.processEvents() == ExitReason.exited)
+	while ((s_scheduler.scheduledTaskCount || eventDriver.waiterCount) && !s_exitEventLoop) {
+		logTrace("process events");
+		if (eventDriver.processEvents() == ExitReason.exited) {
 			break;
+		}
+		logTrace("idle processing");
+		performIdleProcessing();
 	}
 
-	logDebug("Event loop done (%s).", eventDriver.waiterCount);
+	logDebug("Event loop done (scheduled tasks=%s, waiters=%s, thread exit=%s).",
+		s_scheduler.scheduledTaskCount, eventDriver.waiterCount, s_exitEventLoop);
+	eventDriver.clearExitFlag();
+	s_exitEventLoop = false;
 	return 0;
 }
 
@@ -149,9 +156,18 @@ void exitEventLoop(bool shutdown_all_threads = false)
 */
 bool processEvents()
 @safe nothrow {
-	if (!eventDriver.processEvents(Duration.max)) return false;
+	if (!eventDriver.processEvents(0.seconds)) return false;
 	performIdleProcessing();
 	return true;
+}
+
+/**
+	Wait once for events and process them.
+*/
+void runEventLoopOnce()
+@safe nothrow {
+	eventDriver.processEvents(Duration.max);
+	performIdleProcessing();
 }
 
 /**
@@ -602,10 +618,12 @@ version (linux) static if (__VERSION__ <= 2066) private extern(C) int get_nprocs
 		the calling task.
 */
 void yield()
-@safe nothrow {
+@safe {
 	auto t = Task.getThis();
 	if (t != Task.init) {
+		t.taskFiber.handleInterrupt();
 		s_scheduler.yield();
+		t.taskFiber.handleInterrupt();
 	} else {
 		// Let yielded tasks execute
 		() @safe nothrow { performIdleProcessing(); } ();
@@ -629,7 +647,7 @@ void hibernate(scope void delegate() @safe nothrow on_interrupt = null)
 @safe nothrow {
 	auto t = Task.getThis();
 	if (t == Task.init) {
-		processEvents();
+		runEventLoopOnce();
 	} else {
 		t.taskFiber.handleInterrupt(on_interrupt);
 		s_scheduler.hibernate();
