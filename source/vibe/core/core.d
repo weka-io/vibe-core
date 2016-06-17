@@ -102,12 +102,12 @@ int runEventLoop()
 			runTask(toDelegate(&watchExitFlag));
 	} ();
 
-	while ((s_scheduler.scheduledTaskCount || eventDriver.waiterCount) && !s_exitEventLoop) {
-		logTrace("process events");
-		if (eventDriver.processEvents() == ExitReason.exited) {
+	while (true) {
+		auto er = s_scheduler.waitAndProcess();
+		if (er != ExitReason.idle || s_exitEventLoop) {
+			logDebug("Event loop exit reason (exit flag=%s): %s", s_exitEventLoop, er);
 			break;
 		}
-		logTrace("idle processing");
 		performIdleProcessing();
 	}
 
@@ -156,18 +156,18 @@ void exitEventLoop(bool shutdown_all_threads = false)
 */
 bool processEvents()
 @safe nothrow {
-	if (!eventDriver.processEvents(0.seconds)) return false;
-	performIdleProcessing();
-	return true;
+	return !s_scheduler.process().among(ExitReason.exited, ExitReason.outOfWaiters);
 }
 
 /**
 	Wait once for events and process them.
 */
-void runEventLoopOnce()
+ExitReason runEventLoopOnce()
 @safe nothrow {
-	eventDriver.processEvents(Duration.max);
-	performIdleProcessing();
+	auto ret = s_scheduler.waitAndProcess();
+	if (ret == ExitReason.idle)
+		performIdleProcessing();
+	return ret;
 }
 
 /**
@@ -560,7 +560,7 @@ public void setupWorkerThreads(uint num = logicalProcessorCount())
 
 		foreach (i; 0 .. num) {
 			auto thr = new Thread(&workerThreadFunc);
-			thr.name = format("Vibe Task Worker #%s", i);
+			thr.name = format("vibe-%s", i);
 			st_threads ~= ThreadContext(thr, true);
 			thr.start();
 		}
@@ -747,13 +747,11 @@ unittest {
 */
 Timer createTimer(void delegate() nothrow @safe callback)
 @safe nothrow {
-	void cb(TimerID tm)
-	nothrow @safe {
-		if (callback !is null)
-			callback();
-	}
 	auto ret = Timer(eventDriver.createTimer());
-	eventDriver.waitTimer(ret.m_id, &cb); // FIXME: avoid heap closure!
+	if (callback !is null) {
+		void cb(TimerID tm) nothrow @safe { callback(); }
+		eventDriver.waitTimer(ret.m_id, &cb); // FIXME: avoid heap closure!
+	}
 	return ret;
 }
 
@@ -945,6 +943,7 @@ struct Timer {
 
 	private this(TimerID id)
 	nothrow {
+		assert(id != TimerID.init, "Invalid timer ID.");
 		m_driver = eventDriver;
 		m_id = id;
 	}
@@ -1022,7 +1021,7 @@ package(vibe) void performIdleProcessing()
 
 		if (again) {
 			auto er = eventDriver.processEvents(0.seconds);
-			if (er.among!(ExitReason.exited, ExitReason.idle)) {
+			if (er.among!(ExitReason.exited, ExitReason.outOfWaiters)) {
 				logDebug("Setting exit flag due to driver signalling exit");
 				s_exitEventLoop = true;
 				return;
@@ -1158,7 +1157,7 @@ shared static this()
 	st_threadShutdownCondition = new Condition(st_threadsMutex);
 
 	auto thisthr = Thread.getThis();
-	thisthr.name = "Main";
+	thisthr.name = "main";
 	assert(st_threads.length == 0, "Main thread not the first thread!?");
 	st_threads ~= ThreadContext(thisthr, false);
 

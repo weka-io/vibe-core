@@ -7,6 +7,7 @@
 */
 module vibe.core.sync;
 
+import vibe.core.log : logDebugV, logTrace, logInfo;
 import vibe.core.task;
 
 import core.atomic;
@@ -314,7 +315,6 @@ unittest { // test deferred throwing
 	});
 
 	auto t2 = runTask({
-		scope (failure) assert(false, "Only InterruptException supposed to be thrown!");
 		mutex.lock();
 		scope (exit) mutex.unlock();
 		try {
@@ -322,6 +322,8 @@ unittest { // test deferred throwing
 			assert(false, "Yield is supposed to have thrown an InterruptException.");
 		} catch (InterruptException) {
 			// as expected!
+		} catch (Exception) {
+			assert(false, "Only InterruptException supposed to be thrown!");
 		}
 	});
 
@@ -567,6 +569,7 @@ class TaskCondition : core.sync.condition.Condition {
 */
 unittest {
 	import vibe.core.core;
+	import vibe.core.log;
 
 	__gshared Mutex mutex;
 	__gshared TaskCondition condition;
@@ -576,6 +579,8 @@ unittest {
 	mutex = new Mutex;
 	condition = new TaskCondition(mutex);
 
+	logDebug("SETTING UP TASKS");
+
 	// start up the workers and count how many are running
 	foreach (i; 0 .. 4) {
 		workers_still_running++;
@@ -584,16 +589,23 @@ unittest {
 			sleep(100.msecs);
 
 			// notify the waiter that we're finished
-			synchronized (mutex)
+			synchronized (mutex) {
 				workers_still_running--;
+			logDebug("DECREMENT %s", workers_still_running);
+			}
+			logDebug("NOTIFY");
 			condition.notify();
 		});
 	}
 
+	logDebug("STARTING WAIT LOOP");
+
 	// wait until all tasks have decremented the counter back to zero
 	synchronized (mutex) {
-		while (workers_still_running > 0)
+		while (workers_still_running > 0) {
+			logDebug("STILL running %s", workers_still_running);
 			condition.wait();
+		}
 	}
 }
 
@@ -649,9 +661,9 @@ struct ManualEvent {
 	private {
 		static struct ThreadWaiter {
 			ThreadWaiter* next;
-			/*immutable*/ EventID event;
-			/*immutable*/ EventDriver driver;
-			//immutable Thread thread;
+			EventID event;
+			EventDriver driver;
+			Thread thread;
 			StackSList!LocalWaiter tasks;
 		}
 		static struct LocalWaiter {
@@ -660,24 +672,14 @@ struct ManualEvent {
 			void delegate() @safe nothrow notifier;
 			bool cancelled = false;
 
-			void wait(void delegate() @safe nothrow del) @safe nothrow { assert(notifier is null); notifier = del; }
-			void cancel() @safe nothrow { cancelled = true; auto n = notifier; notifier = null; n(); }
-
-			void wait(void delegate() @safe nothrow del)
-			shared @safe nothrow {
+			void wait(void delegate() @safe nothrow del) @safe nothrow {
+				assert(notifier is null, "Local waiter is used twice!");
 				notifier = del;
-				if (!next) eventDriver.waitForEvent(ms_threadEvent, &onEvent);
 			}
-
-			private void onEvent(EventID event)
-			@safe nothrow {
-				assert(event == ms_threadEvent);
-				notifier();
-			}
+			void cancel() @safe nothrow { cancelled = true; notifier = null; }
 		}
 		int m_emitCount;
 		ThreadWaiter* m_waiters;
-
 	}
 
 	// thread destructor in vibe.core.core will decrement the ref. count
@@ -705,6 +707,8 @@ struct ManualEvent {
 	shared nothrow {
 		import core.atomic : atomicOp, cas;
 
+		logTrace("emit shared");
+
 		auto ec = atomicOp!"+="(m_emitCount, 1);
 		auto thisthr = Thread.getThis();
 
@@ -712,33 +716,43 @@ struct ManualEvent {
 			case EmitMode.all:
 				// FIXME: would be nice to have atomicSwap instead
 				auto w = cast(ThreadWaiter*)atomicLoad(m_waiters);
-				if (w !is null && !cas(&m_waiters, cast(shared(ThreadWaiter)*)w, cast(shared(ThreadWaiter)*)null))
+				if (w !is null && !cas(&m_waiters, cast(shared(ThreadWaiter)*)w, cast(shared(ThreadWaiter)*)null)) {
+					logTrace("Another thread emitted concurrently - returning.");
 					return ec;
+				}
 				while (w !is null) {
+					// Note: emitForThisThread can result in w getting deallocated at any
+					//       time, so we need to copy any fields first
+					auto wnext = w.next;
+					atomicStore((cast(shared)w).next, null);
+					assert(wnext !is w, "Same waiter enqueued twice!?");
 					if (w.driver is eventDriver) {
-						// Note: emitForThisThread can result in w getting deallocated at any
-						//       time, so we need to copy any fields first
-						auto tasks = w.tasks;
-						w = w.next;
+						logTrace("Same thread emit (%s/%s)", cast(void*)w, cast(void*)w.tasks.first);
 						emitForThisThread(w.tasks.m_first, mode);
 					} else {
+						logTrace("Foreign thread \"%s\" notify: %s", w.thread.name, w.event);
 						auto drv = w.driver;
 						auto evt = w.event;
-						w = w.next;
 						if (evt != EventID.init)
-							drv.triggerEvent(evt, true);
+							(cast(shared)drv).triggerEvent(evt, true);
 					}
+					w = wnext;
 				}
 				break;
 			case EmitMode.single:
 				assert(false);
 		}
+
+		logTrace("emit shared done");
+
 		return ec;
 	}
 	/// ditto
 	int emit(EmitMode mode = EmitMode.all)
 	nothrow {
 		auto ec = m_emitCount++;
+
+		logTrace("unshared emit");
 
 		final switch (mode) {
 			case EmitMode.all:
@@ -758,6 +772,9 @@ struct ManualEvent {
 
 	/** Acquires ownership and waits until the signal is emitted.
 
+		Note that in order not to miss any emits it is necessary to use the
+		overload taking an integer.
+
 		Throws:
 			May throw an $(D InterruptException) if the task gets interrupted
 			using $(D Task.interrupt()).
@@ -766,79 +783,20 @@ struct ManualEvent {
 	/// ditto
 	int wait() shared { return wait(this.emitCount); }
 
-	/** Acquires ownership and waits until the emit count differs from the given one.
+	/** Acquires ownership and waits until the emit count differs from the
+		given one or until a timeout is reached.
 
 		Throws:
 			May throw an $(D InterruptException) if the task gets interrupted
 			using $(D Task.interrupt()).
 	*/
-	int wait(int emit_count) { return wait(Duration.max, emit_count); }
+	int wait(int emit_count) { return doWait!true(Duration.max, emit_count); }
 	/// ditto
-	int wait(int emit_count) shared { return wait(Duration.max, emit_count); }
-
-	/** Acquires ownership and waits until the emit count differs from the given one or until a timeout is reaced.
-
-		Throws:
-			May throw an $(D InterruptException) if the task gets interrupted
-			using $(D Task.interrupt()).
-	*/
-	int wait(Duration timeout, int emit_count)
-	{
-		ThreadWaiter w;
-		LocalWaiter tw;
-
-		int ec = this.emitCount;
-		while (ec <= emit_count) {
-			// wait for getting resumed directly by emit/emitForThisThread
-			acquireWaiter(w, tw);
-			asyncAwait!(void delegate() @safe nothrow,
-				cb => tw.wait(cb),
-				cb => tw.cancel()
-			)(timeout);
-			ec = this.emitCount;
-		}
-		return ec;
-	}
+	int wait(int emit_count) shared { return doWaitShared!true(Duration.max, emit_count); }
 	/// ditto
-	int wait(Duration timeout, int emit_count)
-	shared {
-		shared(ThreadWaiter) w;
-		LocalWaiter tw;
-
-		int ec = this.emitCount;
-		while (ec <= emit_count) {
-			acquireWaiter(w, tw);
-
-			if (tw.next) {
-				// if we are not the first waiter for this thread,
-				// wait for getting resumed by emitForThisThread
-				asyncAwait!(void delegate() @safe nothrow,
-					cb => tw.wait(cb),
-					cb => tw.cancel()
-				)(timeout);
-				ec = this.emitCount;
-			} else {
-				// if we are the first waiter for this thread,
-				// wait for the thread event to get emitted
-				Waitable!(
-					cb => eventDriver.waitForEvent(ms_threadEvent, cb),
-					cb => eventDriver.cancelWaitForEvent(ms_threadEvent, cb),
-					EventID
-				) eventwaiter;
-				Waitable!(
-					cb => tw.wait(cb),
-					cb => tw.cancel()
-				) localwaiter;
-				asyncAwaitAny!true(timeout, eventwaiter, localwaiter);
-
-				ec = this.emitCount;
-
-				if (!eventwaiter.cancelled) emitForThisThread(cast(LocalWaiter*)w.tasks.m_first, EmitMode.all); // FIXME: use proper emit mode
-				else if (localwaiter.cancelled) break; // timeout
-			}
-		}
-		return ec;
-	}
+	int wait(Duration timeout, int emit_count) { return doWait!true(timeout, emit_count); }
+	/// ditto
+	int wait(Duration timeout, int emit_count) shared { return doWaitShared!true(timeout, emit_count); }
 	
 	/** Same as $(D wait), but defers throwing any $(D InterruptException).
 
@@ -849,45 +807,51 @@ struct ManualEvent {
 	///
 	int waitUninterruptible() shared nothrow { return waitUninterruptible(this.emitCount); }
 	/// ditto
-	int waitUninterruptible(int emit_count) nothrow { return waitUninterruptible(Duration.max, emit_count); }
+	int waitUninterruptible(int emit_count) nothrow { return doWait!false(Duration.max, emit_count); }
 	/// ditto
-	int waitUninterruptible(int emit_count) shared nothrow { return waitUninterruptible(Duration.max, emit_count); }
+	int waitUninterruptible(int emit_count) shared nothrow { return doWaitShared!false(Duration.max, emit_count); }
 	/// ditto
-	int waitUninterruptible(Duration timeout, int emit_count)
-	nothrow {
-		ThreadWaiter w;
-		LocalWaiter tw;
-		acquireWaiter(w, tw);
+	int waitUninterruptible(Duration timeout, int emit_count) nothrow { return doWait!false(timeout, emit_count); }
+	/// ditto
+	int waitUninterruptible(Duration timeout, int emit_count) shared nothrow { return doWaitShared!false(timeout, emit_count); }
 
+	private int doWait(bool interruptible)(Duration timeout, int emit_count)
+	{
 		int ec = this.emitCount;
 		while (ec <= emit_count) {
-			asyncAwaitUninterruptible!(void delegate(),
+			ThreadWaiter w;
+			LocalWaiter tw;
+			acquireWaiter(w, tw);
+
+			Waitable!(
 				cb => tw.wait(cb),
 				cb => tw.cancel()
-			)(timeout);
+			) waitable;
+			asyncAwaitAny!interruptible(timeout, waitable);
 			ec = this.emitCount;
 		}
 		return ec;
 	}
-	/// ditto
-	int waitUninterruptible(Duration timeout, int emit_count)
-	shared nothrow {
-		shared(ThreadWaiter) w;
-		LocalWaiter tw;
 
+	private int doWaitShared(bool interruptible)(Duration timeout, int emit_count)
+	shared {
 		int ec = this.emitCount;
 		while (ec <= emit_count) {
+			shared(ThreadWaiter) w;
+			LocalWaiter tw;
 			acquireWaiter(w, tw);
+			logDebugV("Acquired waiter %s %s -> %s", cast(void*)m_waiters, cast(void*)&w, cast(void*)w.next);
 
 			if (tw.next) {
 				// if we are not the first waiter for this thread,
 				// wait for getting resumed by emitForThisThread
-				asyncAwaitUninterruptible!(void delegate() @safe nothrow,
+				Waitable!(
 					cb => tw.wait(cb),
 					cb => tw.cancel()
-				)(timeout);
-				ec = this.emitCount;
+				) waitable;
+				asyncAwaitAny!interruptible(timeout, waitable);
 			} else {
+				again:
 				// if we are the first waiter for this thread,
 				// wait for the thread event to get emitted
 				Waitable!(
@@ -899,13 +863,20 @@ struct ManualEvent {
 					cb => tw.wait(cb),
 					cb => tw.cancel()
 				) localwaiter;
-				asyncAwaitAny!false(timeout, eventwaiter, localwaiter);
+				logDebugV("Wait on event %s", ms_threadEvent);
+				asyncAwaitAny!interruptible(timeout, eventwaiter, localwaiter);
 
-				ec = this.emitCount;
-
-				if (!eventwaiter.cancelled) emitForThisThread(cast(LocalWaiter*)w.tasks.m_first, EmitMode.all); // FIXME: use proper emit mode
-				else if (localwaiter.cancelled) break; // timeout
+				if (!eventwaiter.cancelled) {
+					if (atomicLoad(w.next) == null)
+						emitForThisThread(cast(LocalWaiter*)w.tasks.m_first, EmitMode.all); // FIXME: use proper emit mode
+					else goto again;
+				} else if (localwaiter.cancelled) break; // timeout
 			}
+
+			assert(atomicLoad(w.next) is null && atomicLoad(m_waiters) !is &w,
+				"Waiter did not get removed from waiter queue.");
+
+			ec = this.emitCount;
 		}
 		return ec;
 	}
@@ -914,12 +885,19 @@ struct ManualEvent {
 	nothrow {
 		if (!waiters) return false;
 
+		logTrace("emitForThisThread");
+
 		final switch (mode) {
 			case EmitMode.all:
 				while (waiters) {
-					if (waiters.notifier !is null)
+					auto wnext = waiters.next;
+					assert(wnext !is waiters);
+					if (waiters.notifier !is null) {
+						logTrace("notify task %s %s %s", cast(void*)waiters, cast(void*)waiters.notifier.funcptr, waiters.notifier.ptr);
 						waiters.notifier();
-					waiters = waiters.next;
+						waiters.notifier = null;
+					} else logTrace("notify callback is null");
+					waiters = wnext;
 				}
 				break;
 			case EmitMode.single:
@@ -950,20 +928,27 @@ struct ManualEvent {
 
 		auto sdriver = cast(shared)eventDriver;
 
-		if (m_waiters) {
-			shared(ThreadWaiter)* pw = m_waiters;
-			while (pw !is null) {
-				if (pw.driver is sdriver) {
-					(cast(ThreadWaiter*)pw).tasks.add(&tw);
-					break;
-				}
-				pw = atomicLoad(pw.next);
-			}
-		} else {
-			m_waiters = &w;
-			w.event = ms_threadEvent;
-			w.driver = sdriver;
+		shared(ThreadWaiter)* pw = atomicLoad(m_waiters);
+		assert(pw !is &w, "Waiter is already registered!");
+		while (pw !is null) {
+			if (pw.driver is sdriver)
+				break;
+			pw = atomicLoad(pw.next);
 		}
+
+		if (!pw) {
+			pw = &w;
+			shared(ThreadWaiter)* wn;
+			do {
+				wn = atomicLoad(m_waiters);
+				w.next = wn;
+				w.event = ms_threadEvent;
+				w.driver = sdriver;
+				w.thread = cast(shared)Thread.getThis();
+			} while (!cas(&m_waiters, wn, &w));
+		}
+
+		(cast(ThreadWaiter*)pw).tasks.add(&tw);
 	}
 }
 
@@ -1023,7 +1008,6 @@ private struct StackSList(T)
 }
 
 private struct TaskMutexImpl(bool INTERRUPTIBLE) {
-	import std.stdio;
 	private {
 		shared(bool) m_locked = false;
 		shared(uint) m_waiters = 0;
@@ -1041,7 +1025,7 @@ private struct TaskMutexImpl(bool INTERRUPTIBLE) {
 	{
 		if (cas(&m_locked, false, true)) {
 			debug m_owner = Task.getThis();
-			version(MutexPrint) writefln("mutex %s lock %s", cast(void*)this, atomicLoad(m_waiters));
+			debug(VibeMutexPrint) logTrace("mutex %s lock %s", cast(void*)&this, atomicLoad(m_waiters));
 			return true;
 		}
 		return false;
@@ -1052,7 +1036,7 @@ private struct TaskMutexImpl(bool INTERRUPTIBLE) {
 		if (tryLock()) return;
 		debug assert(m_owner == Task() || m_owner != Task.getThis(), "Recursive mutex lock.");
 		atomicOp!"+="(m_waiters, 1);
-		version(MutexPrint) writefln("mutex %s wait %s", cast(void*)this, atomicLoad(m_waiters));
+		debug(VibeMutexPrint) logTrace("mutex %s wait %s", cast(void*)&this, atomicLoad(m_waiters));
 		scope(exit) atomicOp!"-="(m_waiters, 1);
 		auto ecnt = m_signal.emitCount();
 		while (!tryLock()) {
@@ -1069,7 +1053,7 @@ private struct TaskMutexImpl(bool INTERRUPTIBLE) {
 			m_owner = Task();
 		}
 		atomicStore!(MemoryOrder.rel)(m_locked, false);
-		version(MutexPrint) writefln("mutex %s unlock %s", cast(void*)this, atomicLoad(m_waiters));
+		debug(VibeMutexPrint) logTrace("mutex %s unlock %s", cast(void*)&this, atomicLoad(m_waiters));
 		if (atomicLoad(m_waiters) > 0)
 			m_signal.emit();
 	}
@@ -1113,7 +1097,7 @@ private struct RecursiveTaskMutexImpl(bool INTERRUPTIBLE) {
 	{
 		if (tryLock()) return;
 		atomicOp!"+="(m_waiters, 1);
-		version(MutexPrint) writefln("mutex %s wait %s", cast(void*)this, atomicLoad(m_waiters));
+		debug(VibeMutexPrint) logTrace("mutex %s wait %s", cast(void*)&this, atomicLoad(m_waiters));
 		scope(exit) atomicOp!"-="(m_waiters, 1);
 		auto ecnt = m_signal.emitCount();
 		while (!tryLock()) {
@@ -1133,7 +1117,7 @@ private struct RecursiveTaskMutexImpl(bool INTERRUPTIBLE) {
 				m_owner = Task.init;
 			}
 		});
-		version(MutexPrint) writefln("mutex %s unlock %s", cast(void*)this, atomicLoad(m_waiters));
+		debug(VibeMutexPrint) logTrace("mutex %s unlock %s", cast(void*)&this, atomicLoad(m_waiters));
 		if (atomicLoad(m_waiters) > 0)
 			m_signal.emit();
 	}

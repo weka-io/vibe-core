@@ -79,10 +79,28 @@ struct Task {
 
 	T opCast(T)() const nothrow if (is(T == bool)) { return m_fiber !is null; }
 
-	void join() { if (running) taskFiber.join(); }
-	void interrupt() { if (running) taskFiber.interrupt(); }
+	void join() { if (running) taskFiber.join(m_taskCounter); }
+	void interrupt() { if (running) taskFiber.interrupt(m_taskCounter); }
 
 	string toString() const { import std.string; return format("%s:%s", cast(void*)m_fiber, m_taskCounter); }
+
+	void getDebugID(R)(ref R dst)
+	{
+		import std.digest.md : MD5;
+		import std.bitmanip : nativeToLittleEndian;
+		import std.base64 : Base64;
+
+		if (!m_fiber) {
+			dst.put("----");
+			return;
+		}
+
+		MD5 md;
+		md.start();
+		md.put(nativeToLittleEndian(cast(size_t)cast(void*)m_fiber));
+		md.put(nativeToLittleEndian(cast(size_t)cast(void*)m_taskCounter));
+		Base64.encode(md.finish()[0 .. 3], dst);
+	}
 
 	bool opEquals(in ref Task other) const nothrow @safe { return m_fiber is other.m_fiber && m_taskCounter == other.m_taskCounter; }
 	bool opEquals(in Task other) const nothrow @safe { return m_fiber is other.m_fiber && m_taskCounter == other.m_taskCounter; }
@@ -261,7 +279,7 @@ final package class TaskFiber : Fiber {
 		shared size_t m_taskCounter;
 		shared bool m_running;
 
-		Task[] m_joiners;
+		shared(ManualEvent) m_onExit;
 
 		// task local storage
 		BitArray m_flsInit;
@@ -352,12 +370,8 @@ final package class TaskFiber : Fiber {
 
 				this.tidInfo.ident = Tid.init; // clear message box
 
-				foreach (t; m_joiners) {
-					logTrace("Resuming joining task.");
-					taskScheduler.switchTo(t);
-				}
-				m_joiners.length = 0;
-				m_joiners.assumeSafeAppend();
+				logTrace("Notifying joining tasks.");
+				m_onExit.emit();
 
 				// make sure that the task does not get left behind in the yielder queue if terminated during yield()
 				if (m_queue) m_queue.remove(this);
@@ -395,27 +409,20 @@ final package class TaskFiber : Fiber {
 
 	/** Blocks until the task has ended.
 	*/
-	void join()
+	void join(size_t task_counter)
 	{
-		import vibe.core.core : hibernate, yield;
-
-		auto caller = Task.getThis();
-		if (!m_running) return;
-		if (caller != Task.init) {
-			assert(caller.fiber !is this, "A task cannot join itself.");
-			assert(caller.thread is this.thread, "Joining tasks in foreign threads is currently not supported.");
-			m_joiners ~= caller;
-		} else assert(Thread.getThis() is this.thread, "Joining tasks in different threads is not yet supported.");
-		auto run_count = m_taskCounter;
-		if (caller == Task.init) vibe.core.core.yield(); // let the task continue (it must be yielded currently)
-		while (m_running && run_count == m_taskCounter) hibernate();
+		while (m_running && m_taskCounter == task_counter)
+			m_onExit.wait();
 	}
 
 	/** Throws an InterruptExeption within the task as soon as it calls an interruptible function.
 	*/
-	void interrupt()
+	void interrupt(size_t task_counter)
 	{
 		import vibe.core.core : taskScheduler;
+
+		if (m_taskCounter != task_counter)
+			return;
 
 		auto caller = Task.getThis();
 		if (caller != Task.init) {
@@ -481,6 +488,9 @@ package struct TaskFuncInfo {
 }
 
 package struct TaskScheduler {
+	import eventcore.driver : ExitReason;
+	import eventcore.core : eventDriver;
+
 	private {
 		TaskFiberQueue m_taskQueue;
 		TaskFiber m_markerTask;
@@ -511,6 +521,99 @@ package struct TaskScheduler {
 	}
 
 	nothrow:
+
+	/** Performs a single round of scheduling without blocking.
+
+		This will execute scheduled tasks and process events from the
+		event queue, as long as possible without having to wait.
+
+		Returns:
+			A reason is returned:
+			$(UL
+				$(LI `ExitReason.exit`: The event loop was exited due to a manual request)
+				$(LI `ExitReason.outOfWaiters`: There are no more scheduled
+					tasks or events, so the application would do nothing from
+					now on)
+				$(LI `ExitReason.idle`: All scheduled tasks and pending events
+					have been processed normally)
+				$(LI `ExitReason.timeout`: Scheduled tasks have been processed,
+					but there were no pending events present.)
+			)
+	*/
+	ExitReason process()
+	{
+		bool any_events = false;
+		while (true) {
+			// process pending tasks
+			schedule();
+
+			logTrace("Processing pending events...");
+			ExitReason er = eventDriver.processEvents(0.seconds);
+			logTrace("Done.");
+
+			final switch (er) {
+				case ExitReason.exited: return ExitReason.exited;
+				case ExitReason.outOfWaiters:
+					if (!scheduledTaskCount)
+						return ExitReason.outOfWaiters;
+					break;
+				case ExitReason.timeout:
+					if (!scheduledTaskCount)
+						return any_events ? ExitReason.idle : ExitReason.timeout;
+					break;
+				case ExitReason.idle:
+					any_events = true;
+					if (!scheduledTaskCount)
+						return ExitReason.idle;
+					break;
+			}
+		}
+	}
+
+	/** Performs a single round of scheduling, blocking if necessary.
+
+		Returns:
+			A reason is returned:
+			$(UL
+				$(LI `ExitReason.exit`: The event loop was exited due to a manual request)
+				$(LI `ExitReason.outOfWaiters`: There are no more scheduled
+					tasks or events, so the application would do nothing from
+					now on)
+				$(LI `ExitReason.idle`: All scheduled tasks and pending events
+					have been processed normally)
+			)
+	*/
+	ExitReason waitAndProcess()
+	{
+		// first, process tasks without blocking
+		auto er = process();
+
+		final switch (er) {
+			case ExitReason.exited, ExitReason.outOfWaiters: return er;
+			case ExitReason.idle: return ExitReason.idle;
+			case ExitReason.timeout: break;
+		}
+
+		// if the first run didn't process any events, block and
+		// process one chunk
+		logTrace("Wait for new events to process...");
+		er = eventDriver.processEvents();
+		logTrace("Done.");
+		final switch (er) {
+			case ExitReason.exited: return ExitReason.exited;
+			case ExitReason.outOfWaiters:
+				if (!scheduledTaskCount)
+					return ExitReason.outOfWaiters;
+				break;
+			case ExitReason.timeout: assert(false, "Unexpected return code");
+			case ExitReason.idle: break;
+		}
+
+		// finally, make sure that all scheduled tasks are run
+		er = process();
+		if (er == ExitReason.timeout) return ExitReason.idle;
+		else return er;
+	}
 
 	void yieldUninterruptible()
 	{

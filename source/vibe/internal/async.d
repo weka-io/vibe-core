@@ -75,48 +75,63 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 	bool any_fired = false;
 	Task t;
 
-	logTrace("Performing %s async operations in %s", waitables.length, func);
+	bool still_inside = true;
+	scope (exit) still_inside = false;
+
+	logDebugV("Performing %s async operations in %s", waitables.length, func);
 
 	foreach (i, W; Waitables) {
-		callbacks[i] = (typeof(Waitables[i].results) results) @safe nothrow {
-			logTrace("Waitable %s in %s fired.", i, func);
+		/*scope*/auto cb = (typeof(Waitables[i].results) results) @safe nothrow {
+			assert(still_inside, "Notification fired after asyncAwait had already returned!");
+			logDebugV("Waitable %s in %s fired (istask=%s).", i, func, t != Task.init);
 			fired[i] = true;
 			any_fired = true;
 			waitables[i].results = results;
 			if (t != Task.init) switchToTask(t);
 		};
+		callbacks[i] = cb;
 
-		logTrace("Starting operation %s", i);
+		logDebugV("Starting operation %s", i);
 		waitables[i].waitCallback(callbacks[i]);
-		scope_guards[i] = ScopeGuard({
+
+		scope ccb = {
 			if (!fired[i]) {
-				logTrace("Cancelling operation %s", i);
+				logDebugV("Cancelling operation %s", i);
 				waitables[i].cancelCallback(callbacks[i]);
+				waitables[i].cancelled = true;
 				any_fired = true;
 				fired[i] = true;
 			}
-		});
+		};
+		scope_guards[i] = ScopeGuard(ccb);
+
 		if (any_fired) {
-			logTrace("Returning without waiting.");
+			logDebugV("Returning to %s without waiting.", func);
 			return;
 		}
 	}
 
-	logTrace("Need to wait...");
+	logDebugV("Need to wait in %s (%s)...", func, interruptible ? "interruptible" : "uninterruptible");
+
 	t = Task.getThis();
+
 	do {
 		static if (interruptible) {
 			bool interrupted = false;
 			hibernate(() @safe nothrow {
-				logTrace("Got interrupted in %s.", func);
+				logDebugV("Got interrupted in %s.", func);
 				interrupted = true;
 			});
+			logDebugV("Task resumed (fired=%s, interrupted=%s)", fired, interrupted);
 			if (interrupted)
 				throw new InterruptException;
-		} else hibernate();
+		} else {
+			hibernate();
+			logDebugV("Task resumed (fired=%s)", fired);
+		}
 	} while (!any_fired);
 
-	logTrace("Return result for %s.", func);
+	logDebugV("Return result for %s.", func);
 }
 
 private alias CBDel(Waitable) = void delegate(typeof(Waitable.results)) @safe nothrow;
@@ -128,4 +143,26 @@ private struct ScopeGuard { @safe nothrow: void delegate() op; ~this() { if (op 
 	auto ret = asyncAwaitUninterruptible!(void delegate(int), (cb) { cnt++; cb(42); });
 	assert(ret[0] == 42);
 	assert(cnt == 1);
+}
+
+@safe nothrow /*@nogc*/ unittest {
+	int a, b, c;
+	Waitable!(
+		(cb) { a++; cb(42); },
+		(cb) { assert(false); },
+		int
+	) w1;
+	Waitable!(
+		(cb) { b++; },
+		(cb) { c++; },
+		int
+	) w2;
+
+	asyncAwaitAny!false(w1, w2);
+	assert(w1.results[0] == 42 && w2.results[0] == 0);
+	assert(a == 1 && b == 0 && c == 0);
+
+	asyncAwaitAny!false(w2, w1);
+	assert(w1.results[0] == 42 && w2.results[0] == 0);
+	assert(a == 2 && b == 1 && c == 1);
 }
