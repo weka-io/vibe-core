@@ -258,7 +258,13 @@ final class FileLogger : Logger {
 	}
 
 	Format format = Format.thread;
-	Format infoFormat = Format.plain;
+	Format infoFormat = Format.thread;
+
+	/** Use escape sequences to color log output.
+		
+		Note that the terminal must support 256-bit color codes.
+	*/
+	bool useColors = true;
 
 	this(File info_file, File diag_file)
 	{
@@ -291,9 +297,34 @@ final class FileLogger : Logger {
 
 		auto fmt = (m_curFile is m_diagFile) ? this.format : this.infoFormat;
 
+		auto dst = m_curFile.lockingTextWriter;
+
+		if (this.useColors) {
+			final switch (msg.level) {
+				case LogLevel.trace: dst.put("\x1b[49;38;5;243m"); break;
+				case LogLevel.debugV: dst.put("\x1b[49;38;5;245m"); break;
+				case LogLevel.debug_: dst.put("\x1b[49;38;5;248m"); break;
+				case LogLevel.diagnostic: dst.put("\x1b[49;38;5;253m"); break;
+				case LogLevel.info: dst.put("\x1b[49;38;5;15m"); break;
+				case LogLevel.warn: dst.put("\x1b[49;38;5;220m"); break;
+				case LogLevel.error: dst.put("\x1b[49;38;5;9m"); break;
+				case LogLevel.critical: dst.put("\x1b[41;38;5;15m"); break;
+				case LogLevel.fatal: dst.put("\x1b[48;5;9;30m"); break;
+				case LogLevel.none: assert(false);
+			}
+		}
+
 		final switch (fmt) {
 			case Format.plain: break;
-			case Format.thread: m_curFile.writef("[%08X:%08X %s] ", msg.threadID, msg.fiberID, pref); break;
+			case Format.thread:
+				dst.put('[');
+				if (msg.threadName.length) dst.put(msg.threadName);
+				else dst.formattedWrite("%08X", msg.threadID);
+				dst.put('(');
+				import vibe.core.task : Task;
+				Task.getThis().getDebugID(dst);
+				dst.formattedWrite(") %s] ", pref);
+				break;
 			case Format.threadTime:
 				auto tm = msg.time;
 				static if (is(typeof(tm.fracSecs))) auto msecs = tm.fracSecs.total!"msecs"; // 2.069 has deprecated "fracSec"
@@ -315,6 +346,7 @@ final class FileLogger : Logger {
 
 	override void endLine()
 	{
+		if (useColors) m_curFile.write("\x1b[0m");
 		static if (__VERSION__ <= 2066)
 			() @trusted { m_curFile.writeln(); } ();
 		else m_curFile.writeln();
@@ -817,6 +849,7 @@ private struct LogOutputRange {
 			this.info.level = level;
 			this.info.thread = () @trusted { return Thread.getThis(); }(); // not @safe as of 2.065
 			this.info.threadID = makeid(this.info.thread);
+			this.info.threadName = () @trusted { return this.info.thread.name; } ();
 			this.info.fiber = () @trusted { return Fiber.getThis(); }(); // not @safe as of 2.065
 			this.info.fiberID = makeid(this.info.fiber);
 		} catch (Exception e) {
