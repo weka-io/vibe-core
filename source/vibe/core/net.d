@@ -13,6 +13,7 @@ import std.format : format;
 import std.functional : toDelegate;
 import std.socket : AddressFamily, UnknownAddress;
 import vibe.core.log;
+import vibe.core.stream;
 import vibe.internal.async;
 import core.time : Duration;
  
@@ -441,9 +442,10 @@ mixin(tracer);
 mixin(tracer);
 	}
 	void finalize() {}
-	void write(InputStream)(InputStream stream, ulong nbytes = 0) { writeDefault(stream, nbytes); }
+	void write(InputStream)(InputStream stream, ulong nbytes = 0) if (isInputStream!InputStream) { writeDefault(stream, nbytes); }
 
 	private void writeDefault(InputStream)(InputStream stream, ulong nbytes = 0)
+		if (isInputStream!InputStream)
 	{
 		import std.algorithm.comparison : min;
 
