@@ -1,14 +1,19 @@
 import vibe.core.core;
 import vibe.core.net;
 import core.time : msecs;
+import std.string : representation;
 
 void main()
 {
 	import vibe.core.log;
 	bool done = false;
-	listenTCP(11375,(conn){
-		conn.write("foo");
-		conn.close();
+	listenTCP(11375, (conn) {
+		try {
+			conn.write("foo".representation);
+			conn.close();
+		} catch (Exception e) {
+			assert(false, e.msg);
+		}
 		done = true;
 	});
 
