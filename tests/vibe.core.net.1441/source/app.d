@@ -2,7 +2,7 @@ import vibe.core.core;
 import vibe.core.net;
 import core.time : msecs;
 
-shared static this()
+void main()
 {
 	import vibe.core.log;
 	bool done = false;
@@ -21,4 +21,6 @@ shared static this()
 
 		exitEventLoop();
 	});
+
+	runEventLoop();
 }

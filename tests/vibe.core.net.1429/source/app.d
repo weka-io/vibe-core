@@ -4,7 +4,7 @@ import vibe.core.net;
 import core.time : msecs;
 import std.datetime : Clock, UTC;
 
-shared static this()
+void main()
 {
 	auto udp = listenUDP(11429, "127.0.0.1");
 
@@ -26,4 +26,6 @@ shared static this()
 			exitEventLoop();
 		}
 	});
+
+	runEventLoop();
 }
