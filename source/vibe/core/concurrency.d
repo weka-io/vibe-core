@@ -1196,6 +1196,23 @@ unittest {
 /* std.concurrency compatible interface for message passing                   */
 /******************************************************************************/
 
+enum ConcurrencyPrimitive {
+	task,       // Task run in the caller's thread (`runTask`)
+	workerTask, // Task run in the worker thread pool (`runWorkerTask`)
+	thread      // Separate thread
+}
+
+/** Sets the concurrency primitive to use for `śtd.concurrency.spawn()`.
+
+	By default, `spawn()` will start a thread for each call, mimicking the
+	default behavior of `std.concurrency`.
+*/
+void setConcurrencyPrimitive(ConcurrencyPrimitive primitive)
+{
+	import core.atomic : atomicStore;
+	atomicStore(st_concurrencyPrimitive, primitive);
+}
+
 void send(ARGS...)(Task task, ARGS args) { std.concurrency.send(task.tidInfo.ident, args); }
 void prioritySend(ARGS...)(Task task, ARGS args) { std.concurrency.prioritySend(task.tidInfo.ident, args); }
 
@@ -1205,7 +1222,23 @@ package class VibedScheduler : Scheduler {
 	import vibe.core.sync;
 
 	override void start(void delegate() op) { op(); }
-	override void spawn(void delegate() op) { runTask(op); }
+	override void spawn(void delegate() op) {
+		import core.thread : Thread;
+
+		final switch (st_concurrencyPrimitive) with (ConcurrencyPrimitive) {
+			case task: runTask(op); break;
+			case workerTask: 
+				static void wrapper(shared(void delegate()) op) {
+					(cast(void delegate())op)();
+				}
+				runWorkerTask(&wrapper, cast(shared)op);
+				break;
+			case thread:
+				auto t = new Thread(op);
+				t.start();
+				break;
+		}
+	}
 	override void yield() {}
 	override @property ref ThreadInfo thisInfo(){ return Task.getThis().tidInfo; }
 	override TaskCondition newCondition(Mutex m)
@@ -1215,3 +1248,5 @@ package class VibedScheduler : Scheduler {
 			} catch(Exception e) { assert(false, e.msg); }
 	}
 }
+
+private shared ConcurrencyPrimitive st_concurrencyPrimitive = ConcurrencyPrimitive.thread;
