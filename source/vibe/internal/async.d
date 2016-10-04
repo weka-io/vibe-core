@@ -78,7 +78,7 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 	bool still_inside = true;
 	scope (exit) still_inside = false;
 
-	logDebugV("Performing %s async operations in %s", waitables.length, func);
+	debug(VibeAsyncLog) logDebugV("Performing %s async operations in %s", waitables.length, func);
 
 	foreach (i, W; Waitables) {
 		/*scope*/auto cb = (typeof(Waitables[i].results) results) @safe nothrow {
@@ -91,12 +91,12 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 		};
 		callbacks[i] = cb;
 
-		logDebugV("Starting operation %s", i);
+		debug(VibeAsyncLog) logDebugV("Starting operation %s", i);
 		waitables[i].waitCallback(callbacks[i]);
 
-		scope ccb = {
+		scope ccb = () @safe nothrow {
 			if (!fired[i]) {
-				logDebugV("Cancelling operation %s", i);
+				debug(VibeAsyncLog) logDebugV("Cancelling operation %s", i);
 				waitables[i].cancelCallback(callbacks[i]);
 				waitables[i].cancelled = true;
 				any_fired = true;
@@ -106,12 +106,12 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 		scope_guards[i] = ScopeGuard(ccb);
 
 		if (any_fired) {
-			logDebugV("Returning to %s without waiting.", func);
+			debug(VibeAsyncLog) logDebugV("Returning to %s without waiting.", func);
 			return;
 		}
 	}
 
-	logDebugV("Need to wait in %s (%s)...", func, interruptible ? "interruptible" : "uninterruptible");
+	debug(VibeAsyncLog) logDebugV("Need to wait in %s (%s)...", func, interruptible ? "interruptible" : "uninterruptible");
 
 	t = Task.getThis();
 
@@ -119,19 +119,19 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 		static if (interruptible) {
 			bool interrupted = false;
 			hibernate(() @safe nothrow {
-				logDebugV("Got interrupted in %s.", func);
+				debug(VibeAsyncLog) logDebugV("Got interrupted in %s.", func);
 				interrupted = true;
 			});
-			logDebugV("Task resumed (fired=%s, interrupted=%s)", fired, interrupted);
+			debug(VibeAsyncLog) logDebugV("Task resumed (fired=%s, interrupted=%s)", fired, interrupted);
 			if (interrupted)
 				throw new InterruptException;
 		} else {
 			hibernate();
-			logDebugV("Task resumed (fired=%s)", fired);
+			debug(VibeAsyncLog) logDebugV("Task resumed (fired=%s)", fired);
 		}
 	} while (!any_fired);
 
-	logDebugV("Return result for %s.", func);
+	debug(VibeAsyncLog) logDebugV("Return result for %s.", func);
 }
 
 private alias CBDel(Waitable) = void delegate(typeof(Waitable.results)) @safe nothrow;
