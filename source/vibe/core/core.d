@@ -87,7 +87,7 @@ version (Windows)
 */
 int runApplication(string[]* args_out = null)
 @safe {
-	try if (!finalizeCommandLineOptions()) return 0;
+	try if (!() @trusted { return finalizeCommandLineOptions(); } () ) return 0;
 	catch (Exception e) {
 		logDiagnostic("Error processing command line: %s", e.msg);
 		return 1;
@@ -942,7 +942,7 @@ void disableDefaultSignalHandlers()
 	system log files).
 */
 void lowerPrivileges(string uname, string gname)
-{
+@safe {
 	if (!isRoot()) return;
 	if (uname != "" || gname != "") {
 		static bool tryParse(T)(string s, out T n)
@@ -961,7 +961,7 @@ void lowerPrivileges(string uname, string gname)
 
 // ditto
 void lowerPrivileges()
-{
+@safe {
 	lowerPrivileges(s_privilegeLoweringUserName, s_privilegeLoweringGroupName);
 }
 
@@ -1466,10 +1466,10 @@ nothrow {
 
 version(Posix)
 {
-	private bool isRoot() { return geteuid() == 0; }
+	private bool isRoot() @trusted { return geteuid() == 0; }
 
 	private void setUID(int uid, int gid)
-	{
+	@trusted {
 		logInfo("Lowering privileges to uid=%d, gid=%d...", uid, gid);
 		if (gid >= 0) {
 			enforce(getgrgid(gid) !is null, "Invalid group id!");
@@ -1483,34 +1483,34 @@ version(Posix)
 	}
 
 	private int getUID(string name)
-	{
+	@trusted {
 		auto pw = getpwnam(name.toStringz());
 		enforce(pw !is null, "Unknown user name: "~name);
 		return pw.pw_uid;
 	}
 
 	private int getGID(string name)
-	{
+	@trusted {
 		auto gr = getgrnam(name.toStringz());
 		enforce(gr !is null, "Unknown group name: "~name);
 		return gr.gr_gid;
 	}
 } else version(Windows){
-	private bool isRoot() { return false; }
+	private bool isRoot() @safe { return false; }
 
 	private void setUID(int uid, int gid)
-	{
+	@safe {
 		enforce(false, "UID/GID not supported on Windows.");
 	}
 
 	private int getUID(string name)
-	{
+	@safe {
 		enforce(false, "Privilege lowering not supported on Windows.");
 		assert(false);
 	}
 
 	private int getGID(string name)
-	{
+	@safe {
 		enforce(false, "Privilege lowering not supported on Windows.");
 		assert(false);
 	}
