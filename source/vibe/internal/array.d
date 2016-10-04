@@ -575,8 +575,10 @@ struct BatchBuffer(T, size_t N = 0) {
 	void putN(T[] elems) { assert(empty && elems.length <= m_buffer.length); m_buffer[0 .. elems.length] = elems[]; m_fill = elems.length; }
 	void read(T[] dst) {
 		assert(length() >= dst.length);
-		dst[] = m_buffer[0 .. m_fill];
-		m_fill = 0;
+		dst[] = m_buffer[m_first .. m_first + dst.length];
+		m_first += dst.length;
+		assert(m_first <= m_fill);
+		if (m_first == m_fill) m_first = m_fill = 0;
 	}
 }
 
