@@ -1025,7 +1025,7 @@ private struct TaskMutexImpl(bool INTERRUPTIBLE) {
 	{
 		if (cas(&m_locked, false, true)) {
 			debug m_owner = Task.getThis();
-			debug(VibeMutexPrint) logTrace("mutex %s lock %s", cast(void*)&this, atomicLoad(m_waiters));
+			debug(VibeMutexLog) logTrace("mutex %s lock %s", cast(void*)&this, atomicLoad(m_waiters));
 			return true;
 		}
 		return false;
@@ -1036,7 +1036,7 @@ private struct TaskMutexImpl(bool INTERRUPTIBLE) {
 		if (tryLock()) return;
 		debug assert(m_owner == Task() || m_owner != Task.getThis(), "Recursive mutex lock.");
 		atomicOp!"+="(m_waiters, 1);
-		debug(VibeMutexPrint) logTrace("mutex %s wait %s", cast(void*)&this, atomicLoad(m_waiters));
+		debug(VibeMutexLog) logTrace("mutex %s wait %s", cast(void*)&this, atomicLoad(m_waiters));
 		scope(exit) atomicOp!"-="(m_waiters, 1);
 		auto ecnt = m_signal.emitCount();
 		while (!tryLock()) {
@@ -1053,7 +1053,7 @@ private struct TaskMutexImpl(bool INTERRUPTIBLE) {
 			m_owner = Task();
 		}
 		atomicStore!(MemoryOrder.rel)(m_locked, false);
-		debug(VibeMutexPrint) logTrace("mutex %s unlock %s", cast(void*)&this, atomicLoad(m_waiters));
+		debug(VibeMutexLog) logTrace("mutex %s unlock %s", cast(void*)&this, atomicLoad(m_waiters));
 		if (atomicLoad(m_waiters) > 0)
 			m_signal.emit();
 	}
@@ -1097,7 +1097,7 @@ private struct RecursiveTaskMutexImpl(bool INTERRUPTIBLE) {
 	{
 		if (tryLock()) return;
 		atomicOp!"+="(m_waiters, 1);
-		debug(VibeMutexPrint) logTrace("mutex %s wait %s", cast(void*)&this, atomicLoad(m_waiters));
+		debug(VibeMutexLog) logTrace("mutex %s wait %s", cast(void*)&this, atomicLoad(m_waiters));
 		scope(exit) atomicOp!"-="(m_waiters, 1);
 		auto ecnt = m_signal.emitCount();
 		while (!tryLock()) {
@@ -1117,7 +1117,7 @@ private struct RecursiveTaskMutexImpl(bool INTERRUPTIBLE) {
 				m_owner = Task.init;
 			}
 		});
-		debug(VibeMutexPrint) logTrace("mutex %s unlock %s", cast(void*)&this, atomicLoad(m_waiters));
+		debug(VibeMutexLog) logTrace("mutex %s unlock %s", cast(void*)&this, atomicLoad(m_waiters));
 		if (atomicLoad(m_waiters) > 0)
 			m_signal.emit();
 	}
