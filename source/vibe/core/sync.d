@@ -734,7 +734,7 @@ struct ManualEvent {
 						auto drv = w.driver;
 						auto evt = w.event;
 						if (evt != EventID.init)
-							(cast(shared)drv).triggerEvent(evt, true);
+							(cast(shared)drv.events).trigger(evt, true);
 					}
 					w = wnext;
 				}
@@ -855,8 +855,8 @@ struct ManualEvent {
 				// if we are the first waiter for this thread,
 				// wait for the thread event to get emitted
 				Waitable!(
-					cb => eventDriver.waitForEvent(ms_threadEvent, cb),
-					cb => eventDriver.cancelWaitForEvent(ms_threadEvent, cb),
+					cb => eventDriver.events.wait(ms_threadEvent, cb),
+					cb => eventDriver.events.cancelWait(ms_threadEvent, cb),
 					EventID
 				) eventwaiter;
 				Waitable!(
@@ -924,7 +924,7 @@ struct ManualEvent {
 		tw.task = Task.getThis();
 
 		if (ms_threadEvent == EventID.init)
-			ms_threadEvent = eventDriver.createEvent();
+			ms_threadEvent = eventDriver.events.create();
 
 		auto sdriver = cast(shared)eventDriver;
 

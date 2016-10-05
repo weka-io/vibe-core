@@ -548,7 +548,7 @@ package struct TaskScheduler {
 			schedule();
 
 			logTrace("Processing pending events...");
-			ExitReason er = eventDriver.processEvents(0.seconds);
+			ExitReason er = eventDriver.core.processEvents(0.seconds);
 			logTrace("Done.");
 
 			final switch (er) {
@@ -597,7 +597,7 @@ package struct TaskScheduler {
 		// if the first run didn't process any events, block and
 		// process one chunk
 		logTrace("Wait for new events to process...");
-		er = eventDriver.processEvents();
+		er = eventDriver.core.processEvents();
 		logTrace("Done.");
 		final switch (er) {
 			case ExitReason.exited: return ExitReason.exited;

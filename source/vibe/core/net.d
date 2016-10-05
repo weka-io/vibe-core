@@ -80,7 +80,7 @@ TCPListener listenTCP(ushort port, TCPConnectionDelegate connection_callback, st
 {
 	auto addr = resolveHost(address);
 	addr.port = port;
-	auto sock = eventDriver.listenStream(addr.toUnknownAddress, (StreamListenSocketFD ls, StreamSocketFD s) @safe nothrow {
+	auto sock = eventDriver.sockets.listenStream(addr.toUnknownAddress, (StreamListenSocketFD ls, StreamSocketFD s) @safe nothrow {
 		import vibe.core.core : runTask;
 		runTask(connection_callback, TCPConnection(s));
 	});
@@ -120,8 +120,8 @@ TCPConnection connectTCP(NetworkAddress addr)
 	addr.toUnknownAddress(uaddr);
 	// FIXME: make this interruptible
 	auto result = asyncAwaitUninterruptible!(ConnectCallback, 
-		cb => eventDriver.connectStream(uaddr, cb)
-		//cb => eventDriver.cancelConnect(cb)
+		cb => eventDriver.sockets.connectStream(uaddr, cb)
+		//cb => eventDriver.sockets.cancelConnect(cb)
 	);
 	enforce(result[1] == ConnectStatus.connected, "Failed to connect to "~addr.toString()~": "~result[1].to!string);
 	return TCPConnection(result[0]);
@@ -321,23 +321,23 @@ struct TCPConnection {
 	private this(StreamSocketFD socket)
 	nothrow {
 		m_socket = socket;
-		m_context = &eventDriver.userData!Context(socket);
+		m_context = &eventDriver.core.userData!Context(socket);
 		m_context.readBuffer.capacity = 4096;
 	}
 
 	this(this)
 	nothrow {
 		if (m_socket != StreamSocketFD.invalid)
-			eventDriver.addRef(m_socket);
+			eventDriver.sockets.addRef(m_socket);
 	}
 
 	~this()
 	nothrow {
 		if (m_socket != StreamSocketFD.invalid)
-			eventDriver.releaseRef(m_socket);
+			eventDriver.sockets.releaseRef(m_socket);
 	}
 
-	@property void tcpNoDelay(bool enabled) { eventDriver.setTCPNoDelay(m_socket, enabled); }
+	@property void tcpNoDelay(bool enabled) { eventDriver.sockets.setTCPNoDelay(m_socket, enabled); }
 	@property bool tcpNoDelay() const { assert(false); }
 	@property void keepAlive(bool enable) { assert(false); }
 	@property bool keepAlive() const { assert(false); }
@@ -349,7 +349,7 @@ struct TCPConnection {
 	@property bool connected()
 	const {
 		if (m_socket == StreamSocketFD.invalid) return false;
-		auto s = eventDriver.getConnectionState(m_socket);
+		auto s = eventDriver.sockets.getConnectionState(m_socket);
 		return s >= ConnectionState.connected && s < ConnectionState.activeClose;
 	}
 	@property bool empty() { return leastSize == 0; }
@@ -360,8 +360,8 @@ struct TCPConnection {
 	nothrow {
 		//logInfo("close %s", cast(int)m_fd);
 		if (m_socket != StreamSocketFD.invalid) {
-			eventDriver.shutdownSocket(m_socket);
-			eventDriver.releaseRef(m_socket);
+			eventDriver.sockets.shutdown(m_socket);
+			eventDriver.sockets.releaseRef(m_socket);
 			m_socket = StreamSocketFD.invalid;
 			m_context = null;
 		}
@@ -374,8 +374,8 @@ mixin(tracer);
 		if (m_context.readBuffer.length > 0) return true;
 		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
 		auto res = asyncAwait!(IOCallback,
-			cb => eventDriver.readSocket(m_socket, m_context.readBuffer.peekDst(), mode, cb),
-			cb => eventDriver.cancelRead(m_socket)
+			cb => eventDriver.sockets.read(m_socket, m_context.readBuffer.peekDst(), mode, cb),
+			cb => eventDriver.sockets.cancelRead(m_socket)
 		);
 		logTrace("Socket %s, read %s bytes: %s", res[0], res[2], res[1]);
 
@@ -426,8 +426,8 @@ mixin(tracer);
 		if (bytes.length == 0) return;
 
 		auto res = asyncAwait!(IOCallback,
-			cb => eventDriver.writeSocket(m_socket, bytes, IOMode.all, cb),
-			cb => eventDriver.cancelWrite(m_socket));
+			cb => eventDriver.sockets.write(m_socket, bytes, IOMode.all, cb),
+			cb => eventDriver.sockets.cancelWrite(m_socket));
 		
 		switch (res[1]) {
 			default:

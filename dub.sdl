@@ -4,4 +4,10 @@ authors "Sönke Ludwig"
 copyright "Copyright © 2016, rejectedsoftware e.K."
 license "MIT"
 
-dependency "eventcore" version="*"
+dependency "eventcore" version="~>0.3.0"
+
+//subConfiguration "eventcore" "libasync"
+
+configuration "unittest" {
+	versions "VibeMutexLog" "VibeAsyncLog"
+}

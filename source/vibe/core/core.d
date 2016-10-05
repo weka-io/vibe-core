@@ -122,7 +122,10 @@ unittest {
 	{
 		// first, perform any application specific setup (privileged ports still
 		// available if run as root)
-		listenTCP(7, (conn) { conn.write(conn); });
+		listenTCP(7, (conn) {
+			try conn.write(conn);
+			catch (Exception e) { /* log error */ }
+		});
 
 		// then use runApplication to perform the remaining initialization and
 		// to run the event loop
@@ -147,7 +150,10 @@ unittest {
 		if (!finalizeCommandLineOptions()) return 0;
 
 		// then set up the application
-		listenTCP(7, (conn) { conn.write(conn); });
+		listenTCP(7, (conn) {
+			try conn.write(conn);
+			catch (Exception e) { /* log error */ }
+		});
 
 		// finally, perform privilege lowering (safe to skip for non-server
 		// applications)
@@ -214,8 +220,8 @@ int runEventLoop()
 	}
 
 	logDebug("Event loop done (scheduled tasks=%s, waiters=%s, thread exit=%s).",
-		s_scheduler.scheduledTaskCount, eventDriver.waiterCount, s_exitEventLoop);
-	eventDriver.clearExitFlag();
+		s_scheduler.scheduledTaskCount, eventDriver.core.waiterCount, s_exitEventLoop);
+	eventDriver.core.clearExitFlag();
 	s_exitEventLoop = false;
 	return 0;
 }
@@ -246,7 +252,7 @@ void exitEventLoop(bool shutdown_all_threads = false)
 
 	// shutdown the calling thread
 	s_exitEventLoop = true;
-	if (s_eventLoopRunning) eventDriver.exit();
+	if (s_eventLoopRunning) eventDriver.core.exit();
 }
 
 /**
@@ -849,10 +855,10 @@ unittest {
 */
 Timer createTimer(void delegate() nothrow @safe callback)
 @safe nothrow {
-	auto ret = Timer(eventDriver.createTimer());
+	auto ret = Timer(eventDriver.timers.create());
 	if (callback !is null) {
 		void cb(TimerID tm) nothrow @safe { callback(); }
-		eventDriver.waitTimer(ret.m_id, &cb); // FIXME: avoid heap closure!
+		eventDriver.timers.wait(ret.m_id, &cb); // FIXME: avoid heap closure!
 	}
 	return ret;
 }
@@ -1036,7 +1042,7 @@ struct FileDescriptorEvent {
 */
 struct Timer {
 	private {
-		EventDriver m_driver;
+		typeof(eventDriver.timers) m_driver;
 		TimerID m_id;
 		debug uint m_magicNumber = 0x4d34f916;
 	}
@@ -1046,7 +1052,7 @@ struct Timer {
 	private this(TimerID id)
 	nothrow {
 		assert(id != TimerID.init, "Invalid timer ID.");
-		m_driver = eventDriver;
+		m_driver = eventDriver.timers;
 		m_id = id;
 	}
 
@@ -1063,7 +1069,7 @@ struct Timer {
 	}
 
 	/// True if the timer is yet to fire.
-	@property bool pending() nothrow { return m_driver.isTimerPending(m_id); }
+	@property bool pending() nothrow { return m_driver.isPending(m_id); }
 
 	/// The internal ID of the timer.
 	@property size_t id() const nothrow { return m_id; }
@@ -1074,21 +1080,21 @@ struct Timer {
 	*/
 	void rearm(Duration dur, bool periodic = false) nothrow 
 		in { assert(dur > 0.seconds, "Negative timer duration specified."); }
-		body { m_driver.setTimer(m_id, dur, periodic ? dur : 0.seconds); }
+		body { m_driver.set(m_id, dur, periodic ? dur : 0.seconds); }
 
 	/** Resets the timer and avoids any firing.
 	*/
-	void stop() nothrow { m_driver.stopTimer(m_id); }
+	void stop() nothrow { m_driver.stop(m_id); }
 
 	/** Waits until the timer fires.
 	*/
 	void wait()
 	{
-		assert (!m_driver.isTimerPeriodic(m_id), "Cannot wait for a periodic timer.");
+		assert (!m_driver.isPeriodic(m_id), "Cannot wait for a periodic timer.");
 		if (!this.pending) return;
 		asyncAwait!(TimerCallback,
-			cb => m_driver.waitTimer(m_id, cb),
-			cb => m_driver.cancelTimerWait(m_id, cb)
+			cb => m_driver.wait(m_id, cb),
+			cb => m_driver.cancelWait(m_id, cb)
 		);
 	}
 }
@@ -1122,7 +1128,7 @@ package(vibe) void performIdleProcessing()
 		again = (s_scheduler.schedule() || again) && !getExitFlag();
 
 		if (again) {
-			auto er = eventDriver.processEvents(0.seconds);
+			auto er = eventDriver.core.processEvents(0.seconds);
 			if (er.among!(ExitReason.exited, ExitReason.outOfWaiters)) {
 				logDebug("Setting exit flag due to driver signalling exit");
 				s_exitEventLoop = true;
@@ -1355,11 +1361,11 @@ static ~this()
 private void shutdownDriver()
 {
 	if (ManualEvent.ms_threadEvent != EventID.init) {
-		eventDriver.releaseRef(ManualEvent.ms_threadEvent);
+		eventDriver.events.releaseRef(ManualEvent.ms_threadEvent);
 		ManualEvent.ms_threadEvent = EventID.init;
 	}
 
-	eventDriver.dispose();
+	eventDriver.core.dispose();
 }
 
 private void workerThreadFunc()
@@ -1428,7 +1434,7 @@ private void handleWorkerTasks()
 	}
 
 	logDebug("worker thread exit");
-	eventDriver.exit();
+	eventDriver.core.exit();
 }
 
 private void watchExitFlag()
@@ -1443,7 +1449,7 @@ private void watchExitFlag()
 	}
 
 	logDebug("main thread exit");
-	eventDriver.exit();
+	eventDriver.core.exit();
 }
 
 private extern(C) void extrap()
