@@ -21,4 +21,7 @@ void main()
 	f.seek(2);
 	f.read(dst);
 	assert(dst[] == [3, 4, 5, 6, 7]);
+	f.close();
+
+	removeFile("test.dat");
 }

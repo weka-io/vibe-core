@@ -393,8 +393,17 @@ struct FileStream {
 		m_size = eventDriver.files.getSize(fd);
 	}
 
-	this(this) { eventDriver.files.addRef(m_fd); }
-	~this() { eventDriver.files.releaseRef(m_fd); }
+	this(this)
+	{
+		if (m_fd != FileFD.init)
+			eventDriver.files.addRef(m_fd);
+	}
+	
+	~this()
+	{
+		if (m_fd != FileFD.init)
+			eventDriver.files.releaseRef(m_fd);
+	}
 
 	@property int fd() { return m_fd; }
 
