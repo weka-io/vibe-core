@@ -1319,11 +1319,6 @@ static this()
 
 static ~this()
 {
-	version(VibeLibasyncDriver) {
-		import vibe.core.drivers.libasync;
-		if (LibasyncDriver.isControlThread)
-			return;
-	}
 	auto thisthr = Thread.getThis();
 
 	bool is_main_thread = false;
