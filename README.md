@@ -21,6 +21,6 @@ Streams             | WIP
 DNS lookup          | ---
 TCP connections     | done
 UDP connections     | ---
-File I/O            | ---
+File I/O            | done
 Directory watchers  | ---
 ManualEvent         | unstable
