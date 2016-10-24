@@ -1,3 +1,10 @@
+/++ dub.sdl:
+name "test"
+description "Invalid memory operation on TCP connection leakage at shutdown"
+dependency "vibe-core" path="../../"
++/
+module test;
+
 import vibe.core.core;
 import vibe.core.net;
 import core.time : msecs;
