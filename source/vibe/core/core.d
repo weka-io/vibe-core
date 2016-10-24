@@ -627,10 +627,10 @@ private TaskFuncInfo makeTaskFuncInfo(CALLABLE, ARGS...)(ref CALLABLE callable, 
 		mixin(callWithMove!ARGS("c", "args.expand"));
 	}
 
-	TaskFuncInfo tfi;
-	tfi.func = &callDelegate;
+	return () @trusted {
+		TaskFuncInfo tfi;
+		tfi.func = &callDelegate;
 
-	() @trusted {
 		static if (hasElaborateAssign!CALLABLE) tfi.initCallable!CALLABLE();
 		static if (hasElaborateAssign!TARGS) tfi.initArgs!TARGS();
 		tfi.typedCallable!CALLABLE = callable;
@@ -638,8 +638,8 @@ private TaskFuncInfo makeTaskFuncInfo(CALLABLE, ARGS...)(ref CALLABLE callable, 
 			static if (needsMove!A) args[i].move(tfi.typedArgs!TARGS.expand[i]);
 			else tfi.typedArgs!TARGS.expand[i] = args[i];
 		}
+		return tfi;
 	} ();
-	return tfi;
 }
 
 
@@ -1094,7 +1094,7 @@ struct Timer {
 		if (!this.pending) return;
 		asyncAwait!(TimerCallback,
 			cb => m_driver.wait(m_id, cb),
-			cb => m_driver.cancelWait(m_id, cb)
+			cb => m_driver.cancelWait(m_id)
 		);
 	}
 }
@@ -1360,7 +1360,7 @@ private void shutdownDriver()
 		ManualEvent.ms_threadEvent = EventID.init;
 	}
 
-	eventDriver.core.dispose();
+	eventDriver.dispose();
 }
 
 private void workerThreadFunc()

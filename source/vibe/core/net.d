@@ -321,7 +321,7 @@ struct TCPConnection {
 	private this(StreamSocketFD socket)
 	nothrow {
 		m_socket = socket;
-		m_context = &eventDriver.core.userData!Context(socket);
+		m_context = () @trusted { return &eventDriver.core.userData!Context(socket); } ();
 		m_context.readBuffer.capacity = 4096;
 	}
 
@@ -360,7 +360,7 @@ struct TCPConnection {
 	nothrow {
 		//logInfo("close %s", cast(int)m_fd);
 		if (m_socket != StreamSocketFD.invalid) {
-			eventDriver.sockets.shutdown(m_socket);
+			eventDriver.sockets.shutdown(m_socket, true, true);
 			eventDriver.sockets.releaseRef(m_socket);
 			m_socket = StreamSocketFD.invalid;
 			m_context = null;

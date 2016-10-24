@@ -51,11 +51,11 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 		import eventcore.core;
 
 		auto tm = eventDriver.timers.create();
-		eventDriver.timers.set(tm, timeout);
+		eventDriver.timers.set(tm, timeout, 0.seconds);
 		scope (exit) eventDriver.timers.releaseRef(tm);
 		Waitable!(
 			cb => eventDriver.timers.wait(tm, cb),
-			cb => eventDriver.timers.cancelWait(tm, cb),
+			cb => eventDriver.timers.cancelWait(tm),
 			TimerID
 		) timerwaitable;
 		asyncAwaitAny!(interruptible, func)(timerwaitable, waitables);

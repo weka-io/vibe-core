@@ -7,7 +7,7 @@ class C {
 
 	this()
 	{
-		m_conn = connectTCP("google.com", 443);
+		m_conn = connectTCP("example.com", 443);
 	}
 
 	~this()

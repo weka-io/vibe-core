@@ -323,7 +323,7 @@ final package class TaskFiber : Fiber {
 	private void run()
 	{
 		import std.encoding : sanitize;
-		import std.concurrency : Tid;
+		import std.concurrency : Tid, thisTid;
 		import vibe.core.core : isEventLoopRunning, recycleFiber, taskScheduler, yield;
 		
 		version (VibeDebugCatchAll) alias UncaughtException = Throwable;
@@ -346,12 +346,12 @@ final package class TaskFiber : Fiber {
 					m_running = true;
 					scope(exit) m_running = false;
 
-					std.concurrency.thisTid; // force creation of a message box
+					thisTid; // force creation of a message box
 
 					debug if (ms_taskEventCallback) ms_taskEventCallback(TaskEvent.start, handle);
 					if (!isEventLoopRunning) {
 						logTrace("Event loop not running at task start - yielding.");
-						vibe.core.core.taskScheduler.yieldUninterruptible();
+						taskScheduler.yieldUninterruptible();
 						logTrace("Initial resume of task.");
 					}
 					task.func(&task);
@@ -597,7 +597,7 @@ package struct TaskScheduler {
 		// if the first run didn't process any events, block and
 		// process one chunk
 		logTrace("Wait for new events to process...");
-		er = eventDriver.core.processEvents();
+		er = eventDriver.core.processEvents(Duration.max);
 		logTrace("Done.");
 		final switch (er) {
 			case ExitReason.exited: return ExitReason.exited;
