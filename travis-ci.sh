@@ -19,8 +19,8 @@ if [ ${BUILD_EXAMPLE=1} -eq 1 ]; then
     done
 fi
 if [ ${RUN_TEST=1} -eq 1 ]; then
-    for ex in `\ls -1 tests/`; do
+    for ex in `\ls -1 tests/*.d`; do
         echo "[INFO] Running test $ex"
-        (cd tests && dub --compiler=$DC --single $ex && rm -r .dub test)
+        dub --temp-build --compiler=$DC --single $ex
     done
 fi
