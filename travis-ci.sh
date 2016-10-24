@@ -21,6 +21,6 @@ fi
 if [ ${RUN_TEST=1} -eq 1 ]; then
     for ex in `\ls -1 tests/`; do
         echo "[INFO] Running test $ex"
-        (cd tests && dub --compiler=$DC --single $ex && dub clean)
+        (cd tests && dub --compiler=$DC --single $ex && rm -r .dub test)
     done
 fi
