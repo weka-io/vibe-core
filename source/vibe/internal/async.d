@@ -19,12 +19,18 @@ auto asyncAwait(Callback, alias action, alias cancel, string func = __FUNCTION__
 {
 	Waitable!(action, cancel, ParameterTypeTuple!Callback) waitable;
 	asyncAwaitAny!(true, func)(timeout, waitable);
-	return tuple(waitable.results);
+	static struct R {
+		bool completed;
+		typeof(waitable.results) results;
+	}
+	return R(!waitable.cancelled, waitable.results);
 }
 
 auto asyncAwaitUninterruptible(Callback, alias action, string func = __FUNCTION__)()
 nothrow {
-	Waitable!(action, (cb) { assert(false, "Action cannot be cancelled."); }, ParameterTypeTuple!Callback) waitable;
+	static if (is(typeof(action(Callback.init)) == void)) void cancel(Callback) { assert(false, "Action cannot be cancelled."); }
+	else void cancel(Callback, typeof(action(Callback.init))) { assert(false, "Action cannot be cancelled."); }
+	Waitable!(action, cancel, ParameterTypeTuple!Callback) waitable;
 	asyncAwaitAny!(false, func)(waitable);
 	return tuple(waitable.results);
 }
@@ -37,11 +43,17 @@ nothrow {
 }
 
 struct Waitable(alias wait, alias cancel, Results...) {
+	import std.traits : ReturnType;
+
 	alias Callback = void delegate(Results) @safe nothrow;
 	Results results;
 	bool cancelled;
-	void waitCallback(Callback cb) { wait(cb); }
-	void cancelCallback(Callback cb) { cancel(cb); }
+	auto waitCallback(Callback cb) nothrow { return wait(cb); }
+	
+	static if (is(ReturnType!waitCallback == void))
+		void cancelCallback(Callback cb) nothrow { cancel(cb); }
+	else
+		void cancelCallback(Callback cb, ReturnType!waitCallback r) nothrow { cancel(cb, r); }
 }
 
 void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)(Duration timeout, ref Waitables waitables)
@@ -67,6 +79,7 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 {
 	import std.meta : staticMap;
 	import std.algorithm.searching : any;
+	import std.traits : ReturnType;
 
 	/*scope*/ staticMap!(CBDel, Waitables) callbacks; // FIXME: avoid heap delegates
 
@@ -80,10 +93,13 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 
 	debug(VibeAsyncLog) logDebugV("Performing %s async operations in %s", waitables.length, func);
 
+	() @trusted { logDebugV("si %x", &still_inside); } ();
+
 	foreach (i, W; Waitables) {
 		/*scope*/auto cb = (typeof(Waitables[i].results) results) @safe nothrow {
+	() @trusted { logDebugV("siw %x", &still_inside); } ();
+			debug(VibeAsyncLog) logDebugV("Waitable %s in %s fired (istask=%s).", i, func, t != Task.init);
 			assert(still_inside, "Notification fired after asyncAwait had already returned!");
-			logDebugV("Waitable %s in %s fired (istask=%s).", i, func, t != Task.init);
 			fired[i] = true;
 			any_fired = true;
 			waitables[i].results = results;
@@ -92,12 +108,18 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 		callbacks[i] = cb;
 
 		debug(VibeAsyncLog) logDebugV("Starting operation %s", i);
-		waitables[i].waitCallback(callbacks[i]);
+		static if (is(ReturnType!(W.waitCallback) == void))
+			waitables[i].waitCallback(callbacks[i]);
+		else
+			auto wr = waitables[i].waitCallback(callbacks[i]);
 
 		scope ccb = () @safe nothrow {
 			if (!fired[i]) {
 				debug(VibeAsyncLog) logDebugV("Cancelling operation %s", i);
-				waitables[i].cancelCallback(callbacks[i]);
+				static if (is(ReturnType!(W.waitCallback) == void))
+					waitables[i].cancelCallback(callbacks[i]);
+				else
+					waitables[i].cancelCallback(callbacks[i], wr);
 				waitables[i].cancelled = true;
 				any_fired = true;
 				fired[i] = true;
@@ -114,6 +136,8 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 	debug(VibeAsyncLog) logDebugV("Need to wait in %s (%s)...", func, interruptible ? "interruptible" : "uninterruptible");
 
 	t = Task.getThis();
+
+	debug (VibeAsyncLog) scope (failure) logDebugV("Aborting wait due to exception");
 
 	do {
 		static if (interruptible) {
