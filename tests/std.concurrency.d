@@ -1,16 +1,10 @@
-/++ dub.json:
-{
-	"name": "test",
-	"description": "Tests vibe.d's std.concurrency integration",
-	"dependencies": {
-		"vibe-core": {"path": "../../"}
-	},
-	"versions": ["VibeDefaultMain"]
-}
+/++ dub.sdl:
+	name "test"
+	description "Tests vibe.d's std.concurrency integration"
+	dependency "vibe-core" path="../"
 +/
 module test;
 
-import vibe.appmain;
 import vibe.core.core;
 import vibe.core.log;
 import std.concurrency;
@@ -21,7 +15,7 @@ import core.stdc.stdlib : exit;
 __gshared Tid t1, t2;
 shared watchdog_count = 0;
 
-shared static this()
+void main()
 {
 	t1 = spawn({
 		// ensure that asynchronous operations run in parallel to receive()
@@ -90,4 +84,6 @@ shared static this()
 		logInfo("Exiting.");
 		exitEventLoop(true);
 	});
+
+	runApplication();
 }
