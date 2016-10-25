@@ -18,9 +18,10 @@ Feature             | State
 Task scheduling     | done
 Concurrency         | done
 Streams             | WIP
-DNS lookup          | ---
+DNS lookup          | done
 TCP connections     | done
-UDP connections     | ---
+UDP connections     | WIP
 File I/O            | done
-Directory watchers  | ---
+Directory watchers  | done
 ManualEvent         | unstable
+Path/URL types      | WIP
