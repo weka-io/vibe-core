@@ -319,8 +319,7 @@ int delegate(scope int delegate(ref FileInfo)) iterateDirectory(string path)
 */
 DirectoryWatcher watchDirectory(Path path, bool recursive = true)
 {
-	assert(false);
-	//return eventDriver.watchDirectory(path, recursive);
+	return DirectoryWatcher(path, recursive);
 }
 // ditto
 DirectoryWatcher watchDirectory(string path, bool recursive = true)
@@ -520,12 +519,40 @@ private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, Input
 	Directory watchers monitor the contents of a directory (wither recursively or non-recursively)
 	for changes, such as file additions, deletions or modifications.
 */
-interface DirectoryWatcher {
+struct DirectoryWatcher { // TODO: avoid all those heap allocations!
+	import std.array : Appender, appender;
+	import vibe.core.sync : ManualEvent;
+
+	@safe:
+
+	private struct Context {
+		Path path;
+		bool recursive;
+		Appender!(DirectoryChange[]) changes;
+		ManualEvent changeEvent;
+	}
+
+	private {
+		WatcherID m_watcher;
+		Context m_context;
+	}
+
+	private this(Path path, bool recursive)
+	{
+		m_watcher = eventDriver.watchers.watchDirectory(path.toNativeString, recursive, &onChange);
+		m_context.path = path;
+		m_context.recursive = recursive;
+		m_context.changes = appender!(DirectoryChange[]);
+	}
+
+	this(this) nothrow { if (m_watcher != WatcherID.invalid) eventDriver.watchers.addRef(m_watcher); }
+	~this() nothrow { if (m_watcher != WatcherID.invalid) eventDriver.watchers.releaseRef(m_watcher); }
+
 	/// The path of the watched directory
-	@property Path path() const;
+	@property Path path() const nothrow { return m_context.path; }
 
 	/// Indicates if the directory is watched recursively
-	@property bool recursive() const;
+	@property bool recursive() const nothrow { return m_context.recursive; }
 
 	/** Fills the destination array with all changes that occurred since the last call.
 
@@ -535,12 +562,39 @@ interface DirectoryWatcher {
 
 		Params:
 			dst = The destination array to which the changes will be appended
-			timeout = Optional timeout for the read operation
+			timeout = Optional timeout for the read operation. A value of
+				`Duration.max` will wait indefinitely.
 
 		Returns:
 			If the call completed successfully, true is returned.
 	*/
-	bool readChanges(ref DirectoryChange[] dst, Duration timeout = dur!"seconds"(-1));
+	bool readChanges(ref DirectoryChange[] dst, Duration timeout = Duration.max)
+	{
+		SysTime now = Clock.currTime(UTC());
+		SysTime final_time = now + timeout;
+		while (!m_context.changes.data.length) {
+			m_context.changeEvent.wait(final_time - now, m_context.changeEvent.emitCount);
+			if (m_context.changes.data.length) break;
+			else now = Clock.currTime(UTC());
+		}
+
+		if (!m_context.changes.data.length) return false;
+		dst = m_context.changes.data;
+		m_context.changes = appender!(DirectoryChange[]);
+		return true;
+	}
+
+	private void onChange(WatcherID, in ref FileChange change)
+	nothrow {
+		DirectoryChangeType ct;
+		final switch (change.kind) {
+			case FileChangeKind.added: ct = DirectoryChangeType.added; break;
+			case FileChangeKind.removed: ct = DirectoryChangeType.removed; break;
+			case FileChangeKind.modified: ct = DirectoryChangeType.modified; break;
+		}
+		m_context.changes ~= DirectoryChange(ct, Path(change.directory) ~ change.name.idup);
+		m_context.changeEvent.emit();
+	}
 }
 
 
