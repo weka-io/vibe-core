@@ -7,12 +7,11 @@
 */
 module vibe.core.file;
 
-//public import vibe.core.stream;
-//public import vibe.inet.url;
 import eventcore.core : eventDriver;
 import eventcore.driver;
 import vibe.core.log;
 import vibe.core.path;
+import vibe.core.stream;
 import vibe.internal.async : asyncAwait;
 
 import core.stdc.stdio;
@@ -411,7 +410,7 @@ struct FileStream {
 
 	/// Determines if the file stream is still open
 	@property bool isOpen() const { return m_fd != FileFD.init; }
-	@property ulong size() const { return m_size; }
+	@property ulong size() const nothrow { return m_size; }
 	@property bool readable() const { return m_mode != FileMode.append; }
 	@property bool writable() const { return m_mode != FileMode.read; }
 
@@ -482,6 +481,9 @@ logDebug("Written %s", res[2]);
 		flush();
 	}
 }
+
+mixin validateRandomAccessStream!FileStream;
+
 
 private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, InputStream stream, ulong nbytes = 0)
 {

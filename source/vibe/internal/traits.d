@@ -382,3 +382,109 @@ unittest {
 // DMD#4115, Druntime#1013, Druntime#1021, Phobos#2704
 import core.sync.mutex : Mutex;
 enum synchronizedIsNothrow = __traits(compiles, (Mutex m) nothrow { synchronized(m) {} });
+
+
+/// Mixin template that checks a particular aggregate type for conformance with a specific interface.
+template validateInterfaceConformance(T, I)
+{
+	import vibe.internal.traits : checkInterfaceConformance;
+	static assert(checkInterfaceConformance!(T, I) is null, checkInterfaceConformance!(T, I));
+}
+
+/** Checks an aggregate type for conformance with a specific interface.
+
+	The value of this template is either `null`, or an error message indicating the first method
+	of the interface that is not properly implemented by `T`.
+*/
+template checkInterfaceConformance(T, I) {
+	import std.meta : AliasSeq;
+	import std.traits : FunctionAttribute, FunctionTypeOf, MemberFunctionsTuple, ParameterTypeTuple, ReturnType, functionAttributes;
+
+	alias Members = AliasSeq!(__traits(allMembers, I));
+
+	template checkMemberConformance(string mem) {
+		alias Overloads = MemberFunctionsTuple!(I, mem);
+		template impl(size_t i) {
+			static if (i < Overloads.length) {
+				alias F = Overloads[i];
+				alias FT = FunctionTypeOf!F;
+				alias PT = ParameterTypeTuple!F;
+				alias RT = ReturnType!F;
+				static if (functionAttributes!F & FunctionAttribute.property) {
+					static if (PT.length > 0) {
+						static if (!is(typeof({ T t; return mixin("t."~mem) = PT.init; } ()) : RT))
+							enum impl = T.stringof ~ " does not implement property setter \"" ~ mem ~ "\" of type " ~ FT.stringof;
+						else enum string impl = impl!(i+1);
+					} else {
+						static if (!is(typeof({ T t; return mixin("t."~mem); }()) : RT))
+							enum impl = T.stringof ~ " does not implement property getter \"" ~ mem ~ "\" of type " ~ FT.stringof;
+						else enum string impl = impl!(i+1);
+					}
+				} else {
+					//pragma(msg, typeof({ T t; PT p; return mixin("t."~mem)(p); } ()));
+					static if (!is(typeof({ T t; PT p; return mixin("t."~mem)(p); } ()) : RT))
+						enum impl = T.stringof ~ " does not implement method \"" ~ mem ~ "\" of type " ~ FT.stringof;
+					else enum string impl = impl!(i+1);
+				}
+			} else enum string impl = null;
+		}
+		alias checkMemberConformance = impl!0;
+	}
+	
+	template impl(size_t i) {
+		static if (i < Members.length) {
+			enum mc = checkMemberConformance!(Members[i]);
+			static if (mc is null) enum impl = impl!(i+1);
+			else enum impl = mc;
+		} else enum string impl = null;
+	}
+
+	static if (is(T == struct) || is(T == class) || is(T == interface))
+		enum checkInterfaceConformance = impl!0;
+	else
+		enum checkInterfaceConformance = "Aggregate type expected, not " ~ T.stringof;
+}
+
+unittest {
+	interface InputStream {
+		@safe:
+		@property bool empty() nothrow;
+		void read(ubyte[] dst);
+	}
+
+	interface OutputStream {
+		@safe:
+		void write(in ubyte[] bytes);
+		void flush();
+		void finalize();
+		void write(InputStream stream, ulong nbytes = 0);
+	}
+
+	static class OSClass : OutputStream {
+		override void write(in ubyte[] bytes) {}
+		override void flush() {}
+		override void finalize() {}
+		override void write(InputStream stream, ulong nbytes) {}
+	}
+
+	mixin validateInterfaceConformance!(OSClass, OutputStream);
+
+	static struct OSStruct {
+		void write(in ubyte[] bytes) {}
+		void flush() {}
+		void finalize() {}
+		void write(IS)(IS stream, ulong nbytes) {}
+	}
+
+	mixin validateInterfaceConformance!(OSStruct, OutputStream);
+
+	static struct NonOSStruct {
+		void write(in ubyte[] bytes) {}
+		void flush(bool) {}
+		void finalize() {}
+		void write(InputStream stream, ulong nbytes) {}
+	}
+
+	static assert(checkInterfaceConformance!(NonOSStruct, OutputStream) ==
+		"NonOSStruct does not implement method \"flush\" of type @safe void()");
+}

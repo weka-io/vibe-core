@@ -502,6 +502,8 @@ mixin(tracer);
 	}
 }
 
+mixin validateConnectionStream!TCPConnection;
+
 
 /**
 	Represents a listening TCP socket.
