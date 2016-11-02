@@ -5,6 +5,11 @@
 	look at the `vibe.stream` package. The `vibe.stream.operations` module contains additional
 	high-level operations on streams, such as reading streams by line or as a whole.
 
+	Note that starting with vibe-core 1.0.0, streams can be of either `struct`  or `class` type.
+	Any APIs that take streams as a parameter should use a template type parameter that is tested
+	using the appropriate trait (e.g. `isInputStream`) instead of assuming the specific interface
+	type (e.g. `InputStream`).
+
 	Copyright: © 2012-2016 RejectedSoftware e.K.
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 	Authors: Sönke Ludwig
@@ -110,7 +115,9 @@ interface OutputStream {
 		`nbytes` for `nbytes > 0`. If the input stream contains less than `nbytes` of data, an
 		exception is thrown.
 	*/
-	void write(InputStream stream, ulong nbytes = 0);
+	void write(InputStream stream, ulong nbytes);
+	/// ditto
+	final void write(InputStream stream) { write(stream, 0); }
 
 	protected final void writeDefault(InputStream stream, ulong nbytes = 0)
 		@trusted // FreeListRef
@@ -234,12 +241,82 @@ final class NullOutputStream : OutputStream {
 	void finalize() {}
 }
 
+/** Tests if the given aggregate type is a valid input stream.
+
+	See_also: `validateInputStream`
+*/
 enum isInputStream(T) = checkInterfaceConformance!(T, InputStream) is null;
+
+/** Tests if the given aggregate type is a valid output stream.
+
+	See_also: `validateOutputStream`
+*/
 enum isOutputStream(T) = checkInterfaceConformance!(T, OutputStream) is null;
+
+/** Tests if the given aggregate type is a valid bidirectional stream.
+
+	See_also: `validateStream`
+*/
+enum isStream(T) = checkInterfaceConformance!(T, Stream) is null;
+
+/** Tests if the given aggregate type is a valid connection stream.
+
+	See_also: `validateConnectionStream`
+*/
 enum isConnectionStream(T) = checkInterfaceConformance!(T, ConnectionStream) is null;
+
+/** Tests if the given aggregate type is a valid random access stream.
+
+	See_also: `validateRandomAccessStream`
+*/
 enum isRandomAccessStream(T) = checkInterfaceConformance!(T, RandomAccessStream) is null;
 
-mixin template validateInputStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, InputStream); }
-mixin template validateOutputStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, OutputStream); }
-mixin template validateConnectionStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, ConnectionStream); }
-mixin template validateRandomAccessStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, RandomAccessStream); }
+/** Verifies that the given type is a valid input stream.
+
+	A valid input stream type must implement all methods of the `InputStream` interface. Inheriting
+	form `InputStream` is not strictly necessary, which also enables struct types to be considered
+	as stream implementations.
+
+	See_Also: `isInputStream`
+*/
+mixin template validateInputStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, .InputStream); }
+
+/** Verifies that the given type is a valid output stream.
+
+	A valid output stream type must implement all methods of the `OutputStream` interface. Inheriting
+	form `OutputStream` is not strictly necessary, which also enables struct types to be considered
+	as stream implementations.
+
+	See_Also: `isOutputStream`
+*/
+mixin template validateOutputStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, .OutputStream); }
+
+/** Verifies that the given type is a valid bidirectional stream.
+
+	A valid stream type must implement all methods of the `Stream` interface. Inheriting
+	form `Stream` is not strictly necessary, which also enables struct types to be considered
+	as stream implementations.
+
+	See_Also: `isStream`
+*/
+mixin template validateStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, .Stream); }
+
+/** Verifies that the given type is a valid connection stream.
+
+	A valid connection stream type must implement all methods of the `ConnectionStream` interface.
+	Inheriting form `ConnectionStream` is not strictly necessary, which also enables struct types
+	to be considered as stream implementations.
+
+	See_Also: `isConnectionStream`
+*/
+mixin template validateConnectionStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, .ConnectionStream); }
+
+/** Verifies that the given type is a valid random access stream.
+
+	A valid random access stream type must implement all methods of the `RandomAccessStream`
+	interface. Inheriting form `RandomAccessStream` is not strictly necessary, which also enables
+	struct types to be considered as stream implementations.
+
+	See_Also: `isRandomAccessStream`
+*/
+mixin template validateRandomAccessStream(T) { import vibe.internal.traits : validateInterfaceConformance; mixin validateInterfaceConformance!(T, .RandomAccessStream); }
