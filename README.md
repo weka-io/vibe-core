@@ -17,7 +17,7 @@ Feature             | State
 --------------------|---------
 Task scheduling     | done
 Concurrency         | done
-Streams             | WIP
+Streams             | done (may be subject to further changes)
 DNS lookup          | done
 TCP connections     | done
 UDP connections     | WIP
