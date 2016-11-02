@@ -102,9 +102,9 @@ unittest {
 		void write() {}
 	}
 
-	auto pool = ConnectionPool!Connection({
-			return new Connection; // perform the connection here
-		});
+	auto pool = new ConnectionPool!Connection({
+		return new Connection; // perform the connection here
+	});
 
 	// create and lock a first connection
 	auto c1 = pool.lockConnection();
