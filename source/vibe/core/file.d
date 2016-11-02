@@ -25,10 +25,11 @@ import std.file;
 import std.path;
 import std.string;
 
-
 version(Posix){
 	private extern(C) int mkstemps(char* templ, int suffixlen);
 }
+
+@safe:
 
 
 /**
@@ -154,7 +155,7 @@ FileStream createTempFile(string suffix = null)
 		templ[pattern.length .. $-1] = (suffix)[];
 		templ[$-1] = '\0';
 		assert(suffix.length <= int.max);
-		auto fd = mkstemps(templ.ptr, cast(int)suffix.length);
+		auto fd = () @trusted { return mkstemps(templ.ptr, cast(int)suffix.length); } ();
 		enforce(fd >= 0, "Failed to create temporary file.");
 		assert(false);
 		//return eventDriver.adoptFile(fd, Path(templ[0 .. $-1].idup), FileMode.createTrunc);
@@ -257,7 +258,7 @@ bool existsFile(string path) nothrow
 	Throws: A `FileException` is thrown if the file does not exist.
 */
 FileInfo getFileInfo(Path path)
-{
+@trusted {
 	auto ent = DirEntry(path.toNativeString());
 	return makeFileInfo(ent);
 }
@@ -272,7 +273,7 @@ FileInfo getFileInfo(string path)
 */
 void createDirectory(Path path)
 {
-	mkdir(path.toNativeString());
+	() @trusted { mkdir(path.toNativeString()); } ();
 }
 /// ditto
 void createDirectory(string path)
@@ -284,7 +285,7 @@ void createDirectory(string path)
 	Enumerates all files in the specified directory.
 */
 void listDirectory(Path path, scope bool delegate(FileInfo info) del)
-{
+@trusted {
 	foreach( DirEntry ent; dirEntries(path.toNativeString(), SpanMode.shallow) )
 		if( !del(makeFileInfo(ent)) )
 			break;
@@ -331,7 +332,7 @@ DirectoryWatcher watchDirectory(string path, bool recursive = true)
 */
 Path getWorkingDirectory()
 {
-	return Path(std.file.getcwd());
+	return Path(() @trusted { return std.file.getcwd(); } ());
 }
 
 
@@ -375,6 +376,8 @@ enum FileMode {
 	Accesses the contents of a file as a stream.
 */
 struct FileStream {
+	@safe:
+
 	private {
 		FileFD m_fd;
 		Path m_path;
@@ -393,13 +396,13 @@ struct FileStream {
 
 	this(this)
 	{
-		if (m_fd != FileFD.init)
+		if (m_fd != FileFD.invalid)
 			eventDriver.files.addRef(m_fd);
 	}
 	
 	~this()
 	{
-		if (m_fd != FileFD.init)
+		if (m_fd != FileFD.invalid)
 			eventDriver.files.releaseRef(m_fd);
 	}
 
@@ -409,10 +412,12 @@ struct FileStream {
 	@property Path path() const { return m_path; }
 
 	/// Determines if the file stream is still open
-	@property bool isOpen() const { return m_fd != FileFD.init; }
+	@property bool isOpen() const { return m_fd != FileFD.invalid; }
 	@property ulong size() const nothrow { return m_size; }
-	@property bool readable() const { return m_mode != FileMode.append; }
-	@property bool writable() const { return m_mode != FileMode.read; }
+	@property bool readable() const nothrow { return m_mode != FileMode.append; }
+	@property bool writable() const nothrow { return m_mode != FileMode.read; }
+
+	bool opCast(T)() if (is (T == bool)) { return m_fd != FileFD.invalid; }
 
 	void takeOwnershipOfFD()
 	{
@@ -424,7 +429,7 @@ struct FileStream {
 		m_ptr = offset;
 	}
 
-	ulong tell() { return m_ptr; }
+	ulong tell() nothrow { return m_ptr; }
 
 	/// Closes the file handle.
 	void close()
@@ -624,7 +629,7 @@ struct DirectoryChange {
 
 
 private FileInfo makeFileInfo(DirEntry ent)
-{
+@trusted {
 	FileInfo ret;
 	ret.name = baseName(ent.name);
 	if( ret.name.length == 0 ) ret.name = ent.name;
