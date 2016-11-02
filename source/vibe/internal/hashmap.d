@@ -36,13 +36,15 @@ struct DefaultHashMapTraits(Key) {
 				return typeinfo.getHash(&k);
 			}
 			static @nogc nothrow size_t properlyTypedWrapper(in ref Key k) { return 0; }
-			return (cast(typeof(&properlyTypedWrapper))&hashWrapper)(k);
+			return () @trusted { return (cast(typeof(&properlyTypedWrapper))&hashWrapper)(k); } ();
 		}
 	}
 }
 
 struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 {
+@safe:
+
 	import vibe.internal.traits : isOpApplyDg;
 
 	alias Key = TKey;
@@ -52,7 +54,7 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 		UnConst!Key key = Traits.clearValue;
 		Value value;
 
-		this(Key key, Value value) { this.key = cast(UnConst!Key)key; this.value = value; }
+		this(Key key, Value value) @trusted { this.key = cast(UnConst!Key)key; this.value = value; }
 	}
 	private {
 		TableEntry[] m_table; // NOTE: capacity is always POT
@@ -69,7 +71,7 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 	~this()
 	{
 		clear();
-		if (m_table.ptr !is null) freeArray(m_allocator, m_table);
+		if (m_table.ptr !is null) () @trusted { freeArray(m_allocator, m_table); } ();
 	}
 
 	@disable this(this);
@@ -293,8 +295,9 @@ nothrow unittest {
 	performNoGCOps();
 }
 
-unittest { // test for proper use of constructor/post-blit/destructor
+@safe unittest { // test for proper use of constructor/post-blit/destructor
 	static struct Test {
+		@safe:
 		static size_t constructedCounter = 0;
 		bool constructed = false;
 		this(int) { constructed = true; constructedCounter++; }

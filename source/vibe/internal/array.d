@@ -50,7 +50,7 @@ struct AllocAppender(ArrayType : E[], E) {
 	}
 
 	this(Allocator alloc, ElemType[] initial_buffer = null)
-	{
+	@safe {
 		m_alloc = alloc;
 		m_data = initial_buffer;
 		m_remaining = initial_buffer;
@@ -75,10 +75,10 @@ struct AllocAppender(ArrayType : E[], E) {
 
 	*/
 	void reserve(size_t amount)
-	{
+	@safe {
 		size_t nelems = m_data.length - m_remaining.length;
 		if (!m_data.length) {
-			m_data = cast(ElemType[])m_alloc.alloc(amount*E.sizeof);
+			m_data = () @trusted { return cast(ElemType[])m_alloc.alloc(amount*E.sizeof); } ();
 			m_remaining = m_data;
 			m_allocatedBuffer = true;
 		}
@@ -87,9 +87,9 @@ struct AllocAppender(ArrayType : E[], E) {
 				import std.digest.crc;
 				auto checksum = crc32Of(m_data[0 .. nelems]);
 			}
-			if (m_allocatedBuffer) m_data = cast(ElemType[])m_alloc.realloc(m_data, (nelems+amount)*E.sizeof);
+			if (m_allocatedBuffer) m_data = () @trusted { return cast(ElemType[])m_alloc.realloc(m_data, (nelems+amount)*E.sizeof); } ();
 			else {
-				auto newdata = cast(ElemType[])m_alloc.alloc((nelems+amount)*E.sizeof);
+				auto newdata = () @trusted { return cast(ElemType[])m_alloc.alloc((nelems+amount)*E.sizeof); } ();
 				newdata[0 .. nelems] = m_data[0 .. nelems];
 				m_data = newdata;
 				m_allocatedBuffer = true;
@@ -100,28 +100,28 @@ struct AllocAppender(ArrayType : E[], E) {
 	}
 
 	void put(E el)
-	{
+	@safe {
 		if( m_remaining.length == 0 ) grow(1);
 		m_remaining[0] = el;
 		m_remaining = m_remaining[1 .. $];
 	}
 
 	void put(ArrayType arr)
-	{
+	@safe {
 		if (m_remaining.length < arr.length) grow(arr.length);
 		m_remaining[0 .. arr.length] = arr[];
 		m_remaining = m_remaining[arr.length .. $];
 	}
 
 	static if( !hasAliasing!E ){
-		void put(in ElemType[] arr){
+		void put(in ElemType[] arr) @trusted {
 			put(cast(ArrayType)arr);
 		}
 	}
 
 	static if( is(ElemType == char) ){
 		void put(dchar el)
-		{
+		@trusted {
 			if( el < 128 ) put(cast(char)el);
 			else {
 				char[4] buf;
@@ -133,7 +133,7 @@ struct AllocAppender(ArrayType : E[], E) {
 
 	static if( is(ElemType == wchar) ){
 		void put(dchar el)
-		{
+		@trusted {
 			if( el < 128 ) put(cast(wchar)el);
 			else {
 				wchar[3] buf;
@@ -161,7 +161,7 @@ struct AllocAppender(ArrayType : E[], E) {
 	}
 
 	void grow(size_t min_free)
-	{
+	@safe {
 		if( !m_data.length && min_free < 16 ) min_free = 16;
 
 		auto min_size = m_data.length + min_free - m_remaining.length;

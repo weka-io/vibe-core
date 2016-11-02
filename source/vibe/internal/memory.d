@@ -20,7 +20,7 @@ import std.exception : enforceEx;
 import std.traits;
 import std.algorithm;
 
-Allocator defaultAllocator() nothrow
+Allocator defaultAllocator() @trusted nothrow
 {
 	version(VibeManualMemoryManagement){
 		return manualAllocator();
@@ -36,7 +36,7 @@ Allocator defaultAllocator() nothrow
 	}
 }
 
-Allocator manualAllocator() nothrow
+Allocator manualAllocator() @trusted nothrow
 {
 	static __gshared Allocator alloc;
 	if( !alloc ){
@@ -48,7 +48,7 @@ Allocator manualAllocator() nothrow
 	return alloc;
 }
 
-Allocator threadLocalAllocator() nothrow
+Allocator threadLocalAllocator() @safe nothrow
 {
 	static Allocator alloc;
 	if (!alloc) {
@@ -60,7 +60,7 @@ Allocator threadLocalAllocator() nothrow
 	return alloc;
 }
 
-Allocator threadLocalManualAllocator() nothrow
+Allocator threadLocalManualAllocator() @safe nothrow
 {
 	static Allocator alloc;
 	if (!alloc) {
@@ -118,7 +118,7 @@ nothrow:
 	enum size_t alignment = 0x10;
 	enum size_t alignmentMask = alignment-1;
 
-	void[] alloc(size_t sz)
+	void[] alloc(size_t sz) @safe
 		out { assert((cast(size_t)__result.ptr & alignmentMask) == 0, "alloc() returned misaligned data."); }
 
 	void[] realloc(void[] mem, size_t new_sz)
@@ -143,7 +143,7 @@ class LockAllocator : Allocator {
 	private {
 		Allocator m_base;
 	}
-	this(Allocator base) nothrow { m_base = base; }
+	this(Allocator base) @safe nothrow { m_base = base; }
 	void[] alloc(size_t sz) {
 		static if (!synchronizedIsNothrow)
 			scope (failure) assert(0, "Internal error: function should be nothrow");
@@ -185,7 +185,7 @@ final class DebugAllocator : Allocator {
 		size_t m_maxBytes;
 	}
 
-	this(Allocator base_allocator) nothrow
+	this(Allocator base_allocator) @safe nothrow
 	{
 		m_baseAlloc = base_allocator;
 		m_blocks = HashMap!(void*, size_t)(manualAllocator());
@@ -199,8 +199,8 @@ final class DebugAllocator : Allocator {
 	{
 		auto ret = m_baseAlloc.alloc(sz);
 		assert(ret.length == sz, "base.alloc() returned block with wrong size.");
-		assert(m_blocks.getNothrow(ret.ptr, size_t.max) == size_t.max, "base.alloc() returned block that is already allocated.");
-		m_blocks[ret.ptr] = sz;
+		assert(m_blocks.getNothrow(&ret[0], size_t.max) == size_t.max, "base.alloc() returned block that is already allocated.");
+		m_blocks[&ret[0]] = sz;
 		m_bytes += sz;
 		if( m_bytes > m_maxBytes ){
 			m_maxBytes = m_bytes;
@@ -236,7 +236,7 @@ final class DebugAllocator : Allocator {
 
 final class MallocAllocator : Allocator {
 	void[] alloc(size_t sz)
-	{
+	@trusted {
 		static err = new immutable OutOfMemoryError;
 		auto ptr = .malloc(sz + Allocator.alignment);
 		if (ptr is null) throw err;
@@ -277,7 +277,7 @@ final class MallocAllocator : Allocator {
 
 final class GCAllocator : Allocator {
 	void[] alloc(size_t sz)
-	{
+	@trusted {
 		auto mem = GC.malloc(sz+Allocator.alignment);
 		auto alignedmem = adjustPointerAlignment(mem);
 		assert(alignedmem - mem <= Allocator.alignment);
@@ -322,7 +322,7 @@ final class AutoFreeListAllocator : Allocator {
 		Allocator m_baseAlloc;
 	}
 
-	this(Allocator base_allocator) nothrow
+	this(Allocator base_allocator) @safe nothrow
 	{
 		m_baseAlloc = base_allocator;
 		foreach (i; iotaTuple!freeListCount)
@@ -416,7 +416,7 @@ final class PoolAllocator : Allocator {
 		size_t m_poolSize;
 	}
 
-	this(size_t pool_size, Allocator base) nothrow
+	this(size_t pool_size, Allocator base) @safe nothrow
 	{
 		m_poolSize = pool_size;
 		m_baseAllocator = base;
@@ -456,7 +456,7 @@ final class PoolAllocator : Allocator {
 		if( !p ){
 			auto pmem = m_baseAllocator.alloc(AllocSize!Pool);
 
-			p = emplace!Pool(cast(Pool*)pmem.ptr);
+			p = emplace!Pool(() @trusted { return cast(Pool*)pmem.ptr; } ());
 			p.data = m_baseAllocator.alloc(max(aligned_sz, m_poolSize));
 			p.remaining = p.data;
 			p.next = cast(Pool*)m_freePools;
@@ -560,7 +560,7 @@ nothrow:
 	}
 
 	this(size_t elem_size, Allocator base_allocator)
-	{
+	@safe {
 		assert(elem_size >= size_t.sizeof);
 		m_elemSize = elem_size;
 		m_baseAlloc = base_allocator;
@@ -576,13 +576,13 @@ nothrow:
 	}
 
 	void[] alloc()
-	{
+	@safe {
 		void[] mem;
 		if( m_firstFree ){
 			auto slot = m_firstFree;
 			m_firstFree = slot.next;
 			slot.next = null;
-			mem = (cast(void*)slot)[0 .. m_elemSize];
+			mem = () @trusted { return (cast(void*)slot)[0 .. m_elemSize]; } ();
 			debug m_nfree--;
 		} else {
 			mem = m_baseAlloc.alloc(m_elemSize);
@@ -800,7 +800,7 @@ unittest {
 }
 
 private size_t alignedSize(size_t sz) nothrow
-{
+@safe {
 	return ((sz + Allocator.alignment - 1) / Allocator.alignment) * Allocator.alignment;
 }
 
@@ -814,8 +814,8 @@ unittest {
 }
 
 private void ensureValidMemory(void[] mem) nothrow
-{
-	auto bytes = cast(ubyte[])mem;
+@safe {
+	auto bytes = () @trusted { return cast(ubyte[])mem; } ();
 	swap(bytes[0], bytes[$-1]);
 	swap(bytes[0], bytes[$-1]);
 }
