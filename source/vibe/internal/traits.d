@@ -403,28 +403,38 @@ template checkInterfaceConformance(T, I) {
 	alias Members = AliasSeq!(__traits(allMembers, I));
 
 	template checkMemberConformance(string mem) {
-		alias Overloads = MemberFunctionsTuple!(I, mem);
+		alias Overloads = AliasSeq!(__traits(getOverloads, I, mem));
 		template impl(size_t i) {
 			static if (i < Overloads.length) {
 				alias F = Overloads[i];
 				alias FT = FunctionTypeOf!F;
 				alias PT = ParameterTypeTuple!F;
 				alias RT = ReturnType!F;
+				enum attribs = functionAttributeString!F(true);
 				static if (functionAttributes!F & FunctionAttribute.property) {
 					static if (PT.length > 0) {
-						static if (!is(typeof({ T t; return mixin("t."~mem) = PT.init; } ()) : RT))
+						static if (!is(typeof(mixin("function RT (ref T t)"~attribs~"{ return t."~mem~" = PT.init; }"))))
 							enum impl = T.stringof ~ " does not implement property setter \"" ~ mem ~ "\" of type " ~ FT.stringof;
 						else enum string impl = impl!(i+1);
 					} else {
-						static if (!is(typeof({ T t; return mixin("t."~mem); }()) : RT))
+						static if (!is(typeof(mixin("function RT(ref T t)"~attribs~"{ return t."~mem~"; }"))))
 							enum impl = T.stringof ~ " does not implement property getter \"" ~ mem ~ "\" of type " ~ FT.stringof;
 						else enum string impl = impl!(i+1);
 					}
 				} else {
-					//pragma(msg, typeof({ T t; PT p; return mixin("t."~mem)(p); } ()));
-					static if (!is(typeof({ T t; PT p; return mixin("t."~mem)(p); } ()) : RT))
-						enum impl = T.stringof ~ " does not implement method \"" ~ mem ~ "\" of type " ~ FT.stringof;
-					else enum string impl = impl!(i+1);
+					static if (is(RT == void)) {
+						static if (!is(typeof(mixin("function void(ref T t, ref PT p)"~attribs~"{ t."~mem~"(p); }")))) {
+							static if (mem == "write" && PT.length == 2) {
+								auto f = mixin("function void(ref T t, ref PT p)"~attribs~"{ t."~mem~"(p); }");
+							}
+							enum impl = T.stringof ~ " does not implement method \"" ~ mem ~ "\" of type " ~ FT.stringof;
+						}
+						else enum string impl = impl!(i+1);
+					} else {
+						static if (!is(typeof(mixin("function RT(ref T t, ref PT p)"~attribs~"{ return t."~mem~"(p); }"))))
+							enum impl = T.stringof ~ " does not implement method \"" ~ mem ~ "\" of type " ~ FT.stringof;
+						else enum string impl = impl!(i+1);
+					}
 				}
 			} else enum string impl = null;
 		}
@@ -433,7 +443,9 @@ template checkInterfaceConformance(T, I) {
 	
 	template impl(size_t i) {
 		static if (i < Members.length) {
-			enum mc = checkMemberConformance!(Members[i]);
+			static if (__traits(compiles, __traits(getMember, I, Members[i])))
+				enum mc = checkMemberConformance!(Members[i]);
+			else enum mc = null;
 			static if (mc is null) enum impl = impl!(i+1);
 			else enum impl = mc;
 		} else enum string impl = null;
@@ -470,6 +482,7 @@ unittest {
 	mixin validateInterfaceConformance!(OSClass, OutputStream);
 
 	static struct OSStruct {
+		@safe:
 		void write(in ubyte[] bytes) {}
 		void flush() {}
 		void finalize() {}
@@ -479,6 +492,7 @@ unittest {
 	mixin validateInterfaceConformance!(OSStruct, OutputStream);
 
 	static struct NonOSStruct {
+		@safe:
 		void write(in ubyte[] bytes) {}
 		void flush(bool) {}
 		void finalize() {}
@@ -487,4 +501,48 @@ unittest {
 
 	static assert(checkInterfaceConformance!(NonOSStruct, OutputStream) ==
 		"NonOSStruct does not implement method \"flush\" of type @safe void()");
+
+	static struct NonOSStruct2 {
+		void write(in ubyte[] bytes) {} // not @safe
+		void flush(bool) {}
+		void finalize() {}
+		void write(InputStream stream, ulong nbytes) {}
+	}
+
+	static assert(checkInterfaceConformance!(NonOSStruct2, OutputStream) ==
+		"NonOSStruct2 does not implement method \"write\" of type @safe void(const(ubyte[]) bytes)");
+}
+
+string functionAttributeString(alias F)(bool restrictions_only)
+{
+	import std.traits : FunctionAttribute, functionAttributes;
+
+	auto attribs = functionAttributes!F;
+	string ret;
+	with (FunctionAttribute) {
+		if (attribs & nogc) ret ~= " @nogc";
+		if (attribs & nothrow_) ret ~= " nothrow";
+		if (attribs & pure_) ret ~= " pure";
+		if (attribs & safe) ret ~= " @safe";
+		if (!restrictions_only) {
+			if (attribs & property) ret ~= " @property";
+			if (attribs & ref_) ret ~= " ref";
+			if (attribs & shared_) ret ~= " shared";
+			if (attribs & const_) ret ~= " const";
+		}
+	}
+	return ret;
+}
+
+string functionAttributeThisType(alias F)(string tname)
+{
+	import std.traits : FunctionAttribute, functionAttributes;
+
+	auto attribs = functionAttributes!F;
+	string ret = tname;
+	with (FunctionAttribute) {
+		if (attribs & shared_) ret = "shared("~ret~")";
+		if (attribs & const_) ret = "const("~ret~")";
+	}
+	return ret;
 }
