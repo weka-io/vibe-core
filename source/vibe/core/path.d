@@ -152,9 +152,9 @@ private struct PathEntryRange(PathType TYPE) {
 	}
 }
 
-unittest {
+/*unittest {
 	import std.algorithm.comparison : equal;
-	
+
 	assert(PathEntryRange!(PathType.unix)("hello/world").equal([PathEntry("hello"), PathEntry("world")]));
 	assert(PathEntryRange!(PathType.unix)("/hello/world/").equal([PathEntry("hello"), PathEntry("world")]));
 	assert(PathEntryRange!(PathType.unix)("hello\\world").equal([PathEntry("hello\\world")]));
@@ -162,4 +162,4 @@ unittest {
 	assert(PathEntryRange!(PathType.windows)("/hello/world/").equal([PathEntry("hello"), PathEntry("world")]));
 	assert(PathEntryRange!(PathType.windows)("hello\\w/orld").equal([PathEntry("hello"), PathEntry("w"), PathEntry("orld")]));
 	assert(PathEntryRange!(PathType.windows)("hello/w\\orld").equal([PathEntry("hello"), PathEntry("w"), PathEntry("orld")]));
-}
+}*/
