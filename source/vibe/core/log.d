@@ -520,71 +520,21 @@ final class HTMLLogger : Logger {
 </html>`);
 		m_logFile.flush();
 	}
-}
 
-
-/** Helper stuff.
-*/
-/** Writes the HTML escaped version of a given string to an output range.
-*/
-void filterHTMLEscape(R, S)(ref R dst, S str, HTMLEscapeFlags flags = HTMLEscapeFlags.escapeNewline)
-	if (isOutputRange!(R, dchar) && isInputRange!S)
-{
-	for (;!str.empty;str.popFront())
-		filterHTMLEscape(dst, str.front, flags);
-}
-
-/**
-	Writes the HTML escaped version of a character to an output range.
-*/
-void filterHTMLEscape(R)(ref R dst, dchar ch, HTMLEscapeFlags flags = HTMLEscapeFlags.escapeNewline )
-{
-	switch (ch) {
-		default:
-			if (flags & HTMLEscapeFlags.escapeUnknown) {
-				dst.put("&#");
-				dst.put(to!string(cast(uint)ch));
-				dst.put(';');
-			} else dst.put(ch);
-			break;
-		case '"':
-			if (flags & HTMLEscapeFlags.escapeQuotes) dst.put("&quot;");
-			else dst.put('"');
-			break;
-		case '\'':
-			if (flags & HTMLEscapeFlags.escapeQuotes) dst.put("&#39;");
-			else dst.put('\'');
-			break;
-		case '\r', '\n':
-			if (flags & HTMLEscapeFlags.escapeNewline) {
-				dst.put("&#");
-				dst.put(to!string(cast(uint)ch));
-				dst.put(';');
-			} else dst.put(ch);
-			break;
-		case 'a': .. case 'z': goto case;
-		case 'A': .. case 'Z': goto case;
-		case '0': .. case '9': goto case;
-		case ' ', '\t', '-', '_', '.', ':', ',', ';',
-			 '#', '+', '*', '?', '=', '(', ')', '/', '!',
-			 '%' , '{', '}', '[', ']', '`', '´', '$', '^', '~':
-			dst.put(cast(char)ch);
-			break;
-		case '<': dst.put("&lt;"); break;
-		case '>': dst.put("&gt;"); break;
-		case '&': dst.put("&amp;"); break;
+	private static void filterHTMLEscape(R, S)(ref R dst, S str)
+	{
+		for (;!str.empty;str.popFront()) {
+			auto ch = str.front;
+			switch (ch) {
+				default: dst.put(ch); break;
+				case '<': dst.put("&lt;"); break;
+				case '>': dst.put("&gt;"); break;
+				case '&': dst.put("&amp;"); break;
+			}
+		}
 	}
 }
 
-
-enum HTMLEscapeFlags {
-	escapeMinimal = 0,
-	escapeQuotes = 1<<0,
-	escapeNewline = 1<<1,
-	escapeUnknown = 1<<2
-}
-/*****************************
-*/
 
 import std.conv;
 /**
