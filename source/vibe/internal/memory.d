@@ -633,15 +633,15 @@ struct FreeListObjectAlloc(T, bool USE_GC = true, bool INIT = true, EXTRA = void
 			auto ret = s_firstFree;
 			s_firstFree = s_firstFree.next;
 			ret.next = null;
-			mem = (cast(void*)ret)[0 .. ElemSize];
+			mem = () @trusted { return (cast(void*)ret)[0 .. ElemSize]; } ();
 		} else {
 			//logInfo("alloc %s/%d", T.stringof, ElemSize);
 			mem = manualAllocator().alloc(ElemSlotSize);
-			static if( hasIndirections!T ) GC.addRange(mem.ptr, ElemSlotSize);
+			static if( hasIndirections!T ) () @trusted { GC.addRange(mem.ptr, ElemSlotSize); } ();
 		}
 
 		static if (INIT) return cast(TR)internalEmplace!(Unqual!T)(mem, args); // FIXME: this emplace has issues with qualified types, but Unqual!T may result in the wrong constructor getting called.
-		else return cast(TR)mem.ptr;
+		else return () @trusted { return cast(TR)mem.ptr; } ();
 	}
 
 	static void free(TR obj)
@@ -697,7 +697,7 @@ struct FreeListRef(T, bool INIT = true)
 	}
 
 	~this()
-	{
+	@safe {
 		//if( m_object ) logInfo("~this!%s(): %d", T.stringof, this.refCount);
 		//if( m_object ) logInfo("ref %s destructor %d", T.stringof, refCount);
 		//else logInfo("ref %s destructor %d", T.stringof, 0);
@@ -707,7 +707,7 @@ struct FreeListRef(T, bool INIT = true)
 	}
 
 	this(this)
-	{
+	@safe {
 		checkInvariants();
 		if( m_object ){
 			//if( m_object ) logInfo("this!%s(this): %d", T.stringof, this.refCount);
@@ -716,7 +716,7 @@ struct FreeListRef(T, bool INIT = true)
 	}
 
 	void opAssign(FreeListRef other)
-	{
+	@safe {
 		clear();
 		m_object = other.m_object;
 		if( m_object ){
@@ -726,11 +726,11 @@ struct FreeListRef(T, bool INIT = true)
 	}
 
 	void clear()
-	{
+	@safe {
 		checkInvariants();
 		if (m_object) {
 			if (--this.refCount == 0)
-				ObjAlloc.free(m_object);
+				() @trusted { ObjAlloc.free(m_object); } ();
 		}
 
 		m_object = null;
@@ -742,7 +742,7 @@ struct FreeListRef(T, bool INIT = true)
 	alias get this;
 
 	private @property ref int refCount()
-	const {
+	@trusted const {
 		auto ptr = cast(ubyte*)cast(void*)m_object;
 		ptr += ElemSize;
 		return *cast(int*)ptr;
@@ -753,6 +753,16 @@ struct FreeListRef(T, bool INIT = true)
 		assert(m_magic == 0x1EE75817);
 		assert(!m_object || refCount > 0);
 	}
+}
+
+@safe unittest {
+	static final class C {
+		@safe this() {}
+		@safe ~this() {}
+	}
+
+	auto p = new C;
+	auto r = FreeListRef!C();
 }
 
 private void* extractUnalignedPointer(void* base) nothrow
@@ -823,20 +833,19 @@ private void ensureValidMemory(void[] mem) nothrow
 /// See issue #14194
 private T internalEmplace(T, Args...)(void[] chunk, auto ref Args args)
 	if (is(T == class))
-in {
+{
 	import std.string, std.format;
 	assert(chunk.length >= T.sizeof,
 		   format("emplace: Chunk size too small: %s < %s size = %s",
 			  chunk.length, T.stringof, T.sizeof));
 	assert((cast(size_t) chunk.ptr) % T.alignof == 0,
-		   format("emplace: Misaligned memory block (0x%X): it must be %s-byte aligned for type %s", chunk.ptr, T.alignof, T.stringof));
+		   format("emplace: Misaligned memory block (0x%X): it must be %s-byte aligned for type %s", &chunk[0], T.alignof, T.stringof));
 
-} body {
 	enum classSize = __traits(classInstanceSize, T);
-	auto result = cast(T) chunk.ptr;
+	auto result = () @trusted { return cast(T) chunk.ptr; } ();
 
 	// Initialize the object in its pre-ctor state
-	chunk[0 .. classSize] = typeid(T).init[];
+	() @trusted { chunk[0 .. classSize] = typeid(T).init[]; } ();
 
 	// Call the ctor if any
 	static if (is(typeof(result.__ctor(args))))
@@ -856,7 +865,7 @@ in {
 
 /// Dittor
 private auto internalEmplace(T, Args...)(void[] chunk, auto ref Args args)
-	if (!is(T == class))
+@safe	if (!is(T == class))
 in {
 	import std.string, std.format;
 	assert(chunk.length >= T.sizeof,
@@ -866,7 +875,7 @@ in {
 		   format("emplace: Misaligned memory block (0x%X): it must be %s-byte aligned for type %s", chunk.ptr, T.alignof, T.stringof));
 
 } body {
-	return emplace(cast(T*)chunk.ptr, args);
+	return emplace(() @trusted { return cast(T*)chunk.ptr; } (), args);
 }
 
 private void logDebug_(ARGS...)(string msg, ARGS args) {}
