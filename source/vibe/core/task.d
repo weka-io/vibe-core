@@ -37,11 +37,15 @@ struct Task {
 		m_taskCounter = task_counter;
 	}
 
-	this(in Task other) nothrow { m_fiber = cast(shared(TaskFiber))other.m_fiber; m_taskCounter = other.m_taskCounter; }
+	this(in Task other)
+	@safe nothrow {
+		m_fiber = () @trusted { return cast(shared(TaskFiber))other.m_fiber; } ();
+		m_taskCounter = other.m_taskCounter;
+	}
 
 	/** Returns the Task instance belonging to the calling task.
 	*/
-	static Task getThis() nothrow @safe
+	static Task getThis() @safe nothrow
 	{
 		// In 2067, synchronized statements where annotated nothrow.
 		// DMD#4115, Druntime#1013, Druntime#1021, Phobos#2704
@@ -73,16 +77,16 @@ struct Task {
 		}
 
 		// FIXME: this is not thread safe!
-		@property ref ThreadInfo tidInfo() { return m_fiber ? taskFiber.tidInfo : s_tidInfo; }
-		@property Tid tid() { return tidInfo.ident; }
+		@property ref ThreadInfo tidInfo() @safe { return m_fiber ? taskFiber.tidInfo : s_tidInfo; }
+		@property Tid tid() @safe { return tidInfo.ident; }
 	}
 
-	T opCast(T)() const nothrow if (is(T == bool)) { return m_fiber !is null; }
+	T opCast(T)() const @safe nothrow if (is(T == bool)) { return m_fiber !is null; }
 
-	void join() { if (running) taskFiber.join(m_taskCounter); }
-	void interrupt() { if (running) taskFiber.interrupt(m_taskCounter); }
+	void join() @safe { if (running) taskFiber.join(m_taskCounter); }
+	void interrupt() @safe { if (running) taskFiber.interrupt(m_taskCounter); }
 
-	string toString() const { import std.string; return format("%s:%s", cast(void*)m_fiber, m_taskCounter); }
+	string toString() const @safe { import std.string; return format("%s:%s", () @trusted { return cast(void*)m_fiber; } (), m_taskCounter); }
 
 	void getDebugID(R)(ref R dst)
 	{
@@ -97,13 +101,13 @@ struct Task {
 
 		MD5 md;
 		md.start();
-		md.put(nativeToLittleEndian(cast(size_t)cast(void*)m_fiber));
-		md.put(nativeToLittleEndian(cast(size_t)cast(void*)m_taskCounter));
+		md.put(nativeToLittleEndian(() @trusted { return cast(size_t)cast(void*)m_fiber; } ()));
+		md.put(nativeToLittleEndian(m_taskCounter));
 		Base64.encode(md.finish()[0 .. 3], dst);
 	}
 
-	bool opEquals(in ref Task other) const nothrow @safe { return m_fiber is other.m_fiber && m_taskCounter == other.m_taskCounter; }
-	bool opEquals(in Task other) const nothrow @safe { return m_fiber is other.m_fiber && m_taskCounter == other.m_taskCounter; }
+	bool opEquals(in ref Task other) const @safe nothrow { return m_fiber is other.m_fiber && m_taskCounter == other.m_taskCounter; }
+	bool opEquals(in Task other) const @safe nothrow { return m_fiber is other.m_fiber && m_taskCounter == other.m_taskCounter; }
 }
 
 /**
@@ -159,7 +163,9 @@ struct TaskLocal(T)
 	void opAssign(T value) { this.storage = value; }
 
 	@property ref T storage()
-	{
+	@safe {
+		import std.conv : emplace;
+
 		auto fiber = TaskFiber.getThis();
 
 		// lazily register in FLS storage
@@ -178,13 +184,13 @@ struct TaskLocal(T)
 		// make sure the current fiber has enough FLS storage
 		if (fiber.m_fls.length < TaskFiber.ms_flsFill) {
 			fiber.m_fls.length = TaskFiber.ms_flsFill + 128;
-			fiber.m_flsInit.length = TaskFiber.ms_flsCounter + 64;
+			() @trusted { fiber.m_flsInit.length = TaskFiber.ms_flsCounter + 64; } ();
 		}
 
 		// return (possibly default initialized) value
-		auto data = fiber.m_fls.ptr[m_offset .. m_offset+T.sizeof];
-		if (!fiber.m_flsInit[m_id]) {
-			fiber.m_flsInit[m_id] = true;
+		auto data = () @trusted { return fiber.m_fls.ptr[m_offset .. m_offset+T.sizeof]; } ();
+		if (!() @trusted { return fiber.m_flsInit[m_id]; } ()) {
+			() @trusted { fiber.m_flsInit[m_id] = true; } ();
 			import std.traits : hasElaborateDestructor, hasAliasing;
 			static if (hasElaborateDestructor!T || hasAliasing!T) {
 				void function(void[], size_t) destructor = (void[] fls, size_t offset){
@@ -206,19 +212,19 @@ struct TaskLocal(T)
 				fls_info.offset = m_offset;
 
 				// make sure flsInfo has enough space
-				if (ms_flsInfo.length <= m_id)
-					ms_flsInfo.length = m_id + 64;
+				if (TaskFiber.ms_flsInfo.length <= m_id)
+					TaskFiber.ms_flsInfo.length = m_id + 64;
 
-				ms_flsInfo[m_id] = fls_info;
+				TaskFiber.ms_flsInfo[m_id] = fls_info;
 			}
 
 			if (m_hasInitValue) {
 				static if (__traits(compiles, emplace!T(data, m_initValue)))
-					emplace!T(data, m_initValue);
+					() @trusted { emplace!T(data, m_initValue); } ();
 				else assert(false, "Cannot emplace initialization value for type "~T.stringof);
-			} else emplace!T(data);
+			} else () @trusted { emplace!T(data); } ();
 		}
-		return (cast(T[])data)[0];
+		return *() @trusted { return cast(T*)data.ptr; } ();
 	}
 
 	alias storage this;
@@ -403,14 +409,14 @@ final package class TaskFiber : Fiber {
 	*/
 	@property Task task() @safe nothrow { return Task(this, m_taskCounter); }
 
-	@property ref inout(ThreadInfo) tidInfo() inout nothrow { return m_tidInfo; }
+	@property ref inout(ThreadInfo) tidInfo() inout @safe nothrow { return m_tidInfo; }
 
-	@property size_t taskCounter() const { return m_taskCounter; }
+	@property size_t taskCounter() const @safe nothrow { return m_taskCounter; }
 
 	/** Blocks until the task has ended.
 	*/
 	void join(size_t task_counter)
-	{
+	@safe {
 		while (m_running && m_taskCounter == task_counter)
 			m_onExit.wait();
 	}
@@ -418,7 +424,7 @@ final package class TaskFiber : Fiber {
 	/** Throws an InterruptExeption within the task as soon as it calls an interruptible function.
 	*/
 	void interrupt(size_t task_counter)
-	{
+	@safe {
 		import vibe.core.core : taskScheduler;
 
 		if (m_taskCounter != task_counter)
@@ -428,7 +434,7 @@ final package class TaskFiber : Fiber {
 		if (caller != Task.init) {
 			assert(caller != this.task, "A task cannot interrupt itself.");
 			assert(caller.thread is this.thread, "Interrupting tasks in different threads is not yet supported.");
-		} else assert(Thread.getThis() is this.thread, "Interrupting tasks in different threads is not yet supported.");
+		} else assert(() @trusted { return Thread.getThis(); } () is this.thread, "Interrupting tasks in different threads is not yet supported.");
 		logTrace("Resuming task with interrupt flag.");
 		m_interrupt = true;
 		taskScheduler.switchTo(this.task);
