@@ -845,7 +845,10 @@ private T internalEmplace(T, Args...)(void[] chunk, auto ref Args args)
 	auto result = () @trusted { return cast(T) chunk.ptr; } ();
 
 	// Initialize the object in its pre-ctor state
-	() @trusted { chunk[0 .. classSize] = typeid(T).init[]; } ();
+	static if (__VERSION__ < 2071)
+		() @trusted { return chunk[0 .. classSize] = typeid(T).init[]; } ();
+	else
+		() @trusted { return chunk[0 .. classSize] = typeid(T).initializer[]; } (); // Avoid deprecation warning
 
 	// Call the ctor if any
 	static if (is(typeof(result.__ctor(args))))
@@ -872,7 +875,7 @@ in {
 		   format("emplace: Chunk size too small: %s < %s size = %s",
 			  chunk.length, T.stringof, T.sizeof));
 	assert((cast(size_t) chunk.ptr) % T.alignof == 0,
-		   format("emplace: Misaligned memory block (0x%X): it must be %s-byte aligned for type %s", chunk.ptr, T.alignof, T.stringof));
+		   format("emplace: Misaligned memory block (0x%X): it must be %s-byte aligned for type %s", &chunk[0], T.alignof, T.stringof));
 
 } body {
 	return emplace(() @trusted { return cast(T*)chunk.ptr; } (), args);
