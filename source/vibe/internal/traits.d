@@ -451,7 +451,9 @@ template checkInterfaceConformance(T, I) {
 		} else enum string impl = null;
 	}
 
-	static if (is(T == struct) || is(T == class) || is(T == interface))
+	static if (is(T : I))
+		enum checkInterfaceConformance = null;
+	else static if (is(T == struct) || is(T == class) || is(T == interface))
 		enum checkInterfaceConformance = impl!0;
 	else
 		enum checkInterfaceConformance = "Aggregate type expected, not " ~ T.stringof;
