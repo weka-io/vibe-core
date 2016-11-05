@@ -423,7 +423,7 @@ final class PoolAllocator : Allocator {
 	}
 
 	@property size_t totalSize()
-	{
+	@safe {
 		size_t amt = 0;
 		for (auto p = m_fullPools; p; p = p.next)
 			amt += p.data.length;
@@ -433,7 +433,7 @@ final class PoolAllocator : Allocator {
 	}
 
 	@property size_t allocatedSize()
-	{
+	@safe {
 		size_t amt = 0;
 		for (auto p = m_fullPools; p; p = p.next)
 			amt += p.data.length;
