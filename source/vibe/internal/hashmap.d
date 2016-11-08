@@ -7,7 +7,7 @@
 */
 module vibe.internal.hashmap;
 
-import vibe.internal.memory;
+import vibe.internal.allocator;
 
 import std.conv : emplace;
 import std.traits;
@@ -44,7 +44,7 @@ struct DefaultHashMapTraits(Key) {
 struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 {
 @safe:
-
+	import core.memory : GC;
 	import vibe.internal.traits : isOpApplyDg;
 
 	alias Key = TKey;
@@ -59,11 +59,11 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 	private {
 		TableEntry[] m_table; // NOTE: capacity is always POT
 		size_t m_length;
-		Allocator m_allocator;
+		IAllocator m_allocator;
 		bool m_resizing;
 	}
 
-	this(Allocator allocator)
+	this(IAllocator allocator)
 	{
 		m_allocator = allocator;
 	}
@@ -71,7 +71,11 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 	~this()
 	{
 		clear();
-		if (m_table.ptr !is null) () @trusted { freeArray(m_allocator, m_table); } ();
+		if (m_table.ptr !is null) () @trusted {
+			static if (hasIndirections!TableEntry) GC.removeRange(m_table.ptr);
+			try m_allocator.dispose(m_table);
+			catch (Exception e) assert(false, e.msg);
+		} ();
 	}
 
 	@disable this(this);
@@ -209,12 +213,15 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 	}
 
 	private void resize(size_t new_size)
-	@trusted {
+	@trusted nothrow {
 		assert(!m_resizing);
 		m_resizing = true;
 		scope(exit) m_resizing = false;
 
-		if (!m_allocator) m_allocator = defaultAllocator();
+		if (!m_allocator) {
+			try m_allocator = processAllocator();
+			catch (Exception e) assert(false, e.msg);
+		}
 
 		uint pot = 0;
 		while (new_size > 1) pot++, new_size /= 2;
@@ -223,7 +230,9 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 		auto oldtable = m_table;
 
 		// allocate the new array, automatically initializes with empty entries (Traits.clearValue)
-		m_table = allocArray!TableEntry(m_allocator, new_size);
+		try m_table = m_allocator.makeArray!TableEntry(new_size);
+		catch (Exception e) assert(false, e.msg);
+		static if (hasIndirections!TableEntry) GC.addRange(m_table.ptr, m_table.length * TableEntry.sizeof);
 
 		// perform a move operation of all non-empty elements from the old array to the new one
 		foreach (ref el; oldtable)
@@ -233,7 +242,11 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 			}
 
 		// all elements have been moved to the new array, so free the old one without calling destructors
-		if (oldtable !is null) freeArray(m_allocator, oldtable, false);
+		if (oldtable !is null) {
+			static if (hasIndirections!TableEntry) GC.removeRange(oldtable.ptr);
+			try m_allocator.deallocate(oldtable);
+			catch (Exception e) assert(false, e.msg);
+		}
 	}
 }
 

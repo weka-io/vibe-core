@@ -122,11 +122,12 @@ interface OutputStream {
 	protected final void writeDefault(InputStream stream, ulong nbytes = 0)
 		@trusted // FreeListRef
 	{
-		import vibe.internal.memory : FreeListRef;
+		import vibe.internal.allocator : theAllocator, make, dispose;
 
 		static struct Buffer { ubyte[64*1024] bytes = void; }
-		auto bufferobj = FreeListRef!(Buffer, false)();
-		auto buffer = bufferobj.bytes[];
+		auto bufferobj = theAllocator.make!Buffer();
+		scope (exit) theAllocator.dispose(bufferobj);
+		auto buffer = bufferobj.bytes;
 
 		//logTrace("default write %d bytes, empty=%s", nbytes, stream.empty);
 		if( nbytes == 0 ){

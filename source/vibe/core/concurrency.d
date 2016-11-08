@@ -17,7 +17,6 @@ import std.typetuple;
 import std.variant;
 import std.string;
 import vibe.core.task;
-//import vibe.utils.memory;
 
 public import std.concurrency;
 
@@ -1075,7 +1074,7 @@ template isCopyable(T)
 	value.
 */
 struct Future(T) {
-	import vibe.internal.memory : FreeListRef;
+	import vibe.internal.freelistref : FreeListRef;
 
 	private {
 		FreeListRef!(shared(T)) m_result;
@@ -1129,7 +1128,7 @@ Future!(ReturnType!CALLABLE) async(CALLABLE, ARGS...)(CALLABLE callable, ARGS ar
 	if (is(typeof(callable(args)) == ReturnType!CALLABLE))
 {
 	import vibe.core.core;
-	import vibe.internal.memory : FreeListRef;
+	import vibe.internal.freelistref : FreeListRef;
 	import std.functional : toDelegate;
 
 	alias RET = ReturnType!CALLABLE;

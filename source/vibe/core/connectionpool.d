@@ -11,7 +11,7 @@ import vibe.core.log;
 
 import core.thread;
 import vibe.core.sync;
-import vibe.internal.memory;
+import vibe.internal.freelistref;
 
 /**
 	Generic connection pool class.

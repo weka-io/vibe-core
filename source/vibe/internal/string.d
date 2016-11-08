@@ -10,7 +10,7 @@ module vibe.internal.string;
 public import std.string;
 
 import vibe.internal.array;
-import vibe.internal.memory;
+import vibe.internal.allocator;
 
 import std.algorithm;
 import std.array;
@@ -186,7 +186,7 @@ sizediff_t matchBracket(string str, bool nested = true)
 }
 
 /// Same as std.string.format, just using an allocator.
-string formatAlloc(ARGS...)(Allocator alloc, string fmt, ARGS args)
+string formatAlloc(ARGS...)(IAllocator alloc, string fmt, ARGS args)
 {
 	auto app = AllocAppender!string(alloc);
 	formattedWrite(&app, fmt, args);
