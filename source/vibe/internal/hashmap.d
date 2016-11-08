@@ -310,7 +310,7 @@ nothrow unittest {
 
 @safe unittest { // test for proper use of constructor/post-blit/destructor
 	static struct Test {
-		@safe:
+		@safe nothrow:
 		static size_t constructedCounter = 0;
 		bool constructed = false;
 		this(int) { constructed = true; constructedCounter++; }
