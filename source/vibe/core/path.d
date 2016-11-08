@@ -21,6 +21,11 @@ struct Path {
 		return m_path.startsWith('/');
 	}
 
+	@property bool endsWithSlash()
+	const {
+		import std.algorithm.searching : endsWith;
+		return m_path.endsWith('/');
+	}
 	@property void endsWithSlash(bool v)
 	{
 		import std.algorithm.searching : endsWith;
@@ -49,7 +54,7 @@ struct Path {
 
 	void normalize()
 	{
-		assert(false, "TODO!");
+		//assert(false, "TODO!");
 	}
 
 	// FIXME: this should decompose the two paths into their parts and compare the part sequence
