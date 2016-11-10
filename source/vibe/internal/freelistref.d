@@ -44,15 +44,17 @@ struct FreeListObjectAlloc(T, bool USE_GC = true, bool INIT = true, EXTRA = void
 			auto ret = s_firstFree;
 			s_firstFree = s_firstFree.next;
 			ret.next = null;
-			mem = (cast(void*)ret)[0 .. ElemSize];
+			mem = () @trusted { return (cast(void*)ret)[0 .. ElemSize]; } ();
 		} else {
 			//logInfo("alloc %s/%d", T.stringof, ElemSize);
 			mem = Mallocator.instance.allocate(ElemSlotSize);
-			static if( hasIndirections!T ) GC.addRange(mem.ptr, ElemSlotSize);
+			static if(hasIndirections!T) () @trusted { GC.addRange(mem.ptr, ElemSlotSize); } ();
 		}
 
-		static if (INIT) return cast(TR)internalEmplace!(Unqual!T)(mem, args); // FIXME: this emplace has issues with qualified types, but Unqual!T may result in the wrong constructor getting called.
-		else return cast(TR)mem.ptr;
+		// FIXME: this emplace has issues with qualified types, but Unqual!T may result in the wrong constructor getting called.
+		static if (INIT) internalEmplace!(Unqual!T)(mem, args);
+
+		return () @trusted { return cast(TR)mem.ptr; } ();
 	}
 
 	static void free(TR obj)
@@ -70,6 +72,11 @@ struct FreeListObjectAlloc(T, bool USE_GC = true, bool INIT = true, EXTRA = void
 		//static if( hasIndirections!T ) GC.removeRange(cast(void*)obj);
 		//Mallocator.instance.deallocate((cast(void*)obj)[0 .. ElemSlotSize]);
 	}
+}
+
+@safe unittest {
+	struct S {}
+	FreeListObjectAlloc!S.alloc();
 }
 
 
@@ -99,7 +106,7 @@ struct FreeListRef(T, bool INIT = true)
 	private size_t m_magic = 0x1EE75817; // workaround for compiler bug
 
 	static FreeListRef opCall(ARGS...)(ARGS args)
-	{
+	@safe {
 		//logInfo("refalloc %s/%d", T.stringof, ElemSize);
 		FreeListRef ret;
 		ret.m_object = ObjAlloc.alloc(args);
@@ -141,19 +148,23 @@ struct FreeListRef(T, bool INIT = true)
 		checkInvariants();
 		if (m_object) {
 			if (--this.refCount == 0)
-				ObjAlloc.free(m_object);
+				() @trusted { ObjAlloc.free(m_object); } ();
 		}
 
 		m_object = null;
 		m_magic = 0x1EE75817;
 	}
 
-	@property const(TR) get() const { checkInvariants(); return m_object; }
-	@property TR get() { checkInvariants(); return m_object; }
+	static if (is(T == class)) {
+		@property inout(T) get() inout @safe nothrow { return m_object; }
+	} else {
+		@property ref inout(T) get() inout @safe nothrow { return *m_object; }
+		void opAssign(T t) { *m_object = t; }
+	}
 	alias get this;
 
 	private @property ref int refCount()
-	const {
+	const @trusted {
 		auto ptr = cast(ubyte*)cast(void*)m_object;
 		ptr += ElemSize;
 		return *cast(int*)ptr;
@@ -180,13 +191,15 @@ in {
 
 } body {
 	enum classSize = __traits(classInstanceSize, T);
-	auto result = cast(T) chunk.ptr;
+	auto result = () @trusted { return cast(T) chunk.ptr; } ();
 
 	// Initialize the object in its pre-ctor state
-	static if (__VERSION__ < 2071)
-		chunk[0 .. classSize] = typeid(T).init[];
-	else
-		chunk[0 .. classSize] = typeid(T).initializer[]; // Avoid deprecation warning
+	() @trusted {
+		static if (__VERSION__ < 2071)
+			chunk[0 .. classSize] = typeid(T).init[];
+		else
+			chunk[0 .. classSize] = typeid(T).initializer[]; // Avoid deprecation warning
+	} ();
 
 	// Call the ctor if any
 	static if (is(typeof(result.__ctor(args))))
@@ -216,7 +229,7 @@ in {
 		   format("emplace: Misaligned memory block (0x%X): it must be %s-byte aligned for type %s", chunk.ptr, T.alignof, T.stringof));
 
 } body {
-	return emplace(cast(T*)chunk.ptr, args);
+	return emplace(() @trusted { return cast(T*)chunk.ptr; } (), args);
 }
 
 private void logDebug_(ARGS...)(string msg, ARGS args) {}
