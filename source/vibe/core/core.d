@@ -525,12 +525,18 @@ unittest {
 	}
 }
 
+unittest { // run and join local task from outside of a task
+	int i = 0;
+	auto t = runTask({ sleep(5.msecs); i = 1; });
+	t.join();
+	assert(i == 1);
+}
+
 unittest { // run and join worker task from outside of a task
 	__gshared int i = 0;
 	auto t = runWorkerTaskH({ sleep(5.msecs); i = 1; });
-	// FIXME: joining between threads not yet supported
-	//t.join();
-	//assert(i == 1);
+	t.join();
+	assert(i == 1);
 }
 
 private void runWorkerTask_unsafe(CALLABLE, ARGS...)(CALLABLE callable, ref ARGS args)
@@ -988,7 +994,7 @@ void setTaskEventCallback(TaskEventCallback func)
 /**
 	A version string representing the current vibe version
 */
-enum vibeVersionString = "0.7.27";
+enum vibeVersionString = "1.0.0-alpha";
 
 
 /**
