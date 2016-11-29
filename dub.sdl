@@ -11,5 +11,5 @@ dependency "eventcore" version="~>0.5.0"
 mainSourceFile "source/vibe/appmain.d"
 
 configuration "unittest" {
-	versions "VibeMutexLog" "VibeAsyncLog"
+	debugVersions "VibeMutexLog" "VibeAsyncLog"
 }
