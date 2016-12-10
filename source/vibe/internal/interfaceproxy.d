@@ -98,6 +98,7 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 		if (m_intf) {
 			m_intf._destroy(m_value);
 			m_intf = null;
+			() @trusted { (cast(ubyte[])m_value)[] = 0; } ();
 		}
 	}
 
@@ -210,26 +211,31 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 			return impl;
 		}
 
-		void _destroy(void[] stor)
+		override void _destroy(void[] stor)
 		@trusted nothrow {
-			try destroy(_extract(stor));
-			catch (Exception e) assert(false, "Destructor has thrown: "~e.msg);
+			static if (is(O == struct)) {
+				try destroy(_extract(stor));
+				catch (Exception e) assert(false, "Destructor has thrown: "~e.msg);
+			}
 		}
 
-		void _postblit(void[] stor)
+		override void _postblit(void[] stor)
 		@trusted nothrow {
-			try typeid(O).postblit(stor.ptr);
-			catch (Exception e) assert(false, "Postblit contructor has thrown: "~e.msg);
+			static if (is(O == struct)) {
+				try typeid(O).postblit(stor.ptr);
+				catch (Exception e) assert(false, "Postblit contructor has thrown: "~e.msg);
+			}
 		}
 
-		TypeInfo _typeInfo()
+		override TypeInfo _typeInfo()
 		@safe nothrow {
 			return typeid(O);
 		}
 
 		static ref inout(O) _extract(inout(void)[] stor)
 		@trusted nothrow pure @nogc {
-			return (cast(inout(O)[])stor[0 .. O.sizeof])[0];
+			if (stor.length < O.sizeof) assert(false);
+			return *cast(inout(O)*)stor.ptr;
 		}
 
 		mixin methodDefs!0;
