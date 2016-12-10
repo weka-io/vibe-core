@@ -1131,7 +1131,7 @@ package(vibe) void performIdleProcessing()
 			again = s_idleHandler();
 		else again = false;
 
-		again = (s_scheduler.schedule() || again) && !getExitFlag();
+		again = (s_scheduler.schedule() == ScheduleStatus.busy || again) && !getExitFlag();
 
 		if (again) {
 			auto er = eventDriver.core.processEvents(0.seconds);
