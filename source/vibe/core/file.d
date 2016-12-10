@@ -157,8 +157,8 @@ FileStream createTempFile(string suffix = null)
 		assert(suffix.length <= int.max);
 		auto fd = () @trusted { return mkstemps(templ.ptr, cast(int)suffix.length); } ();
 		enforce(fd >= 0, "Failed to create temporary file.");
-		assert(false);
-		//return eventDriver.adoptFile(fd, Path(templ[0 .. $-1].idup), FileMode.createTrunc);
+		auto efd = eventDriver.files.adopt(fd);
+		return FileStream(efd, Path(templ[0 .. $-1].idup), FileMode.createTrunc);
 	}
 }
 
@@ -471,9 +471,15 @@ logDebug("Written %s", res[2]);
 		enforce(res[1] == IOStatus.ok, "Failed to read data from disk.");
 	}
 
-	void write(InputStream)(InputStream stream, ulong nbytes = 0)
+	void write(in char[] bytes)
 	{
-		writeDefault(stream, nbytes);
+		write(cast(const(ubyte)[])bytes);
+	}
+
+	void write(InputStream)(InputStream stream, ulong nbytes = 0)
+		if (isInputStream!InputStream)
+	{
+		writeDefault(this, stream, nbytes);
 	}
 
 	void flush()
@@ -491,11 +497,14 @@ mixin validateRandomAccessStream!FileStream;
 
 
 private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, InputStream stream, ulong nbytes = 0)
+	if (isOutputStream!OutputStream && isInputStream!InputStream)
 {
-	assert(false);
-	/*
+	import vibe.internal.allocator : theAllocator, make, dispose;
+	import std.algorithm.comparison : min;
+
 	static struct Buffer { ubyte[64*1024] bytes = void; }
-	auto bufferobj = FreeListRef!(Buffer, false)();
+	auto bufferobj = () @trusted { return theAllocator.make!Buffer(); } ();
+	scope (exit) () @trusted { theAllocator.dispose(bufferobj); } ();
 	auto buffer = bufferobj.bytes[];
 
 	//logTrace("default write %d bytes, empty=%s", nbytes, stream.empty);
@@ -516,7 +525,6 @@ private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, Input
 			nbytes -= chunk;
 		}
 	}
-	*/
 }
 
 
