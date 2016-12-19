@@ -6,10 +6,24 @@ license "MIT"
 
 dependency "eventcore" version="~>0.5.0"
 
-//subConfiguration "eventcore" "libasync"
-
 mainSourceFile "source/vibe/appmain.d"
 
-configuration "unittest" {
+configuration "winapi" {
+	subConfiguration "eventcore" "winapi"
+}
+configuration "epoll" {
+	subConfiguration "eventcore" "epoll"
+}
+configuration "kqueue" {
+	subConfiguration "eventcore" "kqueue"
+}
+configuration "select" {
+	subConfiguration "eventcore" "select"
+}
+configuration "libasync" {
+	subConfiguration "eventcore" "libasync"
+}
+
+buildType "unittest" {
 	debugVersions "VibeMutexLog" "VibeAsyncLog"
 }
