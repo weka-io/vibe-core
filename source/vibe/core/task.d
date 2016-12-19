@@ -57,33 +57,34 @@ struct Task {
 		if (!fiber) return Task.init;
 		auto tfiber = cast(TaskFiber)fiber;
 		assert(tfiber !is null, "Invalid or null fiber used to construct Task handle.");
+		// FIXME: returning a non-.init handle for a finished task might break some layered logic
 		return () @trusted { return Task(tfiber, tfiber.m_taskCounter); } ();
 	}
 
 	nothrow {
-		package @property inout(TaskFiber) taskFiber() inout @trusted { return cast(inout(TaskFiber))m_fiber; }
-		@property inout(Fiber) fiber() inout @trusted { return this.taskFiber; }
+		package @property inout(TaskFiber) taskFiber() inout @system { return cast(inout(TaskFiber))m_fiber; }
+		@property inout(Fiber) fiber() inout @system { return this.taskFiber; }
 		@property size_t taskCounter() const @safe { return m_taskCounter; }
-		@property inout(Thread) thread() inout @safe { if (m_fiber) return this.taskFiber.thread; return null; }
+		@property inout(Thread) thread() inout @trusted { if (m_fiber) return this.taskFiber.thread; return null; }
 
 		/** Determines if the task is still running.
 		*/
-		@property bool running()
+		@property bool running() // FIXME: this is NOT thread safe
 		const @trusted {
 			assert(m_fiber !is null, "Invalid task handle");
 			try if (this.taskFiber.state == Fiber.State.TERM) return false; catch (Throwable) {}
 			return this.taskFiber.m_running && this.taskFiber.m_taskCounter == m_taskCounter;
 		}
 
-		// FIXME: this is not thread safe!
-		@property ref ThreadInfo tidInfo() @safe { return m_fiber ? taskFiber.tidInfo : s_tidInfo; }
-		@property Tid tid() @safe { return tidInfo.ident; }
+		package @property ref ThreadInfo tidInfo() @system { return m_fiber ? taskFiber.tidInfo : s_tidInfo; } // FIXME: this is not thread safe!
+		
+		@property Tid tid() @trusted { return tidInfo.ident; }
 	}
 
 	T opCast(T)() const @safe nothrow if (is(T == bool)) { return m_fiber !is null; }
 
-	void join() @safe { if (running) taskFiber.join(m_taskCounter); }
-	void interrupt() @safe { if (running) taskFiber.interrupt(m_taskCounter); }
+	void join() @trusted { if (running) taskFiber.join(m_taskCounter); } // FIXME: this is NOT thread safe
+	void interrupt() @trusted { if (running) taskFiber.interrupt(m_taskCounter); } // FIXME: this is NOT thread safe
 
 	string toString() const @safe { import std.string; return format("%s:%s", () @trusted { return cast(void*)m_fiber; } (), m_taskCounter); }
 
@@ -416,9 +417,10 @@ final package class TaskFiber : Fiber {
 	/** Blocks until the task has ended.
 	*/
 	void join(size_t task_counter)
-	@safe {
+	@trusted {
+		auto cnt = m_onExit.emitCount;
 		while (m_running && m_taskCounter == task_counter)
-			m_onExit.wait();
+			cnt = m_onExit.wait(1.seconds, cnt);
 	}
 
 	/** Throws an InterruptExeption within the task as soon as it calls an interruptible function.
@@ -448,7 +450,7 @@ final package class TaskFiber : Fiber {
 
 	package void handleInterrupt(scope void delegate() @safe nothrow on_interrupt)
 	@safe nothrow {
-		assert(Task.getThis().fiber is this, "Handling interrupt outside of the corresponding fiber.");
+		assert(() @trusted { return Task.getThis().fiber; } () is this, "Handling interrupt outside of the corresponding fiber.");
 		if (m_interrupt && on_interrupt) {
 			logTrace("Handling interrupt flag.");
 			m_interrupt = false;
@@ -520,12 +522,13 @@ package struct TaskScheduler {
 	{
 		auto t = Task.getThis();
 		if (t == Task.init) return; // not really a task -> no-op
-		logTrace("Yielding (interrupt=%s)", t.taskFiber.m_interrupt);
-		t.taskFiber.handleInterrupt();
-		if (t.taskFiber.m_queue !is null) return; // already scheduled to be resumed
-		m_taskQueue.insertBack(t.taskFiber);
+		auto tf = () @trusted { return t.taskFiber; } ();
+		logTrace("Yielding (interrupt=%s)", tf.m_interrupt);
+		tf.handleInterrupt();
+		if (tf.m_queue !is null) return; // already scheduled to be resumed
+		m_taskQueue.insertBack(tf);
 		doYield(t);
-		t.taskFiber.handleInterrupt();
+		tf.handleInterrupt();
 	}
 
 	nothrow:
@@ -627,8 +630,9 @@ package struct TaskScheduler {
 	{
 		auto t = Task.getThis();
 		if (t == Task.init) return; // not really a task -> no-op
-		if (t.taskFiber.m_queue !is null) return; // already scheduled to be resumed
-		m_taskQueue.insertBack(t.taskFiber);
+		auto tf = () @trusted { return t.taskFiber; } ();
+		if (tf.m_queue !is null) return; // already scheduled to be resumed
+		m_taskQueue.insertBack(tf);
 		doYield(t);
 	}
 
@@ -660,22 +664,24 @@ package struct TaskScheduler {
 
 		if (t == thist) return;
 
-		auto thisthr = thist ? thist.taskFiber.thread : () @trusted { return Thread.getThis(); } ();
+		auto thisthr = thist ? thist.thread : () @trusted { return Thread.getThis(); } ();
 		assert(t.thread is thisthr, "Cannot switch to a task that lives in a different thread.");
 		if (thist == Task.init) {
 			resumeTask(t);
 		} else {
-			assert(!thist.taskFiber.m_queue, "Calling task is running, but scheduled to be resumed!?");
-			if (t.taskFiber.m_queue) {
+			auto tf = () @trusted { return t.taskFiber; } ();
+			auto thistf = () @trusted { return thist.taskFiber; } ();
+			assert(!thistf.m_queue, "Calling task is running, but scheduled to be resumed!?");
+			if (tf.m_queue) {
 				logTrace("Task to switch to is already scheduled. Moving to front of queue.");
-				assert(t.taskFiber.m_queue is &m_taskQueue, "Task is already enqueued, but not in the main task queue.");
-				m_taskQueue.remove(t.taskFiber);
-				assert(!t.taskFiber.m_queue, "Task removed from queue, but still has one set!?");
+				assert(tf.m_queue is &m_taskQueue, "Task is already enqueued, but not in the main task queue.");
+				m_taskQueue.remove(tf);
+				assert(!tf.m_queue, "Task removed from queue, but still has one set!?");
 			}
 
 			logTrace("Switching tasks");
-			m_taskQueue.insertFront(thist.taskFiber);
-			m_taskQueue.insertFront(t.taskFiber);
+			m_taskQueue.insertFront(thistf);
+			m_taskQueue.insertFront(tf);
 			doYield(thist);
 		}
 	}

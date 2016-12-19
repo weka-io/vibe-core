@@ -1212,8 +1212,8 @@ void setConcurrencyPrimitive(ConcurrencyPrimitive primitive)
 	atomicStore(st_concurrencyPrimitive, primitive);
 }
 
-void send(ARGS...)(Task task, ARGS args) { std.concurrency.send(task.tidInfo.ident, args); }
-void prioritySend(ARGS...)(Task task, ARGS args) { std.concurrency.prioritySend(task.tidInfo.ident, args); }
+void send(ARGS...)(Task task, ARGS args) { std.concurrency.send(task.tid, args); }
+void prioritySend(ARGS...)(Task task, ARGS args) { std.concurrency.prioritySend(task.tid, args); }
 
 package class VibedScheduler : Scheduler {
 	import core.sync.mutex;
@@ -1239,7 +1239,7 @@ package class VibedScheduler : Scheduler {
 		}
 	}
 	override void yield() {}
-	override @property ref ThreadInfo thisInfo(){ return Task.getThis().tidInfo; }
+	override @property ref ThreadInfo thisInfo() @trusted { return Task.getThis().tidInfo; }
 	override TaskCondition newCondition(Mutex m)
 	{
 		try {

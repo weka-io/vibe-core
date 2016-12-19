@@ -735,9 +735,10 @@ void yield()
 @safe {
 	auto t = Task.getThis();
 	if (t != Task.init) {
-		t.taskFiber.handleInterrupt();
+		auto tf = () @trusted { return t.taskFiber; } ();
+		tf.handleInterrupt();
 		s_scheduler.yield();
-		t.taskFiber.handleInterrupt();
+		tf.handleInterrupt();
 	} else {
 		// Let yielded tasks execute
 		() @safe nothrow { performIdleProcessing(); } ();
@@ -763,9 +764,10 @@ void hibernate(scope void delegate() @safe nothrow on_interrupt = null)
 	if (t == Task.init) {
 		runEventLoopOnce();
 	} else {
-		t.taskFiber.handleInterrupt(on_interrupt);
+		auto tf = () @trusted { return t.taskFiber; } ();
+		tf.handleInterrupt(on_interrupt);
 		s_scheduler.hibernate();
-		t.taskFiber.handleInterrupt(on_interrupt);
+		tf.handleInterrupt(on_interrupt);
 	}
 }
 
