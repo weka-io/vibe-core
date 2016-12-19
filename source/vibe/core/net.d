@@ -194,7 +194,7 @@ NetworkAddress anyAddress()
 struct NetworkAddress {
 	import std.socket : Address;
 
-	version (Windows) import std.c.windows.winsock;
+	version (Windows) import core.sys.windows.winsock2;
 	else import core.sys.posix.netinet.in_;
 
 	@safe:
