@@ -264,7 +264,7 @@ final class FileLogger : Logger {
 		
 		Note that the terminal must support 256-bit color codes.
 	*/
-	bool useColors = true;
+	bool useColors = false;
 
 	this(File info_file, File diag_file)
 	{
@@ -274,8 +274,8 @@ final class FileLogger : Logger {
 
 	this(string filename)
 	{
-		m_infoFile = File(filename, "ab");
-		m_diagFile = m_infoFile;
+		auto f = File(filename, "ab");
+		this(f, f);
 	}
 
 	override void beginLine(ref LogLine msg)
@@ -300,17 +300,19 @@ final class FileLogger : Logger {
 		auto dst = m_curFile.lockingTextWriter;
 
 		if (this.useColors) {
-			final switch (msg.level) {
-				case LogLevel.trace: dst.put("\x1b[49;38;5;243m"); break;
-				case LogLevel.debugV: dst.put("\x1b[49;38;5;245m"); break;
-				case LogLevel.debug_: dst.put("\x1b[49;38;5;248m"); break;
-				case LogLevel.diagnostic: dst.put("\x1b[49;38;5;253m"); break;
-				case LogLevel.info: dst.put("\x1b[49;38;5;15m"); break;
-				case LogLevel.warn: dst.put("\x1b[49;38;5;220m"); break;
-				case LogLevel.error: dst.put("\x1b[49;38;5;9m"); break;
-				case LogLevel.critical: dst.put("\x1b[41;38;5;15m"); break;
-				case LogLevel.fatal: dst.put("\x1b[48;5;9;30m"); break;
-				case LogLevel.none: assert(false);
+			version (Posix) {
+				final switch (msg.level) {
+					case LogLevel.trace: dst.put("\x1b[49;38;5;243m"); break;
+					case LogLevel.debugV: dst.put("\x1b[49;38;5;245m"); break;
+					case LogLevel.debug_: dst.put("\x1b[49;38;5;248m"); break;
+					case LogLevel.diagnostic: dst.put("\x1b[49;38;5;253m"); break;
+					case LogLevel.info: dst.put("\x1b[49;38;5;15m"); break;
+					case LogLevel.warn: dst.put("\x1b[49;38;5;220m"); break;
+					case LogLevel.error: dst.put("\x1b[49;38;5;9m"); break;
+					case LogLevel.critical: dst.put("\x1b[41;38;5;15m"); break;
+					case LogLevel.fatal: dst.put("\x1b[48;5;9;30m"); break;
+					case LogLevel.none: assert(false);
+				}
 			}
 		}
 
@@ -346,7 +348,12 @@ final class FileLogger : Logger {
 
 	override void endLine()
 	{
-		if (useColors) m_curFile.write("\x1b[0m");
+		if (useColors) {
+			version (Posix) {
+				m_curFile.write("\x1b[0m");
+			}
+		}
+
 		static if (__VERSION__ <= 2066)
 			() @trusted { m_curFile.writeln(); } ();
 		else m_curFile.writeln();
@@ -755,12 +762,16 @@ package void initializeLogModule()
 	} else enum disable_stdout = false;
 
 	static if (!disable_stdout) {
-		ss_stdoutLogger = cast(shared)new FileLogger(stdout, stderr);
-		{
-			auto l = ss_stdoutLogger.lock();
-			l.minLevel = LogLevel.info;
-			l.format = FileLogger.Format.plain;
-		}
+		auto stdoutlogger = new FileLogger(stdout, stderr);
+		version (Posix) {
+			import core.sys.posix.unistd : isatty;
+			if (isatty(stdout.fileno))
+				stdoutlogger.useColors = true;
+		} else assert(false);
+		stdoutlogger.minLevel = LogLevel.info;
+		stdoutlogger.format = FileLogger.Format.plain;
+		ss_stdoutLogger = cast(shared)stdoutlogger;
+
 		registerLogger(ss_stdoutLogger);
 
 		bool[4] verbose;
