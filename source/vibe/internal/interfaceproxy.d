@@ -76,7 +76,7 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 
 	this(O)(O object) @trusted
 	{
-		static assert(O.sizeof <= m_value.length, "Object is too big to be stored in an InterfaceProxy.");
+		static assert(O.sizeof <= m_value.length, "Object ("~O.stringof~") is too big to be stored in an InterfaceProxy.");
 		import std.conv : emplace;
 		m_intf = ProxyImpl!O.get();
 		emplace!O(m_value[0 .. O.sizeof]);

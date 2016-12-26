@@ -381,20 +381,25 @@ enum FileMode {
 struct FileStream {
 	@safe:
 
+	private struct CTX {
+		Path path;
+		ulong size;
+		FileMode mode;
+		ulong ptr;
+	}
+
 	private {
 		FileFD m_fd;
-		Path m_path;
-		ulong m_size;
-		FileMode m_mode;
-		ulong m_ptr;
+		CTX* m_ctx;
 	}
 
 	this(FileFD fd, Path path, FileMode mode)
 	{
 		m_fd = fd;
-		m_path = path;
-		m_mode = mode;
-		m_size = eventDriver.files.getSize(fd);
+		m_ctx = new CTX; // TODO: use FD custom storage
+		m_ctx.path = path;
+		m_ctx.mode = mode;
+		m_ctx.size = eventDriver.files.getSize(fd);
 	}
 
 	this(this)
@@ -412,13 +417,13 @@ struct FileStream {
 	@property int fd() { return m_fd; }
 
 	/// The path of the file.
-	@property Path path() const { return m_path; }
+	@property Path path() const { return ctx.path; }
 
 	/// Determines if the file stream is still open
 	@property bool isOpen() const { return m_fd != FileFD.invalid; }
-	@property ulong size() const nothrow { return m_size; }
-	@property bool readable() const nothrow { return m_mode != FileMode.append; }
-	@property bool writable() const nothrow { return m_mode != FileMode.read; }
+	@property ulong size() const nothrow { return ctx.size; }
+	@property bool readable() const nothrow { return ctx.mode != FileMode.append; }
+	@property bool writable() const nothrow { return ctx.mode != FileMode.read; }
 
 	bool opCast(T)() if (is (T == bool)) { return m_fd != FileFD.invalid; }
 
@@ -429,10 +434,10 @@ struct FileStream {
 
 	void seek(ulong offset)
 	{
-		m_ptr = offset;
+		ctx.ptr = offset;
 	}
 
-	ulong tell() nothrow { return m_ptr; }
+	ulong tell() nothrow { return ctx.ptr; }
 
 	/// Closes the file handle.
 	void close()
@@ -444,8 +449,8 @@ struct FileStream {
 		}
 	}
 
-	@property bool empty() const { assert(this.readable); return m_ptr >= m_size; }
-	@property ulong leastSize() const { assert(this.readable); return m_size - m_ptr; }
+	@property bool empty() const { assert(this.readable); return ctx.ptr >= ctx.size; }
+	@property ulong leastSize() const { assert(this.readable); return ctx.size - ctx.ptr; }
 	@property bool dataAvailableForRead() { return true; }
 
 	const(ubyte)[] peek()
@@ -456,7 +461,7 @@ struct FileStream {
 	void read(ubyte[] dst)
 	{	
 		auto res = asyncAwait!(FileIOCallback,
-			cb => eventDriver.files.read(m_fd, m_ptr, dst, cb),
+			cb => eventDriver.files.read(m_fd, ctx.ptr, dst, cb),
 			cb => eventDriver.files.cancelRead(m_fd)
 		);
 		enforce(res[1] == IOStatus.ok, "Failed to read data from disk.");
@@ -465,12 +470,12 @@ struct FileStream {
 	void write(in ubyte[] bytes)
 	{
 		auto res = asyncAwait!(FileIOCallback,
-			cb => eventDriver.files.write(m_fd, m_ptr, bytes, cb),
+			cb => eventDriver.files.write(m_fd, ctx.ptr, bytes, cb),
 			cb => eventDriver.files.cancelWrite(m_fd)
 		);
-		m_ptr += res[2];
+		ctx.ptr += res[2];
 logDebug("Written %s", res[2]);
-		if (m_ptr > m_size) m_size = m_ptr;
+		if (ctx.ptr > ctx.size) ctx.size = ctx.ptr;
 		enforce(res[1] == IOStatus.ok, "Failed to read data from disk.");
 	}
 
@@ -494,6 +499,8 @@ logDebug("Written %s", res[2]);
 	{
 		flush();
 	}
+
+	private inout(CTX)* ctx() inout nothrow { return m_ctx; }
 }
 
 mixin validateRandomAccessStream!FileStream;
