@@ -1333,6 +1333,10 @@ static this()
 	synchronized (st_threadsMutex)
 		if (!st_threads.any!(c => c.thread is thisthr))
 			st_threads ~= ThreadContext(thisthr, false);
+
+
+	import vibe.core.sync : SpinLock;
+	SpinLock.setup();
 }
 
 static ~this()

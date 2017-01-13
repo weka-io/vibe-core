@@ -546,7 +546,7 @@ private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, Input
 */
 struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 	import std.array : Appender, appender;
-	import vibe.core.sync : ManualEvent;
+	import vibe.core.sync : LocalManualEvent;
 
 	@safe:
 
@@ -554,7 +554,7 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 		Path path;
 		bool recursive;
 		Appender!(DirectoryChange[]) changes;
-		ManualEvent changeEvent;
+		LocalManualEvent changeEvent;
 	}
 
 	private {
