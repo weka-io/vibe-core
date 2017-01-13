@@ -84,7 +84,7 @@ struct Task {
 	T opCast(T)() const @safe nothrow if (is(T == bool)) { return m_fiber !is null; }
 
 	void join() @trusted { if (running) taskFiber.join(m_taskCounter); } // FIXME: this is NOT thread safe
-	void interrupt() @trusted { if (running) taskFiber.interrupt(m_taskCounter); } // FIXME: this is NOT thread safe
+	void interrupt() @trusted nothrow { if (running) taskFiber.interrupt(m_taskCounter); } // FIXME: this is NOT thread safe
 
 	string toString() const @safe { import std.string; return format("%s:%s", () @trusted { return cast(void*)m_fiber; } (), m_taskCounter); }
 
@@ -426,7 +426,7 @@ final package class TaskFiber : Fiber {
 	/** Throws an InterruptExeption within the task as soon as it calls an interruptible function.
 	*/
 	void interrupt(size_t task_counter)
-	@safe {
+	@safe nothrow {
 		import vibe.core.core : taskScheduler;
 
 		if (m_taskCounter != task_counter)
@@ -701,6 +701,8 @@ package struct TaskScheduler {
 
 
 		if (!m_markerTask) m_markerTask = new TaskFiber; // TODO: avoid allocating an actual task here!
+
+		scope (exit) assert(!m_markerTask.m_queue, "Marker task still in queue!?");
 
 		assert(Task.getThis() == Task.init, "TaskScheduler.schedule() may not be called from a task!");
 		assert(!m_markerTask.m_queue, "TaskScheduler.schedule() was called recursively!");
