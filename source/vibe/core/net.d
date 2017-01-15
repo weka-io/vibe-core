@@ -150,7 +150,7 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 
 	return () @trusted { // scope
 		scope uaddr = new RefAddress(addr.sockAddr, addr.sockAddrLen);
-		scope baddr = new RefAddress(addr.sockAddr, addr.sockAddrLen);
+		scope baddr = new RefAddress(bind_address.sockAddr, bind_address.sockAddrLen);
 		
 		// FIXME: make this interruptible
 		auto result = asyncAwaitUninterruptible!(ConnectCallback, 
@@ -192,6 +192,7 @@ NetworkAddress anyAddress()
 	Represents a network/socket address.
 */
 struct NetworkAddress {
+	import std.algorithm.comparison : max;
 	import std.socket : Address;
 
 	version (Windows) import core.sys.windows.winsock2;
@@ -204,6 +205,9 @@ struct NetworkAddress {
 		sockaddr_in addr_ip4;
 		sockaddr_in6 addr_ip6;
 	}
+
+	enum socklen_t sockAddrMaxLen = max(addr.sizeof, addr_ip6.sizeof);
+
 
 	this(Address addr)
 		@trusted
@@ -261,7 +265,7 @@ struct NetworkAddress {
 
 	/** Size of the sockaddr struct that is returned by sockAddr().
 	*/
-	@property int sockAddrLen()
+	@property socklen_t sockAddrLen()
 	const pure nothrow {
 		switch (this.family) {
 			default: assert(false, "sockAddrLen() called for invalid address family.");
@@ -399,9 +403,11 @@ struct TCPConnection {
 		m_context.readBuffer.capacity = 4096;
 		try m_context.remoteAddress = NetworkAddress(remote_address);
 		catch (Exception e) { logWarn("Failed to get remote address for TCP connection: %s", e.msg); }
-		scope laddr = new RefAddress(m_context.localAddress.sockAddr, m_context.localAddress.sockAddrLen);
-		if (!eventDriver.sockets.getLocalAddress(socket, laddr))
-			logWarn("Failed to get local address for TCP connection.");
+		scope laddr = new RefAddress(m_context.localAddress.sockAddr, m_context.localAddress.sockAddrMaxLen);
+		try {
+			enforce(eventDriver.sockets.getLocalAddress(socket, laddr), "Failed to query socket address.");
+			m_context.localAddress = NetworkAddress(laddr);
+		} catch (Exception e) { logWarn("Failed to get local address for TCP connection: %s", e.msg); }
 	}
 
 	this(this)
