@@ -375,7 +375,7 @@ struct TCPConnection {
 	import vibe.internal.array : BatchBuffer;
 	//static assert(isConnectionStream!TCPConnection);
 
-	struct Context {
+	static struct Context {
 		BatchBuffer!ubyte readBuffer;
 		bool tcpNoDelay = false;
 		bool keepAlive = false;
@@ -627,13 +627,22 @@ struct TCPListener {
 	Represents a bound and possibly 'connected' UDP socket.
 */
 struct UDPConnection {
+	static struct Context {
+		bool canBroadcast;
+		NetworkAddress remoteAddress;
+		NetworkAddress localAddress;
+	}
+
 	private {
 		DatagramSocketFD m_socket;
+		Context* m_context;
 	}
 
 	private this(ref NetworkAddress bind_address) 
 	{
 		m_socket = eventDriver.sockets.createDatagramSocket(bind_address.toUnknownAddress(), null);
+		m_context = () @trusted { return &eventDriver.core.userData!Context(m_socket); } ();
+		m_context.localAddress = bind_address;
 	}
 
 
@@ -653,38 +662,42 @@ struct UDPConnection {
 
 	/** Returns the address to which the UDP socket is bound.
 	*/
-	@property string bindAddress() const { assert(false); }
+	@property string bindAddress() const { return localAddress.toString(); }
 
 	/** Determines if the socket is allowed to send to broadcast addresses.
 	*/
-	@property bool canBroadcast() const { assert(false); }
+	@property bool canBroadcast() const { return m_context.canBroadcast; }
 	/// ditto
-	@property void canBroadcast(bool val) { assert(false); }
+	@property void canBroadcast(bool val) { enforce(eventDriver.sockets.setBroadcast(m_socket, val), "Failed to set UDP broadcast flag."); m_context.canBroadcast = val; }
 
 	/// The local/bind address of the underlying socket.
-	@property NetworkAddress localAddress() const { assert(false); }
+	@property NetworkAddress localAddress() const { return m_context.localAddress; }
 
 	/** Stops listening for datagrams and frees all resources.
 	*/
-	void close() { assert(false); }
+	void close() { eventDriver.sockets.releaseRef(m_socket); m_socket = DatagramSocketFD.init; }
 
 	/** Locks the UDP connection to a certain peer.
 
 		Once connected, the UDPConnection can only communicate with the specified peer.
 		Otherwise communication with any reachable peer is possible.
 	*/
-	void connect(string host, ushort port) { assert(false); }
+	void connect(string host, ushort port) { connect(resolveHost(host, port)); }
 	/// ditto
-	void connect(NetworkAddress address) { assert(false); }
+	void connect(NetworkAddress address) { m_context.remoteAddress = address; }
 
 	/** Sends a single packet.
 
 		If peer_address is given, the packet is send to that address. Otherwise the packet
 		will be sent to the address specified by a call to connect().
 	*/
-	void send(in ubyte[] data, in NetworkAddress* peer_address = null) {
+	void send(in ubyte[] data, in NetworkAddress* peer_address = null)
+	{
+		auto addr = () @trusted { return peer_address ? peer_address : &m_context.remoteAddress; } ();
+		scope addrc = new RefAddress(() @trusted { return (cast(NetworkAddress*)addr).sockAddr; } (), addr.sockAddrLen);
+
 		auto ret = asyncAwait!(DatagramIOCallback,
-			cb => eventDriver.sockets.send(m_socket, data, IOMode.once, peer_address ? peer_address.toUnknownAddress : null, cb),
+			cb => eventDriver.sockets.send(m_socket, data, IOMode.once, addrc, cb),
 			cb => eventDriver.sockets.cancelSend(m_socket)
 		);
 		enforce(ret[1] == IOStatus.ok, "Failed to send packet.");
