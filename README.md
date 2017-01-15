@@ -20,7 +20,7 @@ Concurrency         | done
 Streams             | done (may be subject to smaller changes)
 DNS lookup          | done
 TCP connections     | done
-UDP connections     | mostly done
+UDP connections     | done
 File I/O            | done
 Directory watchers  | done
 ManualEvent         | done
