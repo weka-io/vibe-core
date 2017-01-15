@@ -17,11 +17,11 @@ Feature             | State
 --------------------|---------
 Task scheduling     | done
 Concurrency         | done
-Streams             | done (may be subject to further changes)
+Streams             | done (may be subject to smaller changes)
 DNS lookup          | done
 TCP connections     | done
-UDP connections     | WIP
+UDP connections     | mostly done
 File I/O            | done
 Directory watchers  | done
-ManualEvent         | unstable
+ManualEvent         | done
 Path/URL types      | WIP
