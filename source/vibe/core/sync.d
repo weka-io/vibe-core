@@ -1091,10 +1091,9 @@ private struct ThreadLocalWaiter {
 			target_timeout = now + timeout;
 		}
 
-		Waitable!(
+		Waitable!(typeof(Waiter.notifier),
 			cb => w.wait(cb),
 			cb => w.cancel(),
-			typeof(Waiter.notifier)
 		) waitable;
 
 		void removeWaiter()
@@ -1114,7 +1113,7 @@ private struct ThreadLocalWaiter {
 		scope (failure) removeWaiter();
 
 		if (evt != EventID.invalid) {
-			Waitable!(
+			Waitable!(EventCallback,
 				(cb) {
 					eventDriver.events.wait(evt, cb);
 					// check for exit codition *after* starting to wait for the event
@@ -1124,8 +1123,7 @@ private struct ThreadLocalWaiter {
 						cb(evt);
 					}
 				},
-				cb => eventDriver.events.cancelWait(evt, cb),
-				EventCallback
+				cb => eventDriver.events.cancelWait(evt, cb)
 			) ewaitable;
 			asyncAwaitAny!interruptible(timeout, waitable, ewaitable);
 		} else {

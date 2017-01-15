@@ -10,14 +10,14 @@ import core.time : Duration, seconds;
 
 auto asyncAwait(Callback, alias action, alias cancel, string func = __FUNCTION__)()
 if (!is(Object == Duration)) {
-	Waitable!(action, cancel, Callback) waitable;
+	Waitable!(Callback, action, cancel) waitable;
 	asyncAwaitAny!(true, func)(waitable);
 	return tuple(waitable.results);
 }
 
 auto asyncAwait(Callback, alias action, alias cancel, string func = __FUNCTION__)(Duration timeout)
 {
-	Waitable!(action, cancel, Callback) waitable;
+	Waitable!(Callback, action, cancel) waitable;
 	asyncAwaitAny!(true, func)(timeout, waitable);
 	static struct R {
 		bool completed;
@@ -30,19 +30,19 @@ auto asyncAwaitUninterruptible(Callback, alias action, string func = __FUNCTION_
 nothrow {
 	static if (is(typeof(action(Callback.init)) == void)) void cancel(Callback) { assert(false, "Action cannot be cancelled."); }
 	else void cancel(Callback, typeof(action(Callback.init))) { assert(false, "Action cannot be cancelled."); }
-	Waitable!(action, cancel, Callback) waitable;
+	Waitable!(Callback, action, cancel) waitable;
 	asyncAwaitAny!(false, func)(waitable);
 	return tuple(waitable.results);
 }
 
 auto asyncAwaitUninterruptible(Callback, alias action, alias cancel, string func = __FUNCTION__)(Duration timeout)
 nothrow {
-	Waitable!(action, cancel, Callback) waitable;
+	Waitable!(Callback, action, cancel) waitable;
 	asyncAwaitAny!(false, func)(timeout, waitable);
 	return tuple(waitable.results);
 }
 
-struct Waitable(alias wait, alias cancel, CB, on_result...)
+struct Waitable(CB, alias wait, alias cancel, on_result...)
 	if (on_result.length <= 1)
 {
 	import std.traits : ReturnType;
@@ -77,10 +77,9 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 		auto tm = eventDriver.timers.create();
 		eventDriver.timers.set(tm, timeout, 0.seconds);
 		scope (exit) eventDriver.timers.releaseRef(tm);
-		Waitable!(
+		Waitable!(TimerCallback,
 			cb => eventDriver.timers.wait(tm, cb),
-			cb => eventDriver.timers.cancelWait(tm),
-			TimerCallback
+			cb => eventDriver.timers.cancelWait(tm)
 		) timerwaitable;
 		asyncAwaitAny!(interruptible, func)(timerwaitable, waitables);
 	}
@@ -188,19 +187,19 @@ private struct ScopeGuard { @safe nothrow: void delegate() op; ~this() { if (op 
 @safe nothrow /*@nogc*/ unittest {
 	int a, b, c;
 	Waitable!(
+		void delegate(int) @safe nothrow,
 		(cb) { a++; cb(42); },
-		(cb) { assert(false); },
-		void delegate(int) @safe nothrow
+		(cb) { assert(false); }
 	) w1;
 	Waitable!(
+		void delegate(int) @safe nothrow,
 		(cb) { b++; },
-		(cb) { c++; },
-		void delegate(int) @safe nothrow
+		(cb) { c++; }
 	) w2;
 	Waitable!(
+		void delegate(int) @safe nothrow,
 		(cb) { c++; cb(42); },
 		(cb) { assert(false); },
-		void delegate(int) @safe nothrow,
 		(int n) { assert(n == 42); }
 	) w3;
 

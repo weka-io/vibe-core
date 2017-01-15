@@ -53,10 +53,9 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 		enforce(use_dns, "Malformed IP address string.");
 		NetworkAddress res;
 		bool success = false;
-		Waitable!(
+		Waitable!(DNSLookupCallback,
 			cb => eventDriver.dns.lookupHost(host, cb),
 			(cb, id) => eventDriver.dns.cancelLookup(id),
-			DNSLookupCallback,
 			(DNSLookupID, DNSStatus status, scope RefAddress[] addrs) {
 				if (status == DNSStatus.ok && addrs.length > 0) {
 					try res = NetworkAddress(addrs[0]);
@@ -473,10 +472,9 @@ mixin(tracer);
 		if (m_context.readBuffer.length > 0) return true;
 		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
 
-		Waitable!(
+		Waitable!(IOCallback,
 			cb => eventDriver.sockets.read(m_socket, m_context.readBuffer.peekDst(), mode, cb),
-			cb => eventDriver.sockets.cancelRead(m_socket),
-			IOCallback
+			cb => eventDriver.sockets.cancelRead(m_socket)
 		) waiter;
 
 		asyncAwaitAny!true(timeout, waiter);
@@ -718,10 +716,9 @@ struct UDPConnection {
 		IOStatus status;
 		size_t nbytes;
 
-		Waitable!(
+		Waitable!(DatagramIOCallback,
 			cb => eventDriver.sockets.send(m_socket, data, IOMode.once, addrc, cb),
 			cb => eventDriver.sockets.cancelSend(m_socket),
-			DatagramIOCallback,
 			(DatagramSocketFD, IOStatus status_, size_t nbytes_, scope RefAddress addr)
 			{
 				status = status_;
@@ -755,10 +752,9 @@ struct UDPConnection {
 		IOStatus status;
 		size_t nbytes;
 
-		Waitable!(
+		Waitable!(DatagramIOCallback,
 			cb => eventDriver.sockets.receive(m_socket, buf, IOMode.once, cb),
 			cb => eventDriver.sockets.cancelReceive(m_socket),
-			DatagramIOCallback,
 			(DatagramSocketFD, IOStatus status_, size_t nbytes_, scope RefAddress addr)
 			{
 				status = status_;
