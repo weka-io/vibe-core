@@ -42,12 +42,22 @@ nothrow {
 	return tuple(waitable.results);
 }
 
-struct Waitable(alias wait, alias cancel, CB) {
+struct Waitable(alias wait, alias cancel, CB, on_result...)
+	if (on_result.length <= 1)
+{
 	import std.traits : ReturnType;
 
 	alias Callback = CB;
 
-	ParameterTypeTuple!Callback results;
+	static if (on_result.length == 0) {
+		ParameterTypeTuple!Callback results;
+		void setResult(ref ParameterTypeTuple!Callback r) { this.results = r; }
+	} else {
+		import std.format : format;
+		alias PTypes = ParameterTypeTuple!Callback;
+		mixin(q{void setResult(%s) { on_result[0](%s); }}.format(generateParamDecls!Callback, generateParamNames!Callback));
+	}
+
 	bool cancelled;
 	auto waitCallback(Callback cb) nothrow { return wait(cb); }
 	
@@ -107,7 +117,7 @@ void asyncAwaitAny(bool interruptible, string func = __FUNCTION__, Waitables...)
 			fired[i] = true;
 			any_fired = true;
 			static if (PTypes.length)
-				waitables[i].results = AliasSeq!(%s);
+				waitables[i].setResult(%s);
 			if (t != Task.init) switchToTask(t);
 		}}.format(generateParamDecls!(CBDel!W), generateParamNames!(CBDel!W)));
 		callbacks[i] = cb;
@@ -186,6 +196,12 @@ private struct ScopeGuard { @safe nothrow: void delegate() op; ~this() { if (op 
 		(cb) { c++; },
 		void delegate(int) @safe nothrow
 	) w2;
+	Waitable!(
+		(cb) { c++; cb(42); },
+		(cb) { assert(false); },
+		void delegate(int) @safe nothrow,
+		(int n) { assert(n == 42); }
+	) w3;
 
 	asyncAwaitAny!false(w1, w2);
 	assert(w1.results[0] == 42 && w2.results[0] == 0);
@@ -194,6 +210,9 @@ private struct ScopeGuard { @safe nothrow: void delegate() op; ~this() { if (op 
 	asyncAwaitAny!false(w2, w1);
 	assert(w1.results[0] == 42 && w2.results[0] == 0);
 	assert(a == 2 && b == 1 && c == 1);
+
+	asyncAwaitAny!false(w3);
+	assert(c == 2);
 }
 
 private string generateParamDecls(Fun)()
