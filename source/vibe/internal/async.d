@@ -50,6 +50,7 @@ struct Waitable(alias wait, alias cancel, CB, on_result...)
 	alias Callback = CB;
 
 	static if (on_result.length == 0) {
+		static assert(!hasAnyScopeParameter!Callback, "Need to retrieve results with a callback because of scoped parameter");
 		ParameterTypeTuple!Callback results;
 		void setResult(ref ParameterTypeTuple!Callback r) { this.results = r; }
 	} else {
@@ -244,4 +245,12 @@ private string generateParamNames(Fun)()
 		ret ~= format("param_%s", i);
 	}
 	return ret;
+}
+
+private template hasAnyScopeParameter(Callback) {
+	import std.algorithm.searching : any;
+	import std.traits : ParameterStorageClass, ParameterStorageClassTuple;
+	alias SC = ParameterStorageClassTuple!Callback;
+	static if (SC.length == 0) enum hasAnyScopeParameter = false;
+	else enum hasAnyScopeParameter = any!(c => c & ParameterStorageClass.scope_)([SC]);
 }

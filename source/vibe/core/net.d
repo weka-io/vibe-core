@@ -51,12 +51,25 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 		return ret;
 	} else {
 		enforce(use_dns, "Malformed IP address string.");
-		auto res = asyncAwait!(DNSLookupCallback,
+		NetworkAddress res;
+		bool success = false;
+		Waitable!(
 			cb => eventDriver.dns.lookupHost(host, cb),
-			(cb, id) => eventDriver.dns.cancelLookup(id)
-		);
-		enforce(res[1] == DNSStatus.ok && res[2].length > 0, "Failed to lookup host '"~host~"'.");
-		return NetworkAddress(res[2][0]);
+			(cb, id) => eventDriver.dns.cancelLookup(id),
+			DNSLookupCallback,
+			(DNSLookupID, DNSStatus status, scope RefAddress[] addrs) {
+				if (status == DNSStatus.ok && addrs.length > 0) {
+					try res = NetworkAddress(addrs[0]);
+					catch (Exception e) { logDiagnostic("Failed to store address from DNS lookup: %s", e.msg); }
+					success = true;
+				}
+			}
+		) waitable;
+
+		asyncAwaitAny!true(waitable);
+
+		enforce(success, "Failed to lookup host '"~host~"'.");
+		return res;
 	}
 }
 
@@ -702,12 +715,24 @@ struct UDPConnection {
 		auto addr = () @trusted { return peer_address ? peer_address : &m_context.remoteAddress; } ();
 		scope addrc = new RefAddress(() @trusted { return (cast(NetworkAddress*)addr).sockAddr; } (), addr.sockAddrLen);
 
-		auto ret = asyncAwait!(DatagramIOCallback,
+		IOStatus status;
+		size_t nbytes;
+
+		Waitable!(
 			cb => eventDriver.sockets.send(m_socket, data, IOMode.once, addrc, cb),
-			cb => eventDriver.sockets.cancelSend(m_socket)
-		);
-		enforce(ret[1] == IOStatus.ok, "Failed to send packet.");
-		enforce(ret[2] == data.length, "Packet was only sent partially.");
+			cb => eventDriver.sockets.cancelSend(m_socket),
+			DatagramIOCallback,
+			(DatagramSocketFD, IOStatus status_, size_t nbytes_, scope RefAddress addr)
+			{
+				status = status_;
+				nbytes = nbytes_;
+			}
+		) waitable;
+
+		asyncAwaitAny!true(waitable);
+
+		enforce(!waitable.cancelled && status == IOStatus.ok, "Failed to send packet.");
+		enforce(nbytes == data.length, "Packet was only sent partially.");
 	}
 
 	/** Receives a single packet.
@@ -726,14 +751,29 @@ struct UDPConnection {
 	{
 		import std.socket : Address;
 		if (buf.length == 0) buf = new ubyte[65536];
-		auto res = asyncAwait!(DatagramIOCallback,
+
+		IOStatus status;
+		size_t nbytes;
+
+		Waitable!(
 			cb => eventDriver.sockets.receive(m_socket, buf, IOMode.once, cb),
-			cb => eventDriver.sockets.cancelReceive(m_socket)
-		)(timeout);
-		enforce(res.completed, "Receive timeout.");
-		enforce(res.results[1] == IOStatus.ok, "Failed to receive packet.");
-		if (peer_address) *peer_address = NetworkAddress(res.results[3]);
-		return buf[0 .. res.results[2]];
+			cb => eventDriver.sockets.cancelReceive(m_socket),
+			DatagramIOCallback,
+			(DatagramSocketFD, IOStatus status_, size_t nbytes_, scope RefAddress addr)
+			{
+				status = status_;
+				nbytes = nbytes_;
+				if (status_ == IOStatus.ok && peer_address) {
+					try *peer_address = NetworkAddress(addr);
+					catch (Exception e) logWarn("Failed to store datagram source address: %s", e.msg);
+				}
+			}
+		) waitable;
+
+		asyncAwaitAny!true(timeout, waitable);
+		enforce(!waitable.cancelled, "Receive timeout.");
+		enforce(status == IOStatus.ok, "Failed to receive packet.");
+		return buf[0 .. nbytes];
 	}
 }
 
