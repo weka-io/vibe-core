@@ -88,10 +88,12 @@ TCPListener listenTCP(ushort port, TCPConnectionDelegate connection_callback, st
 	auto addr = resolveHost(address);
 	addr.port = port;
 	assert(options == TCPListenOptions.defaults, "TODO");
-	auto sock = eventDriver.sockets.listenStream(addr.toUnknownAddress, (StreamListenSocketFD ls, StreamSocketFD s) @safe nothrow {
-		import vibe.core.core : runTask;
-		runTask(connection_callback, TCPConnection(s));
-	});
+	auto sock = eventDriver.sockets.listenStream(addr.toUnknownAddress,
+		(StreamListenSocketFD ls, StreamSocketFD s, scope RefAddress addr) @safe nothrow {
+			import vibe.core.core : runTask;
+			auto conn = TCPConnection(s, addr);
+			runTask(connection_callback, conn);
+		});
 	return TCPListener(sock);
 }
 
@@ -147,11 +149,8 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 	enforce(addr.family == bind_address.family, "Destination address and bind address have different address families.");
 
 	return () @trusted { // scope
-		scope uaddr = new UnknownAddress;
-		addr.toUnknownAddress(uaddr);
-
-		scope baddr = new UnknownAddress;
-		bind_address.toUnknownAddress(baddr);
+		scope uaddr = new RefAddress(addr.sockAddr, addr.sockAddrLen);
+		scope baddr = new RefAddress(addr.sockAddr, addr.sockAddrLen);
 		
 		// FIXME: make this interruptible
 		auto result = asyncAwaitUninterruptible!(ConnectCallback, 
@@ -159,7 +158,8 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 			//cb => eventDriver.sockets.cancelConnect(cb)
 		);
 		enforce(result[1] == ConnectStatus.connected, "Failed to connect to "~addr.toString()~": "~result[1].to!string);
-		return TCPConnection(result[0]);
+
+		return TCPConnection(result[0], uaddr);
 	} ();
 }
 
@@ -377,6 +377,12 @@ struct TCPConnection {
 
 	struct Context {
 		BatchBuffer!ubyte readBuffer;
+		bool tcpNoDelay = false;
+		bool keepAlive = false;
+		Duration readTimeout = Duration.max;
+		NetworkAddress remoteAddress;
+		NetworkAddress localAddress;
+		string remoteAddressString;
 	}
 
 	private {
@@ -384,11 +390,18 @@ struct TCPConnection {
 		Context* m_context;
 	}
 
-	private this(StreamSocketFD socket)
+	private this(StreamSocketFD socket, scope RefAddress remote_address)
 	nothrow {
+		import std.exception : enforce;
+
 		m_socket = socket;
 		m_context = () @trusted { return &eventDriver.core.userData!Context(socket); } ();
 		m_context.readBuffer.capacity = 4096;
+		try m_context.remoteAddress = NetworkAddress(remote_address);
+		catch (Exception e) { logWarn("Failed to get remote address for TCP connection: %s", e.msg); }
+		scope laddr = new RefAddress(m_context.localAddress.sockAddr, m_context.localAddress.sockAddrLen);
+		if (!eventDriver.sockets.getLocalAddress(socket, laddr))
+			logWarn("Failed to get local address for TCP connection.");
 	}
 
 	this(this)
@@ -405,15 +418,15 @@ struct TCPConnection {
 
 	bool opCast(T)() const nothrow if (is(T == bool)) { return m_socket != StreamSocketFD.invalid; }
 
-	@property void tcpNoDelay(bool enabled) { eventDriver.sockets.setTCPNoDelay(m_socket, enabled); }
-	@property bool tcpNoDelay() const { assert(false); }
-	@property void keepAlive(bool enable) { assert(false); }
-	@property bool keepAlive() const { assert(false); }
-	@property void readTimeout(Duration duration) { }
-	@property Duration readTimeout() const { assert(false); }
-	@property string peerAddress() const { return ""; }
-	@property NetworkAddress localAddress() const { return NetworkAddress.init; }
-	@property NetworkAddress remoteAddress() const { return NetworkAddress.init; }
+	@property void tcpNoDelay(bool enabled) { eventDriver.sockets.setTCPNoDelay(m_socket, enabled); m_context.tcpNoDelay = enabled; }
+	@property bool tcpNoDelay() const { return m_context.tcpNoDelay; }
+	@property void keepAlive(bool enabled) { eventDriver.sockets.setKeepAlive(m_socket, enabled); m_context.keepAlive = enabled; }
+	@property bool keepAlive() const { return m_context.keepAlive; }
+	@property void readTimeout(Duration duration) { m_context.readTimeout = duration; }
+	@property Duration readTimeout() const { return m_context.readTimeout; }
+	@property string peerAddress() const { return m_context.remoteAddress.toString(); }
+	@property NetworkAddress localAddress() const { return localAddress; }
+	@property NetworkAddress remoteAddress() const { return remoteAddress; }
 	@property bool connected()
 	const {
 		if (m_socket == StreamSocketFD.invalid) return false;
@@ -438,20 +451,26 @@ struct TCPConnection {
 	bool waitForData(Duration timeout = Duration.max)
 	{
 mixin(tracer);
-		// TODO: timeout!!
 		if (m_context.readBuffer.length > 0) return true;
 		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
-		auto res = asyncAwait!(IOCallback,
+
+		Waitable!(
 			cb => eventDriver.sockets.read(m_socket, m_context.readBuffer.peekDst(), mode, cb),
-			cb => eventDriver.sockets.cancelRead(m_socket)
-		);
-		logTrace("Socket %s, read %s bytes: %s", res[0], res[2], res[1]);
+			cb => eventDriver.sockets.cancelRead(m_socket),
+			IOCallback
+		) waiter;
+
+		asyncAwaitAny!true(timeout, waiter);
+
+		if (waiter.cancelled) return false;
+
+		logTrace("Socket %s, read %s bytes: %s", waiter.results[0], waiter.results[2], waiter.results[1]);
 
 		assert(m_context.readBuffer.length == 0);
-		m_context.readBuffer.putN(res[2]);
-		switch (res[1]) {
+		m_context.readBuffer.putN(waiter.results[2]);
+		switch (waiter.results[1]) {
 			default:
-				logInfo("read status %s", res[1]);
+				logInfo("read status %s", waiter.results[1]);
 				throw new Exception("Error reading data from socket.");
 			case IOStatus.ok: break;
 			case IOStatus.wouldBlock: assert(mode == IOMode.immediate); break;
@@ -467,25 +486,28 @@ mixin(tracer);
 	{
 		import std.algorithm.comparison : min;
 
-		while (count > 0) {
-			waitForData();
+		m_context.readTimeout.loopWithTimeout!((remaining) {
+			waitForData(remaining);
 			auto n = min(count, m_context.readBuffer.length);
 			m_context.readBuffer.popFrontN(n);
 			count -= n;
-		}
+			return count == 0;
+		});
 	}
 
 	void read(ubyte[] dst)
 	{
 mixin(tracer);
 		import std.algorithm.comparison : min;
-		while (dst.length > 0) {
+		if (!dst.length) return;
+		m_context.readTimeout.loopWithTimeout!((remaining) {
 			enforce(waitForData(), "Reached end of stream while reading data.");
 			assert(m_context.readBuffer.length > 0);
 			auto l = min(dst.length, m_context.readBuffer.length);
 			m_context.readBuffer.read(dst[0 .. l]);
 			dst = dst[l .. $];
-		}
+			return dst.length == 0;
+		});
 	}
 
 	void write(in ubyte[] bytes)
@@ -547,6 +569,29 @@ mixin(tracer);
 
 mixin validateConnectionStream!TCPConnection;
 
+private void loopWithTimeout(alias LoopBody, ExceptionType = Exception)(Duration timeout)
+{
+	import core.time : seconds;
+	import std.datetime : Clock, SysTime, UTC;
+
+	SysTime now;
+	if (timeout != Duration.max)
+		now = Clock.currTime(UTC());
+
+	do {
+		if (LoopBody(timeout))
+			return;
+		
+		if (timeout != Duration.max) {
+			auto prev = now;
+			now = Clock.currTime(UTC());
+			if (now > prev) timeout -= now - prev;
+		}
+	} while (timeout > 0.seconds);
+
+	throw new ExceptionType("Operation timed out.");
+}
+
 
 /**
 	Represents a listening TCP socket.
@@ -554,6 +599,7 @@ mixin validateConnectionStream!TCPConnection;
 struct TCPListener {
 	private {
 		StreamListenSocketFD m_socket;
+		NetworkAddress m_bindAddress;
 	}
 
 	this(StreamListenSocketFD socket)
@@ -566,7 +612,7 @@ struct TCPListener {
 	/// The local address at which TCP connections are accepted.
 	@property NetworkAddress bindAddress()
 	{
-		assert(false);
+		return m_bindAddress;
 	}
 
 	/// Stops listening and closes the socket.

@@ -1093,7 +1093,8 @@ private struct ThreadLocalWaiter {
 
 		Waitable!(
 			cb => w.wait(cb),
-			cb => w.cancel()
+			cb => w.cancel(),
+			typeof(Waiter.notifier)
 		) waitable;
 
 		void removeWaiter()
@@ -1124,7 +1125,7 @@ private struct ThreadLocalWaiter {
 					}
 				},
 				cb => eventDriver.events.cancelWait(evt, cb),
-				EventID
+				EventCallback
 			) ewaitable;
 			asyncAwaitAny!interruptible(timeout, waitable, ewaitable);
 		} else {
