@@ -4,7 +4,7 @@ authors "Sönke Ludwig"
 copyright "Copyright © 2016, rejectedsoftware e.K."
 license "MIT"
 
-dependency "eventcore" version="~>0.5.0"
+dependency "eventcore" version="~>0.6.0"
 
 mainSourceFile "source/vibe/appmain.d"
 
@@ -25,5 +25,6 @@ configuration "libasync" {
 }
 
 buildType "unittest" {
+	buildOptions "unittests" "coverage" "debugMode" "debugInfo"
 	debugVersions "VibeMutexLog" "VibeAsyncLog"
 }
