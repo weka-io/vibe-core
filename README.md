@@ -24,4 +24,4 @@ UDP connections     | done
 File I/O            | done
 Directory watchers  | done
 ManualEvent         | done
-Path/URL types      | WIP
+Path/URL types      | done
