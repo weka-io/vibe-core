@@ -458,25 +458,38 @@ struct FileStream {
 		return null;
 	}
 
-	void read(ubyte[] dst)
+	size_t read(ubyte[] dst, IOMode mode)
 	{	
 		auto res = asyncAwait!(FileIOCallback,
-			cb => eventDriver.files.read(m_fd, ctx.ptr, dst, cb),
+			cb => eventDriver.files.read(m_fd, ctx.ptr, dst, mode, cb),
 			cb => eventDriver.files.cancelRead(m_fd)
 		);
 		enforce(res[1] == IOStatus.ok, "Failed to read data from disk.");
+		return res[2];
 	}
 
-	void write(in ubyte[] bytes)
+	void read(ubyte[] dst)
+	{
+		auto ret = read(dst, IOMode.all);
+		assert(ret == dst.length);
+	}
+
+	size_t write(in ubyte[] bytes, IOMode mode)
 	{
 		auto res = asyncAwait!(FileIOCallback,
-			cb => eventDriver.files.write(m_fd, ctx.ptr, bytes, cb),
+			cb => eventDriver.files.write(m_fd, ctx.ptr, bytes, mode, cb),
 			cb => eventDriver.files.cancelWrite(m_fd)
 		);
 		ctx.ptr += res[2];
 logDebug("Written %s", res[2]);
 		if (ctx.ptr > ctx.size) ctx.size = ctx.ptr;
 		enforce(res[1] == IOStatus.ok, "Failed to read data from disk.");
+		return res[2];
+	}
+
+	void write(in ubyte[] bytes)
+	{
+		write(bytes, IOMode.all);
 	}
 
 	void write(in char[] bytes)

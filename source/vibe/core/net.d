@@ -512,28 +512,37 @@ mixin(tracer);
 		});
 	}
 
-	void read(ubyte[] dst)
+	size_t read(scope ubyte[] dst, IOMode mode)
 	{
 mixin(tracer);
 		import std.algorithm.comparison : min;
-		if (!dst.length) return;
+		if (!dst.length) return 0;
+		size_t nbytes = 0;
 		m_context.readTimeout.loopWithTimeout!((remaining) {
-			enforce(waitForData(), "Reached end of stream while reading data.");
+			if (m_context.readBuffer.length == 0) {
+				if (mode == IOMode.immediate || mode == IOMode.once && nbytes > 0)
+					return true;
+				enforce(waitForData(remaining), "Reached end of stream while reading data.");
+			}
 			assert(m_context.readBuffer.length > 0);
 			auto l = min(dst.length, m_context.readBuffer.length);
 			m_context.readBuffer.read(dst[0 .. l]);
 			dst = dst[l .. $];
+			nbytes += l;
 			return dst.length == 0;
 		});
+		return nbytes;
 	}
 
-	void write(in ubyte[] bytes)
+	void read(scope ubyte[] dst) { auto r = read(dst, IOMode.all); assert(r == dst.length); }
+
+	size_t write(in ubyte[] bytes, IOMode mode)
 	{
 mixin(tracer);
-		if (bytes.length == 0) return;
+		if (bytes.length == 0) return 0;
 
 		auto res = asyncAwait!(IOCallback,
-			cb => eventDriver.sockets.write(m_socket, bytes, IOMode.all, cb),
+			cb => eventDriver.sockets.write(m_socket, bytes, mode, cb),
 			cb => eventDriver.sockets.cancelWrite(m_socket));
 		
 		switch (res[1]) {
@@ -541,10 +550,12 @@ mixin(tracer);
 				throw new Exception("Error writing data to socket.");
 			case IOStatus.ok: break;
 			case IOStatus.disconnected: break;
-
 		}
+
+		return res[2];
 	}
 
+	void write(in ubyte[] bytes) { auto r = write(bytes, IOMode.all); assert(r == bytes.length); }
 	void write(in char[] bytes) { write(cast(const(ubyte)[])bytes); }
 	void write(InputStream stream) { write(stream, 0); }
 
