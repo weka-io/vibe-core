@@ -446,6 +446,13 @@ unittest
 struct PathEntry {
 	import std.string : cmp;
 
+	static PathEntry validateFilename(string fname)
+	@safe {
+		import std.string : indexOfAny;
+		enforce(fname.indexOfAny("/\\") < 0, "File name contains forward or backward slashes: "~fname);
+		return PathEntry(fname, PathType.inet);
+	}
+
 	@safe pure nothrow:
 
 	private {
