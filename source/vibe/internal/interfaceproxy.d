@@ -155,8 +155,8 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 			foreach (idx, F; Overloads) {
 				enum attribs = functionAttributeString!F(false);
 				enum is_prop = functionAttributes!F & FunctionAttribute.property;
-				ret ~= q{%s ReturnType!(Overloads[%s]) %s(ParameterTypeTuple!(Overloads[%s]) params) { return m_intf.%s(m_value, params); }}
-					.format(attribs, idx, member, idx, member);
+				ret ~= q{%s ReturnType!(Overloads[%s]) %s(%s) { return m_intf.%s(m_value, %s); }}
+					.format(attribs, idx, member, parameterDecls!(F, idx), member, parameterNames!F);
 			}
 			return ret;
 		}
@@ -193,8 +193,8 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 				foreach (idx, F; Overloads) {
 					enum attribs = functionAttributeString!F(false);
 					enum vtype = functionAttributeThisType!F("void[]");
-					ret ~= q{ReturnType!(Overloads[%s]) %s(%s obj, ParameterTypeTuple!(Overloads[%s]) params) %s;}
-						.format(idx, mem, vtype, idx, attribs);
+					ret ~= q{ReturnType!(Overloads[%s]) %s(%s obj, %s) %s;}
+						.format(idx, mem, vtype, parameterDecls!(F, idx), attribs);
 				}
 				return ret;
 			}
@@ -263,11 +263,11 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 					enum vtype = functionAttributeThisType!F("void[]");
 
 					static if (is(R == void))
-						ret ~= q{override void %s(%s obj, ParameterTypeTuple!(Overloads[%s]) params) %s { _extract(obj).%s(params); }}
-							.format(mem, vtype, idx, attribs, mem);
+						ret ~= q{override void %s(%s obj, %s) %s { _extract(obj).%s(%s); }}
+							.format(mem, vtype, parameterDecls!(F, idx), attribs, mem, parameterNames!F);
 					else
-						ret ~= q{override ReturnType!(Overloads[%s]) %s(%s obj, ParameterTypeTuple!(Overloads[%s]) params) %s { return _extract(obj).%s(params); }}
-							.format(idx, mem, vtype, idx, attribs, mem);
+						ret ~= q{override ReturnType!(Overloads[%s]) %s(%s obj, %s) %s { return _extract(obj).%s(%s); }}
+							.format(idx, mem, vtype, parameterDecls!(F, idx), attribs, mem, parameterNames!F);
 				}
 				return ret;
 			}
@@ -275,6 +275,37 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 			mixin(impl());
 		}
 	}
+}
+
+private string parameterDecls(alias F, size_t idx)()
+{
+	import std.format : format;
+	import std.traits : ParameterTypeTuple, ParameterStorageClass, ParameterStorageClassTuple;
+
+	string ret;
+	alias PST = ParameterStorageClassTuple!F;
+	foreach (i, PT; ParameterTypeTuple!F) {
+		static if (i > 0) ret ~= ", ";
+		static if (PST[i] & ParameterStorageClass.scope_) ret ~= "scope ";
+		static if (PST[i] & ParameterStorageClass.out_) ret ~= "out ";
+		static if (PST[i] & ParameterStorageClass.ref_) ret ~= "ref ";
+		static if (PST[i] & ParameterStorageClass.lazy_) ret ~= "lazy ";
+		ret ~= format("ParameterTypeTuple!(Overloads[%s])[%s] param_%s", idx, i, i);
+	}
+	return ret;
+}
+
+private string parameterNames(alias F)()
+{
+	import std.format : format;
+	import std.traits : ParameterTypeTuple;
+
+	string ret;
+	foreach (i, PT; ParameterTypeTuple!F) {
+		static if (i > 0) ret ~= ", ";
+		ret ~= format("param_%s", i);
+	}
+	return ret;
 }
 
 private alias ProxyOf(I) = InterfaceProxy!I.Proxy;
