@@ -840,7 +840,7 @@ struct ManualEvent {
 				if (w.m_driver is drv) lw = w;
 				else {
 					try {
-						() @trusted { return cast(shared)w.m_driver; } ().events.trigger(w.m_event);
+						() @trusted { return cast(shared)w.m_driver; } ().events.trigger(w.m_event, true);
 					} catch (Exception e) assert(false, e.msg);
 				}
 				return true;

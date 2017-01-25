@@ -414,7 +414,7 @@ struct FileStream {
 			eventDriver.files.releaseRef(m_fd);
 	}
 
-	@property int fd() { return m_fd; }
+	@property int fd() { return cast(int)m_fd; }
 
 	/// The path of the file.
 	@property Path path() const { return ctx.path; }
@@ -497,7 +497,7 @@ logDebug("Written %s", res[2]);
 		write(cast(const(ubyte)[])bytes);
 	}
 
-	void write(InputStream)(InputStream stream, ulong nbytes = 0)
+	void write(InputStream)(InputStream stream, ulong nbytes = ulong.max)
 		if (isInputStream!InputStream)
 	{
 		writeDefault(this, stream, nbytes);
@@ -519,7 +519,7 @@ logDebug("Written %s", res[2]);
 mixin validateRandomAccessStream!FileStream;
 
 
-private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, InputStream stream, ulong nbytes = 0)
+private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, InputStream stream, ulong nbytes = ulong.max)
 	if (isOutputStream!OutputStream && isInputStream!InputStream)
 {
 	import vibe.internal.allocator : theAllocator, make, dispose;
@@ -531,7 +531,7 @@ private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, Input
 	auto buffer = bufferobj.bytes[];
 
 	//logTrace("default write %d bytes, empty=%s", nbytes, stream.empty);
-	if (nbytes == 0) {
+	if (nbytes == ulong.max) {
 		while (!stream.empty) {
 			size_t chunk = min(stream.leastSize, buffer.length);
 			assert(chunk > 0, "leastSize returned zero for non-empty stream.");
