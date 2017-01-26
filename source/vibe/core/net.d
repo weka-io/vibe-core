@@ -443,8 +443,8 @@ struct TCPConnection {
 	@property void readTimeout(Duration duration) { m_context.readTimeout = duration; }
 	@property Duration readTimeout() const { return m_context.readTimeout; }
 	@property string peerAddress() const { return m_context.remoteAddress.toString(); }
-	@property NetworkAddress localAddress() const { return localAddress; }
-	@property NetworkAddress remoteAddress() const { return remoteAddress; }
+	@property NetworkAddress localAddress() const { return m_context.localAddress; }
+	@property NetworkAddress remoteAddress() const { return m_context.remoteAddress; }
 	@property bool connected()
 	const {
 		if (m_socket == StreamSocketFD.invalid) return false;
