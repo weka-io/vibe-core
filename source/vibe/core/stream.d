@@ -174,18 +174,6 @@ interface OutputStream {
 	/// ditto
 	final void write(in char[] bytes) @blocking { write(cast(const(ubyte)[])bytes); }
 
-	/** Deprecated - writes the contents of an `InputStream` into this stream.
-
-		This function will be removed. Use `pipe` instead.
-
-		See_Also: `pipe`
-	*/
-	deprecated("Use s.pipe(this) instead.")
-	final void write(InputStream s) { s.pipe(this); }
-	/// ditto
-	deprecated("Use s.pipe(this, nbytes) instead.")
-	final void write(InputStream s, ulong nbytes) { s.pipe(this, nbytes); }
-
 	/** Flushes the stream and makes sure that all data is being written to the output device.
 	*/
 	void flush() @blocking;
