@@ -8,6 +8,8 @@ import std.traits : BaseTypeTuple;
 O asInterface(I, O)(O obj) if (is(I == interface) && is(O : I)) { return obj; }
 InterfaceProxyClass!(I, O) asInterface(I, O)(O obj) if (is(I == interface) && !is(O : I)) { return new InterfaceProxyClass!(I, O)(obj); }
 
+InterfaceProxy!I interfaceProxy(I, O)(O o) { return InterfaceProxy!I(o); }
+
 private class InterfaceProxyClass(I, O) : I
 {
 	import std.meta : AliasSeq;
