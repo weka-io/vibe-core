@@ -99,8 +99,10 @@ TCPListener listenTCP(ushort port, TCPConnectionDelegate connection_callback, st
 {
 	auto addr = resolveHost(address);
 	addr.port = port;
-	assert(options == TCPListenOptions.defaults, "TODO");
-	auto sock = eventDriver.sockets.listenStream(addr.toUnknownAddress,
+	StreamListenOptions sopts = StreamListenOptions.defaults;
+	if (options & TCPListenOptions.reusePort)
+		sopts |= StreamListenOptions.reusePort;
+	auto sock = eventDriver.sockets.listenStream(addr.toUnknownAddress, sopts,
 		(StreamListenSocketFD ls, StreamSocketFD s, scope RefAddress addr) @safe nothrow {
 			import vibe.core.core : runTask;
 			auto conn = TCPConnection(s, addr);
