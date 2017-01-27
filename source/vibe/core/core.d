@@ -872,8 +872,10 @@ Timer createTimer(void delegate() nothrow @safe callback)
 @safe nothrow {
 	auto ret = Timer(eventDriver.timers.create());
 	if (callback !is null) {
-		void cb(TimerID tm) nothrow @safe { callback(); }
-		eventDriver.timers.wait(ret.m_id, &cb); // FIXME: avoid heap closure!
+		runTask((void delegate() nothrow @safe cb, Timer tm) {
+			tm.wait();
+			cb();
+		}, callback, ret);
 	}
 	return ret;
 }
@@ -1302,6 +1304,9 @@ shared static this()
 
 	import std.concurrency;
 	scheduler = new VibedScheduler;
+
+	import vibe.core.sync : SpinLock;
+	SpinLock.setup();
 }
 
 shared static ~this()
