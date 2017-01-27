@@ -1023,6 +1023,7 @@ package struct SpinLock {
 
 	bool tryLock()
 	@trusted {
+		assert(threadID != 0, "SpinLock.setup() was not called.");
 		assert(atomicLoad(locked) != threadID, "Recursive lock attempt.");
 		return cas(&locked, 0, threadID);
 	}
