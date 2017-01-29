@@ -299,7 +299,7 @@ struct NetworkAddress {
 	/** Returns a string representation of the IP address
 	*/
 	string toAddressString()
-	const {
+	const nothrow {
 		import std.array : appender;
 		auto ret = appender!string();
 		ret.reserve(40);
@@ -308,10 +308,12 @@ struct NetworkAddress {
 	}
 	/// ditto
 	void toAddressString(scope void delegate(const(char)[]) @safe sink)
-	const {
+	const nothrow {
 		import std.array : appender;
 		import std.format : formattedWrite;
 		ubyte[2] _dummy = void; // Workaround for DMD regression in master
+
+		scope (failure) assert(false);
 
 		switch (this.family) {
 			default: assert(false, "toAddressString() called for invalid address family.");
@@ -333,7 +335,7 @@ struct NetworkAddress {
 	/** Returns a full string representation of the address, including the port number.
 	*/
 	string toString()
-	const {
+	const nothrow {
 		import std.array : appender;
 		auto ret = appender!string();
 		toString(str => ret.put(str));
@@ -341,8 +343,9 @@ struct NetworkAddress {
 	}
 	/// ditto
 	void toString(scope void delegate(const(char)[]) @safe sink)
-	const {
+	const nothrow {
 		import std.format : formattedWrite;
+		scope (failure) assert(false);
 		switch (this.family) {
 			default: assert(false, "toString() called for invalid address family.");
 			case AF_INET:
@@ -438,17 +441,17 @@ struct TCPConnection {
 
 	bool opCast(T)() const nothrow if (is(T == bool)) { return m_socket != StreamSocketFD.invalid; }
 
-	@property void tcpNoDelay(bool enabled) { eventDriver.sockets.setTCPNoDelay(m_socket, enabled); m_context.tcpNoDelay = enabled; }
-	@property bool tcpNoDelay() const { return m_context.tcpNoDelay; }
-	@property void keepAlive(bool enabled) { eventDriver.sockets.setKeepAlive(m_socket, enabled); m_context.keepAlive = enabled; }
-	@property bool keepAlive() const { return m_context.keepAlive; }
+	@property void tcpNoDelay(bool enabled) nothrow { eventDriver.sockets.setTCPNoDelay(m_socket, enabled); m_context.tcpNoDelay = enabled; }
+	@property bool tcpNoDelay() const nothrow { return m_context.tcpNoDelay; }
+	@property void keepAlive(bool enabled) nothrow { eventDriver.sockets.setKeepAlive(m_socket, enabled); m_context.keepAlive = enabled; }
+	@property bool keepAlive() const nothrow { return m_context.keepAlive; }
 	@property void readTimeout(Duration duration) { m_context.readTimeout = duration; }
-	@property Duration readTimeout() const { return m_context.readTimeout; }
-	@property string peerAddress() const { return m_context.remoteAddress.toString(); }
-	@property NetworkAddress localAddress() const { return m_context.localAddress; }
-	@property NetworkAddress remoteAddress() const { return m_context.remoteAddress; }
+	@property Duration readTimeout() const nothrow { return m_context.readTimeout; }
+	@property string peerAddress() const nothrow { return m_context.remoteAddress.toString(); }
+	@property NetworkAddress localAddress() const nothrow { return m_context.localAddress; }
+	@property NetworkAddress remoteAddress() const nothrow { return m_context.remoteAddress; }
 	@property bool connected()
-	const {
+	const nothrow {
 		if (m_socket == StreamSocketFD.invalid) return false;
 		auto s = eventDriver.sockets.getConnectionState(m_socket);
 		return s >= ConnectionState.connected && s < ConnectionState.activeClose;
