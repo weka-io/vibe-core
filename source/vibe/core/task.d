@@ -83,7 +83,8 @@ struct Task {
 
 	T opCast(T)() const @safe nothrow if (is(T == bool)) { return m_fiber !is null; }
 
-	void join() @trusted { if (running) taskFiber.join(m_taskCounter); } // FIXME: this is NOT thread safe
+	void join() @trusted { if (running) taskFiber.join!true(m_taskCounter); } // FIXME: this is NOT thread safe
+	void joinUninterruptible() @trusted nothrow { if (running) taskFiber.join!false(m_taskCounter); } // FIXME: this is NOT thread safe
 	void interrupt() @trusted nothrow { if (running) taskFiber.interrupt(m_taskCounter); } // FIXME: this is NOT thread safe
 
 	string toString() const @safe { import std.string; return format("%s:%s", () @trusted { return cast(void*)m_fiber; } (), m_taskCounter); }
@@ -416,11 +417,14 @@ final package class TaskFiber : Fiber {
 
 	/** Blocks until the task has ended.
 	*/
-	void join(size_t task_counter)
+	void join(bool interruptiple)(size_t task_counter)
 	@trusted {
 		auto cnt = m_onExit.emitCount;
 		while (m_running && m_taskCounter == task_counter)
-			cnt = m_onExit.wait(1.seconds, cnt);
+			static if (interruptiple)
+				cnt = m_onExit.wait(1.seconds, cnt);
+			else
+				cnt = m_onExit.waitUninterruptible(1.seconds, cnt);
 	}
 
 	/** Throws an InterruptExeption within the task as soon as it calls an interruptible function.
