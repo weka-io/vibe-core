@@ -862,6 +862,19 @@ unittest {
 	}
 }
 
+/// Compatibility overload - use a `@safe nothrow` callback instead.
+deprecated("Use anothrow callback as argument to setTimer.")
+Timer setTimer(Duration timeout, void delegate() callback, bool periodic = false)
+@safe nothrow {
+	return setTimer(timeout, () @trusted nothrow {
+		try callback();
+		catch (Exception e) {
+			logWarn("Timer callback failed: %s", e.msg);
+			scope (failure) assert(false);
+			logDebug("Full error: %s", e.toString().sanitize);
+		}
+	});
+}
 
 /**
 	Creates a new timer without arming it.
