@@ -563,21 +563,34 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 
 	@safe:
 
-	private struct Context {
+	private static struct Context {
 		Path path;
 		bool recursive;
 		Appender!(DirectoryChange[]) changes;
 		LocalManualEvent changeEvent;
+
+		void onChange(WatcherID, in ref FileChange change)
+		nothrow {
+			DirectoryChangeType ct;
+			final switch (change.kind) {
+				case FileChangeKind.added: ct = DirectoryChangeType.added; break;
+				case FileChangeKind.removed: ct = DirectoryChangeType.removed; break;
+				case FileChangeKind.modified: ct = DirectoryChangeType.modified; break;
+			}
+			this.changes ~= DirectoryChange(ct, Path(change.directory) ~ change.name.idup);
+			this.changeEvent.emit();
+		}
 	}
 
 	private {
 		WatcherID m_watcher;
-		Context m_context;
+		Context* m_context;
 	}
 
 	private this(Path path, bool recursive)
 	{
-		m_watcher = eventDriver.watchers.watchDirectory(path.toNativeString, recursive, &onChange);
+		m_context = new Context; // FIME: avoid GC allocation (use FD user data slot)
+		m_watcher = eventDriver.watchers.watchDirectory(path.toNativeString, recursive, &m_context.onChange);
 		m_context.path = path;
 		m_context.recursive = recursive;
 		m_context.changes = appender!(DirectoryChange[]);
@@ -608,30 +621,23 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 	*/
 	bool readChanges(ref DirectoryChange[] dst, Duration timeout = Duration.max)
 	{
-		SysTime now = Clock.currTime(UTC());
-		SysTime final_time = now + timeout;
-		while (!m_context.changes.data.length) {
-			m_context.changeEvent.wait(final_time - now, m_context.changeEvent.emitCount);
-			if (m_context.changes.data.length) break;
-			else now = Clock.currTime(UTC());
+		if (timeout == Duration.max) {
+			while (!m_context.changes.data.length)
+				m_context.changeEvent.wait(Duration.max, m_context.changeEvent.emitCount);
+		} else {
+			SysTime now = Clock.currTime(UTC());
+			SysTime final_time = now + timeout;
+			while (!m_context.changes.data.length) {
+				m_context.changeEvent.wait(final_time - now, m_context.changeEvent.emitCount);
+				now = Clock.currTime(UTC());
+				if (now >= final_time) break;
+			}
+			if (!m_context.changes.data.length) return false;
 		}
 
-		if (!m_context.changes.data.length) return false;
 		dst = m_context.changes.data;
 		m_context.changes = appender!(DirectoryChange[]);
 		return true;
-	}
-
-	private void onChange(WatcherID, in ref FileChange change)
-	nothrow {
-		DirectoryChangeType ct;
-		final switch (change.kind) {
-			case FileChangeKind.added: ct = DirectoryChangeType.added; break;
-			case FileChangeKind.removed: ct = DirectoryChangeType.removed; break;
-			case FileChangeKind.modified: ct = DirectoryChangeType.modified; break;
-		}
-		m_context.changes ~= DirectoryChange(ct, Path(change.directory) ~ change.name.idup);
-		m_context.changeEvent.emit();
 	}
 }
 
