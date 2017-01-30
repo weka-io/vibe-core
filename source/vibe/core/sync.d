@@ -147,7 +147,6 @@ class LocalTaskSemaphore
 
 	private {
 		static struct ThreadWaiter {
-			LocalManualEvent signal;
 			ubyte priority;
 			uint seq;
 		}
@@ -156,11 +155,13 @@ class LocalTaskSemaphore
 		uint m_maxLocks;
 		uint m_locks;
 		uint m_seq;
+		LocalManualEvent m_signal;
 	}
 
 	this(uint max_locks) 
 	{ 
 		m_maxLocks = max_locks;
+		m_signal = createManualEvent();
 	}
 
 	/// Maximum number of concurrent locks
@@ -192,7 +193,7 @@ class LocalTaskSemaphore
 
 	/** Acquires a lock.
 
-		Once the limit of concurrent locks is reaced, this method will block
+		Once the limit of concurrent locks is reached, this method will block
 		until the number of locks drops below the limit.
 	*/
 	void lock(ubyte priority = 0)
@@ -203,43 +204,38 @@ class LocalTaskSemaphore
 			return;
 		
 		ThreadWaiter w;
-		w.signal = createManualEvent();
 		w.priority = priority;
 		w.seq = min(0, m_seq - w.priority);
 		if (++m_seq == uint.max)
 			rewindSeq();
 		
 		() @trusted { m_waiters.insert(w); } ();
-		do w.signal.wait(); while (!tryLock());
-		// on resume:
-		destroy(w.signal);
+
+		while (true) {
+			m_signal.waitUninterruptible();
+			if (m_waiters.front.seq == w.seq && tryLock()) {
+				m_locks++;
+				return;
+			}
+		}
 	}
 
 	/** Gives up an existing lock.
 	*/
 	void unlock() 
 	{
+		assert(m_locks >= 1);
 		m_locks--;
-		if (m_waiters.length > 0 && available > 0) {
-			ThreadWaiter w = m_waiters.front();
-			w.signal.emit(); // resume one
-			() @trusted { m_waiters.removeFront(); } ();
-		}
+		if (m_waiters.length > 0)
+			m_signal.emit(); // resume one
 	}
 
 	// if true, a goes after b. ie. b comes out front()
 	/// private
 	static bool asc(ref ThreadWaiter a, ref ThreadWaiter b) 
 	{
-		if (a.seq == b.seq) {
-			if (a.priority == b.priority) {
-				// resolve using the pointer address
-				return (cast(size_t)&a.signal) > (cast(size_t) &b.signal);
-			}
-			// resolve using priority
+		if (a.priority != b.priority)
 			return a.priority < b.priority;
-		}
-		// resolve using seq number
 		return a.seq > b.seq;
 	}
 
