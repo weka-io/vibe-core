@@ -700,6 +700,7 @@ struct UDPConnection {
 	private this(ref NetworkAddress bind_address) 
 	{
 		m_socket = eventDriver.sockets.createDatagramSocket(bind_address.toUnknownAddress(), null);
+		enforce(m_socket != DatagramSocketFD.invalid, "Failed to create datagram socket.");
 		m_context = () @trusted { return &eventDriver.core.userData!Context(m_socket); } ();
 		m_context.localAddress = bind_address;
 	}
