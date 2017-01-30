@@ -472,7 +472,7 @@ struct TCPConnection {
 		return s >= ConnectionState.connected && s < ConnectionState.activeClose;
 	}
 	@property bool empty() { return leastSize == 0; }
-	@property ulong leastSize() { waitForData(); return m_context.readBuffer.length; }
+	@property ulong leastSize() { waitForData(); return m_context && m_context.readBuffer.length; }
 	@property bool dataAvailableForRead() { return waitForData(0.seconds); }
 	
 	void close()
@@ -489,6 +489,7 @@ struct TCPConnection {
 	bool waitForData(Duration timeout = Duration.max)
 	{
 mixin(tracer);
+		if (!m_context) return false;
 		if (m_context.readBuffer.length > 0) return true;
 		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
 
