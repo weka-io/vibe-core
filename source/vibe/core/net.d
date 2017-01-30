@@ -518,7 +518,7 @@ mixin(tracer);
 		return m_context.readBuffer.length > 0;
 	}
 
-	const(ubyte)[] peek() { return m_context.readBuffer.peek(); }
+	const(ubyte)[] peek() { return m_context ? m_context.readBuffer.peek() : null; }
 
 	void skip(ulong count)
 	{
