@@ -109,7 +109,7 @@ TCPListener listenTCP(ushort port, TCPConnectionDelegate connection_callback, st
 			auto conn = TCPConnection(s, addr);
 			runTask(connection_callback, conn);
 		});
-	enforce(sock != StreamListenSocketFD.invalid, "Failed to listen on %s", address);
+	enforce(sock != StreamListenSocketFD.invalid, "Failed to listen on "~addr.toString());
 	return TCPListener(sock);
 }
 
