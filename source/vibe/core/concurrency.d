@@ -10,6 +10,8 @@
 */
 module vibe.core.concurrency;
 
+public import std.concurrency;
+
 import core.time;
 import std.traits;
 import std.typecons;
@@ -18,7 +20,6 @@ import std.variant;
 import std.string;
 import vibe.core.task;
 
-public import std.concurrency;
 
 private extern (C) pure nothrow void _d_monitorenter(Object h);
 private extern (C) pure nothrow void _d_monitorexit(Object h);
@@ -1213,7 +1214,10 @@ void setConcurrencyPrimitive(ConcurrencyPrimitive primitive)
 }
 
 void send(ARGS...)(Task task, ARGS args) { std.concurrency.send(task.tid, args); }
+void send(ARGS...)(Tid tid, ARGS args) { std.concurrency.send(tid, args); }
 void prioritySend(ARGS...)(Task task, ARGS args) { std.concurrency.prioritySend(task.tid, args); }
+void prioritySend(ARGS...)(Tid tid, ARGS args) { std.concurrency.prioritySend(tid, args); }
+
 
 package class VibedScheduler : Scheduler {
 	import core.sync.mutex;
