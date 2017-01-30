@@ -518,8 +518,8 @@ mixin(tracer);
 		m_context.readBuffer.putN(waiter.results[2]);
 		switch (waiter.results[1]) {
 			default:
-				logInfo("read status %s", waiter.results[1]);
-				throw new Exception("Error reading data from socket.");
+				logDebug("Error status when waiting for data: %s", waiter.results[1]);
+				break;
 			case IOStatus.ok: break;
 			case IOStatus.wouldBlock: assert(mode == IOMode.immediate); break;
 			case IOStatus.disconnected: break;
