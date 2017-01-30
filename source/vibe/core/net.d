@@ -102,7 +102,8 @@ TCPListener listenTCP(ushort port, TCPConnectionDelegate connection_callback, st
 	StreamListenOptions sopts = StreamListenOptions.defaults;
 	if (options & TCPListenOptions.reusePort)
 		sopts |= StreamListenOptions.reusePort;
-	auto sock = eventDriver.sockets.listenStream(addr.toUnknownAddress, sopts,
+	scope addrc = new RefAddress(addr.sockAddr, addr.sockAddrLen);
+	auto sock = eventDriver.sockets.listenStream(addrc, sopts,
 		(StreamListenSocketFD ls, StreamSocketFD s, scope RefAddress addr) @safe nothrow {
 			import vibe.core.core : runTask;
 			auto conn = TCPConnection(s, addr);
@@ -384,18 +385,6 @@ struct NetworkAddress {
 				sink.formattedWrite("]:%s", port);
 				break;
 		}
-	}
-
-	UnknownAddress toUnknownAddress()
-	const nothrow {
-		auto ret = new UnknownAddress;
-		toUnknownAddress(ret);
-		return ret;
-	}
-
-	void toUnknownAddress(scope UnknownAddress addr)
-	const nothrow {
-		*addr.name = *this.sockAddr;
 	}
 
 	version(Have_libev) {}
@@ -699,7 +688,8 @@ struct UDPConnection {
 
 	private this(ref NetworkAddress bind_address) 
 	{
-		m_socket = eventDriver.sockets.createDatagramSocket(bind_address.toUnknownAddress(), null);
+		scope baddr = new RefAddress(bind_address.sockAddr, bind_address.sockAddrLen);
+		m_socket = eventDriver.sockets.createDatagramSocket(baddr, null);
 		enforce(m_socket != DatagramSocketFD.invalid, "Failed to create datagram socket.");
 		m_context = () @trusted { return &eventDriver.core.userData!Context(m_socket); } ();
 		m_context.localAddress = bind_address;
