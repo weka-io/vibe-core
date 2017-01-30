@@ -886,9 +886,10 @@ Timer createTimer(void delegate() nothrow @safe callback)
 	auto ret = Timer(eventDriver.timers.create());
 	if (callback !is null) {
 		runTask((void delegate() nothrow @safe cb, Timer tm) {
-			while (!tm.unique || tm.pending)
+			while (!tm.unique || tm.pending) {
 				tm.wait();
-			cb();
+				cb();
+			}
 		}, callback, ret);
 	}
 	return ret;
