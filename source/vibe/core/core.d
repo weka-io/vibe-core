@@ -1114,7 +1114,7 @@ struct Timer {
 
 	/** Resets the timer and avoids any firing.
 	*/
-	void stop() nothrow { m_driver.stop(m_id); }
+	void stop() nothrow { if (m_driver) m_driver.stop(m_id); }
 
 	/** Waits until the timer fires.
 	*/
