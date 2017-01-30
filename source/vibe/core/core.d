@@ -886,7 +886,8 @@ Timer createTimer(void delegate() nothrow @safe callback)
 	auto ret = Timer(eventDriver.timers.create());
 	if (callback !is null) {
 		runTask((void delegate() nothrow @safe cb, Timer tm) {
-			tm.wait();
+			while (!tm.unique || tm.pending)
+				tm.wait();
 			cb();
 		}, callback, ret);
 	}
@@ -1106,6 +1107,9 @@ struct Timer {
 
 	bool opCast() const nothrow { return m_driver !is null; }
 
+	/// Determines if this reference is the only one
+	@property bool unique() const nothrow { return m_driver ? m_driver.isUnique(m_id) : false; }
+
 	/** Resets the timer to the specified timeout
 	*/
 	void rearm(Duration dur, bool periodic = false) nothrow 
@@ -1120,8 +1124,6 @@ struct Timer {
 	*/
 	void wait()
 	{
-		assert (!m_driver.isPeriodic(m_id), "Cannot wait for a periodic timer.");
-		if (!this.pending) return;
 		asyncAwait!(TimerCallback,
 			cb => m_driver.wait(m_id, cb),
 			cb => m_driver.cancelWait(m_id)
