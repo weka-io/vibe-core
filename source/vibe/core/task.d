@@ -322,11 +322,9 @@ final package class TaskFiber : Fiber {
 		return ms_globalDummyFiber;
 	}
 
-	@property State state()
-	@trusted const nothrow {
-		return super.state;
-	}
-
+	// expose Fiber.state as @safe on older DMD versions
+	static if (!__traits(compiles, () @safe { return Fiber.init.state; } ()))
+		@property State state() @trusted const nothrow { return super.state; }
 
 	private void run()
 	{
