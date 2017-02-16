@@ -10,7 +10,8 @@ Finally, the stream design has received two big changes. Streams can now either 
 The implementation is mostly finished, except for final production testing.
 
 [![DUB Package](https://img.shields.io/dub/v/vibe-core.svg)](https://code.dlang.org/packages/vibe-core)
-[![Build Status](https://travis-ci.org/vibe-d/vibe-core.svg?branch=master)](https://travis-ci.org/vibe-d/vibe-core)
+[![Posix Build Status](https://travis-ci.org/vibe-d/vibe-core.svg?branch=master)](https://travis-ci.org/vibe-d/vibe-core)
+[![Windows Build status](https://ci.appveyor.com/api/projects/status/eexephyroa7ag3xr/branch/master?svg=true)](https://ci.appveyor.com/project/s-ludwig/vibe-core/branch/master)
 
 
 Supported compilers

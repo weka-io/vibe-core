@@ -100,4 +100,4 @@ test_script:
  - echo %DC%
  - echo %PATH%
  - '%DC% --version'
- - dub test --arch=%Darch% --compiler=%DC% --config=%CONFIG%
+ - dub test --arch=%Darch% --compiler=%DC%
