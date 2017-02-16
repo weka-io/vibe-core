@@ -767,7 +767,7 @@ package void initializeLogModule()
 			import core.sys.posix.unistd : isatty;
 			if (isatty(stdout.fileno))
 				stdoutlogger.useColors = true;
-		} else assert(false);
+		}
 		stdoutlogger.minLevel = LogLevel.info;
 		stdoutlogger.format = FileLogger.Format.plain;
 		ss_stdoutLogger = cast(shared)stdoutlogger;
