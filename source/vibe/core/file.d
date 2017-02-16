@@ -459,11 +459,12 @@ struct FileStream {
 	}
 
 	size_t read(ubyte[] dst, IOMode mode)
-	{	
+	{
 		auto res = asyncAwait!(FileIOCallback,
 			cb => eventDriver.files.read(m_fd, ctx.ptr, dst, mode, cb),
 			cb => eventDriver.files.cancelRead(m_fd)
 		);
+		ctx.ptr += res[2];
 		enforce(res[1] == IOStatus.ok, "Failed to read data from disk.");
 		return res[2];
 	}
