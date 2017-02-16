@@ -327,7 +327,7 @@ final package class TaskFiber : Fiber {
 		@property State state() @trusted const nothrow { return super.state; }
 
 	private void run()
-	{
+	nothrow {
 		import std.encoding : sanitize;
 		import std.concurrency : Tid, thisTid;
 		import vibe.core.core : isEventLoopRunning, recycleFiber, taskScheduler, yield;
@@ -397,6 +397,15 @@ final package class TaskFiber : Fiber {
 		} catch(UncaughtException th) {
 			logCritical("CoreTaskFiber was terminated unexpectedly: %s", th.msg);
 			logDiagnostic("Full error: %s", th.toString().sanitize());
+		} catch (Throwable th) {
+			import std.stdio : stderr, writeln;
+			import core.stdc.stdlib : exit;
+			try stderr.writeln(th);
+			catch (Exception e) {
+				try stderr.writeln(th.msg);
+				catch (Exception e) {}
+			}
+			exit(1);
 		}
 	}
 
