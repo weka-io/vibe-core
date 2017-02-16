@@ -21,7 +21,13 @@ if [ ${BUILD_EXAMPLE=1} -eq 1 ]; then
 fi
 if [ ${RUN_TEST=1} -eq 1 ]; then
     for ex in `\ls -1 tests/*.d`; do
-        echo "[INFO] Running test $ex"
-        dub --temp-build --compiler=$DC --single $ex # --override-config vibe-core/$CONFIG
+        script="${ex:0:-2}.sh"
+        if [ -e "$script" ]; then
+            echo "[INFO] Running test scipt $script"
+            (cd tests && "./${script:6}")
+        else
+            echo "[INFO] Running test $ex"
+            dub --temp-build --compiler=$DC --single $ex # --override-config vibe-core/$CONFIG
+        fi
     done
 fi

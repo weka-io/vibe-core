@@ -1,4 +1,4 @@
-/++ dub.sdl:
+/+ dub.sdl:
 	name "test"
 	dependency "vibe-core" path=".."
 +/

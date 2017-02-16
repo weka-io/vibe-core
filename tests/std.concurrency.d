@@ -1,4 +1,4 @@
-/++ dub.sdl:
+/+ dub.sdl:
 	name "test"
 	description "Tests vibe.d's std.concurrency integration"
 	dependency "vibe-core" path="../"
