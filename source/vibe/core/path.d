@@ -21,7 +21,8 @@ Path relativeTo(Path path, Path base_path)
 	import std.array : replicate;
 	import std.array : array;
 
-	assert(path.absolute && base_path.absolute, "Both arguments to relativeTo must be absolute paths.");
+	assert(base_path.absolute, "Base path must be absolute for relativeTo.");
+	assert(path.absolute, "Path must be absolute for relativeTo.");
 	if (path.type == PathType.windows) {
 		// a path such as ..\C:\windows is not valid, so force the path to stay absolute in this case
 		if (path.absolute && !path.empty &&
@@ -78,8 +79,10 @@ unittest {
 Path relativeToWeb(Path path, Path base_path)
 @safe {
 	if (!base_path.endsWithSlash) {
+		assert(base_path.absolute, "Base path must be absolute for relativeToWeb.");
 		if (base_path.length > 0) base_path = base_path.parentPath;
 		else base_path = Path("/", path.type);
+		assert(base_path.absolute);
 	}
 	return path.relativeTo(base_path);
 }
@@ -177,14 +180,14 @@ struct Path {
 	@nogc {
 		import std.string : lastIndexOf;
 		auto idx = m_path.lastIndexOf('/');
-		version (Windows) {
+		if (m_type == PathType.windows) {
 			auto idx2 = m_path.lastIndexOf('\\');
 			if (idx2 > idx) idx = idx2;
 		}
 		// FIXME: handle Windows root path cases
 		static const Exception e = new Exception("Path has no parent path");
 		if (idx <= 0) throw e;
-		return Path(m_path[0 .. idx+1]);
+		return Path(m_path[0 .. idx+1], m_type);
 	}
 
 	void normalize()
@@ -228,7 +231,9 @@ struct Path {
 
 		if (m_type == type) return m_path;
 		if (type == PathType.windows) {
-			return this[].map!(p => p.toString()).join('\\');
+			auto ret = this[].map!(p => p.toString()).join('\\');
+			if (endsWithSlash) ret ~= '\\';
+			return ret;
 		} else {
 			if (m_type == PathType.windows) {
 				if (m_absolute) return '/' ~ this[].map!(n => n.toString()).join('/');
