@@ -1,4 +1,4 @@
-/++ dub.sdl:
+/+ dub.sdl:
 name "test"
 description "TCP disconnect task issue"
 dependency "vibe-core" path="../"

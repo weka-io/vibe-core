@@ -1,7 +1,8 @@
-/++ dub.sdl:
+/+ dub.sdl:
 name "test"
 description "Invalid memory operation on TCP connection leakage at shutdown"
 dependency "vibe-core" path="../"
+debugVersions "VibeAsyncLog"
 +/
 module test;
 
