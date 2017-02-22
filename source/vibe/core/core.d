@@ -1256,8 +1256,10 @@ static ~this()
 	if (is_main_thread) {
 		shared(TaskPool) tpool;
 		synchronized (st_threadsMutex) swap(tpool, st_workerPool);
-		logDiagnostic("Main thread still waiting for worker threads.");
-		tpool.terminate();
+		if (tpool) {
+			logDiagnostic("Main thread still waiting for worker threads.");
+			tpool.terminate();
+		}
 		logDiagnostic("Main thread exiting");
 	}
 
