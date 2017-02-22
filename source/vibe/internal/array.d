@@ -362,7 +362,7 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 	}
 
 	void put()(T itm) { assert(m_fill < m_buffer.length); m_buffer[mod(m_start + m_fill++)] = itm; }
-	void put(TC : T)(TC[] itms)
+	void put(TC : T)(scope TC[] itms)
 	{
 		if( !itms.length ) return;
 		assert(m_fill+itms.length <= m_buffer.length);
@@ -415,7 +415,7 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 		else return m_buffer[mod(m_start+m_fill) .. m_start];
 	}
 
-	void read(T[] dst)
+	void read(scope T[] dst)
 	{
 		assert(dst.length <= length);
 		if( !dst.length ) return;
