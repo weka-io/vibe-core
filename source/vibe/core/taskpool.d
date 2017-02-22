@@ -130,9 +130,7 @@ shared class TaskPool {
 		assert(caller != Task.init, "runWorkderTaskH can currently only be called from within a task.");
 		static void taskFun(Task caller, FT func, ARGS args) {
 			PrivateTask callee = Task.getThis();
-			logInfo("SEND H");
 			caller.tid.prioritySend(callee);
-			logInfo("SENT H");
 			mixin(callWithMove!ARGS("func", "args"));
 		}
 		runTask_unsafe(&taskFun, caller, func, args);
