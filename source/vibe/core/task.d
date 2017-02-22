@@ -107,6 +107,13 @@ struct Task {
 		Base64.encode(md.finish()[0 .. 3], dst);
 		if (!this.running) dst.put("-fin");
 	}
+	string getDebugID()
+	@trusted {
+		import std.array : appender;
+		auto app = appender!string;
+		getDebugID(app);
+		return app.data;
+	}
 
 	bool opEquals(in ref Task other) const @safe nothrow { return m_fiber is other.m_fiber && m_taskCounter == other.m_taskCounter; }
 	bool opEquals(in Task other) const @safe nothrow { return m_fiber is other.m_fiber && m_taskCounter == other.m_taskCounter; }
@@ -338,6 +345,7 @@ final package class TaskFiber : Fiber {
 			while (true) {
 				while (!m_taskFunc.func) {
 					try {
+						logTrace("putting fiber to sleep waiting for new task...");
 						Fiber.yield();
 					} catch (Exception e) {
 						logWarn("CoreTaskFiber was resumed with exception but without active task!");
@@ -427,11 +435,12 @@ final package class TaskFiber : Fiber {
 	void join(bool interruptiple)(size_t task_counter)
 	@trusted {
 		auto cnt = m_onExit.emitCount;
-		while (m_running && m_taskCounter == task_counter)
+		while (m_running && m_taskCounter == task_counter) {
 			static if (interruptiple)
-				cnt = m_onExit.wait(1.seconds, cnt);
+				cnt = m_onExit.wait(cnt);
 			else
-				cnt = m_onExit.waitUninterruptible(1.seconds, cnt);
+				cnt = m_onExit.waitUninterruptible(cnt);
+		}
 	}
 
 	/** Throws an InterruptExeption within the task as soon as it calls an interruptible function.
@@ -480,8 +489,52 @@ final package class TaskFiber : Fiber {
 
 package struct TaskFuncInfo {
 	void function(TaskFuncInfo*) func;
-	void[2*size_t.sizeof] callable = void;
-	void[maxTaskParameterSize] args = void;
+	void[2*size_t.sizeof] callable;
+	void[maxTaskParameterSize] args;
+
+	static TaskFuncInfo make(CALLABLE, ARGS...)(ref CALLABLE callable, ref ARGS args)
+	{
+		import std.algorithm : move;
+		import std.traits : hasElaborateAssign;
+
+		static struct TARGS { ARGS expand; }
+
+		static assert(CALLABLE.sizeof <= TaskFuncInfo.callable.length);
+		static assert(TARGS.sizeof <= maxTaskParameterSize,
+			"The arguments passed to run(Worker)Task must not exceed "~
+			maxTaskParameterSize.to!string~" bytes in total size.");
+
+		static void callDelegate(TaskFuncInfo* tfi) {
+			assert(tfi.func is &callDelegate, "Wrong callDelegate called!?");
+
+			// copy original call data to stack
+			CALLABLE c;
+			TARGS args;
+			move(*(cast(CALLABLE*)tfi.callable.ptr), c);
+			move(*(cast(TARGS*)tfi.args.ptr), args);
+
+			// reset the info
+			tfi.func = null;
+
+			// make the call
+			mixin(callWithMove!ARGS("c", "args.expand"));
+		}
+
+		return () @trusted {
+			TaskFuncInfo tfi;
+			tfi.func = &callDelegate;
+
+			static if (hasElaborateAssign!CALLABLE) tfi.initCallable!CALLABLE();
+			static if (hasElaborateAssign!TARGS) tfi.initArgs!TARGS();
+			tfi.typedCallable!CALLABLE = callable;
+			foreach (i, A; ARGS) {
+				static if (needsMove!A) args[i].move(tfi.typedArgs!TARGS.expand[i]);
+				else tfi.typedArgs!TARGS.expand[i] = args[i];
+			}
+			return tfi;
+		} ();
+	}
+
 
 	@property ref C typedCallable(C)()
 	{
@@ -678,7 +731,9 @@ package struct TaskScheduler {
 		auto thisthr = thist ? thist.thread : () @trusted { return Thread.getThis(); } ();
 		assert(t.thread is thisthr, "Cannot switch to a task that lives in a different thread.");
 		if (thist == Task.init) {
+			logTrace("switch to task from global context");
 			resumeTask(t);
+			logTrace("task yielded control back to global context");
 		} else {
 			auto tf = () @trusted { return t.taskFiber; } ();
 			auto thistf = () @trusted { return thist.taskFiber; } ();
@@ -690,7 +745,7 @@ package struct TaskScheduler {
 				assert(!tf.m_queue, "Task removed from queue, but still has one set!?");
 			}
 
-			logTrace("Switching tasks");
+			logDebugV("Switching tasks (%s already in queue)", m_taskQueue.length);
 			m_taskQueue.insertFront(thistf);
 			m_taskQueue.insertFront(tf);
 			doYield(thist);
@@ -725,7 +780,9 @@ package struct TaskScheduler {
 		while (m_taskQueue.front !is m_markerTask) {
 			auto t = m_taskQueue.front;
 			m_taskQueue.popFront();
+			logTrace("resuming task");
 			resumeTask(t.task);
+			logTrace("task out");
 
 			assert(!m_taskQueue.empty, "Marker task got removed from tasks queue!?");
 			if (m_taskQueue.empty) return ScheduleStatus.idle; // handle gracefully in release mode
@@ -733,6 +790,8 @@ package struct TaskScheduler {
 
 		// remove marker task
 		m_taskQueue.popFront();
+
+		logDebugV("schedule finished - %s tasks left in queue", m_taskQueue.length);
 
 		return m_taskQueue.empty ? ScheduleStatus.allProcessed : ScheduleStatus.busy;
 	}
@@ -742,7 +801,9 @@ package struct TaskScheduler {
 	{
 		import std.encoding : sanitize;
 
+		logTrace("task fiber resume");
 		auto uncaught_exception = () @trusted nothrow { return t.fiber.call!(Fiber.Rethrow.no)(); } ();
+		logTrace("task fiber yielded");
 
 		if (uncaught_exception) {
 			auto th = cast(Throwable)uncaught_exception;
@@ -850,3 +911,59 @@ private struct FLSInfo {
 	}
 }
 
+// mixin string helper to call a function with arguments that potentially have
+// to be moved
+package string callWithMove(ARGS...)(string func, string args)
+{
+	import std.string;
+	string ret = func ~ "(";
+	foreach (i, T; ARGS) {
+		if (i > 0) ret ~= ", ";
+		ret ~= format("%s[%s]", args, i);
+		static if (needsMove!T) ret ~= ".move";
+	}
+	return ret ~ ");";
+}
+
+private template needsMove(T)
+{
+	template isCopyable(T)
+	{
+		enum isCopyable = __traits(compiles, (T a) { return a; });
+	}
+
+	template isMoveable(T)
+	{
+		enum isMoveable = __traits(compiles, (T a) { return a.move; });
+	}
+
+	enum needsMove = !isCopyable!T;
+
+	static assert(isCopyable!T || isMoveable!T,
+				  "Non-copyable type "~T.stringof~" must be movable with a .move property.");
+}
+
+unittest {
+	enum E { a, move }
+	static struct S {
+		@disable this(this);
+		@property S move() { return S.init; }
+	}
+	static struct T { @property T move() { return T.init; } }
+	static struct U { }
+	static struct V {
+		@disable this();
+		@disable this(this);
+		@property V move() { return V.init; }
+	}
+	static struct W { @disable this(); }
+
+	static assert(needsMove!S);
+	static assert(!needsMove!int);
+	static assert(!needsMove!string);
+	static assert(!needsMove!E);
+	static assert(!needsMove!T);
+	static assert(!needsMove!U);
+	static assert(needsMove!V);
+	static assert(!needsMove!W);
+}
