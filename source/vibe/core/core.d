@@ -317,8 +317,7 @@ void setIdleHandler(bool delegate() @safe nothrow del)
 Task runTask(CALLABLE, ARGS...)(CALLABLE task, auto ref ARGS args)
 	if (is(typeof(CALLABLE.init(ARGS.init))))
 {
-	auto tfi = TaskFuncInfo.make(task, args);
-	return runTask_internal(tfi);
+	return runTask_internal!((ref tfi) { tfi.set(task, args); });
 }
 
 /**
@@ -341,7 +340,7 @@ auto runTaskScoped(FT, ARGS)(scope FT callable, ARGS args)
 	return S(runTask(callable, args));
 }
 
-package Task runTask_internal(ref TaskFuncInfo tfi)
+package Task runTask_internal(alias TFI_SETUP)()
 @safe nothrow {
 	import std.typecons : Tuple, tuple;
 
@@ -359,7 +358,7 @@ package Task runTask_internal(ref TaskFuncInfo tfi)
 		f = new TaskFiber;
 	}
 
-	f.m_taskFunc = tfi;
+	TFI_SETUP(f.m_taskFunc);
 
 	f.bumpTaskCounter();
 	auto handle = f.task();

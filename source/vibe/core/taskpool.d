@@ -43,6 +43,7 @@ shared class TaskPool {
 		m_signal = createSharedManualEvent();
 
 		with (m_state.lock) {
+			queue.setup();
 			threads.length = thread_count;
 			foreach (i; 0 .. thread_count) {
 				WorkerThread thr;
@@ -68,7 +69,7 @@ shared class TaskPool {
 		while (m_state.lock.threads.length > 0)
 			ec = m_signal.waitUninterruptible(ec);
 
-		size_t cnt = m_state.lock.queue.tasks.length;
+		size_t cnt = m_state.lock.queue.length;
 		if (cnt > 0) logWarn("There were still %d worker tasks pending at exit.", cnt);
 	}
 
@@ -187,8 +188,7 @@ shared class TaskPool {
 		static assert(areConvertibleTo!(Group!ARGS, Group!FARGS),
 			"Cannot convert arguments '"~ARGS.stringof~"' to function arguments '"~FARGS.stringof~"'.");
 
-		auto tfi = TaskFuncInfo.make(callable, args);
-		m_state.lock.queue.put(tfi);
+		m_state.lock.queue.put(callable, args);
 		m_signal.emitSingle();
 	}
 
@@ -203,9 +203,8 @@ shared class TaskPool {
 			"Cannot convert arguments '"~ARGS.stringof~"' to function arguments '"~FARGS.stringof~"'.");
 
 		foreach (thr; m_state.lock.threads) {
-			// create one TFI per thread to properly acocunt for elaborate assignment operators/postblit
-			auto tfi = TaskFuncInfo.make(callable, args);
-			thr.m_queue.put(tfi);
+			// create one TFI per thread to properly account for elaborate assignment operators/postblit
+			thr.m_queue.put(callable, args);
 		}
 		m_signal.emit();
 	}
@@ -220,6 +219,7 @@ private class WorkerThread : Thread {
 	this(shared(TaskPool) pool)
 	{
 		m_pool = pool;
+		m_queue.setup();
 		super(&main);
 	}
 
@@ -256,6 +256,7 @@ private class WorkerThread : Thread {
 	private void handleWorkerTasks()
 	nothrow @safe {
 		import std.algorithm.iteration : filter;
+		import std.algorithm.mutation : swap;
 		import std.algorithm.searching : count;
 		import std.array : array;
 
@@ -276,10 +277,8 @@ private class WorkerThread : Thread {
 				}
 			}
 
-			if (taskfunc.func !is null) {
-				.runTask_internal(taskfunc);
-				taskfunc.func = null;
-			}
+			if (taskfunc.func !is null)
+				.runTask_internal!((ref tfi) { swap(tfi, taskfunc); });
 			else emit_count = m_pool.m_signal.waitUninterruptible(emit_count);
 		}
 
@@ -301,15 +300,34 @@ private class WorkerThread : Thread {
 
 private struct TaskQueue {
 nothrow @safe:
-	// FIXME: use a more efficient storage!
-	TaskFuncInfo[] tasks;
-	@property bool empty() const { return tasks.length == 0; }
-	void put(ref TaskFuncInfo tfi) { tasks ~= tfi; }
+	// TODO: avoid use of GC
+
+	import vibe.internal.array : FixedRingBuffer;
+	FixedRingBuffer!TaskFuncInfo* m_queue;
+
+	void setup()
+	{
+		m_queue = new FixedRingBuffer!TaskFuncInfo;
+	}
+
+	@property bool empty() const { return m_queue.empty; }
+
+	@property size_t length() const { return m_queue.length; }
+
+	void put(CALLABLE, ARGS...)(ref CALLABLE c, ref ARGS args)
+	{
+		import std.algorithm.comparison : max;
+		if (m_queue.full) m_queue.capacity = max(16, m_queue.capacity * 3 / 2);
+		assert(!m_queue.full);
+
+		m_queue.peekDst[0].set(c, args);
+		m_queue.putN(1);
+	}
+
 	bool consume(ref TaskFuncInfo tfi)
 	{
-		if (tasks.length == 0) return false;
-		tfi = tasks[0];
-		tasks = tasks[1 .. $];
+		if (m_queue.empty) return false;
+		m_queue.read(() @trusted { return (&tfi)[0 .. 1]; } ());
 		return true;
 	}
 }

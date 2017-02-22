@@ -335,8 +335,9 @@ final package class TaskFiber : Fiber {
 
 	private void run()
 	nothrow {
-		import std.encoding : sanitize;
+		import std.algorithm.mutation : swap;
 		import std.concurrency : Tid, thisTid;
+		import std.encoding : sanitize;
 		import vibe.core.core : isEventLoopRunning, recycleFiber, taskScheduler, yield;
 		
 		version (VibeDebugCatchAll) alias UncaughtException = Throwable;
@@ -353,8 +354,8 @@ final package class TaskFiber : Fiber {
 					}
 				}
 
-				auto task = m_taskFunc;
-				m_taskFunc = TaskFuncInfo.init;
+				TaskFuncInfo task;
+				swap(task, m_taskFunc);
 				Task handle = this.task;
 				try {
 					m_running = true;
@@ -368,7 +369,7 @@ final package class TaskFiber : Fiber {
 						taskScheduler.yieldUninterruptible();
 						logTrace("Initial resume of task.");
 					}
-					task.func(&task);
+					task.call();
 					debug if (ms_taskEventCallback) ms_taskEventCallback(TaskEvent.end, handle);
 				} catch (Exception e) {
 					debug if (ms_taskEventCallback) ms_taskEventCallback(TaskEvent.fail, handle);
@@ -488,12 +489,14 @@ final package class TaskFiber : Fiber {
 }
 
 package struct TaskFuncInfo {
-	void function(TaskFuncInfo*) func;
+	void function(ref TaskFuncInfo) func;
 	void[2*size_t.sizeof] callable;
 	void[maxTaskParameterSize] args;
 
-	static TaskFuncInfo make(CALLABLE, ARGS...)(ref CALLABLE callable, ref ARGS args)
+	void set(CALLABLE, ARGS...)(ref CALLABLE callable, ref ARGS args)
 	{
+		assert(!func, "Setting TaskFuncInfo that is already set.");
+
 		import std.algorithm : move;
 		import std.traits : hasElaborateAssign;
 
@@ -504,7 +507,7 @@ package struct TaskFuncInfo {
 			"The arguments passed to run(Worker)Task must not exceed "~
 			maxTaskParameterSize.to!string~" bytes in total size.");
 
-		static void callDelegate(TaskFuncInfo* tfi) {
+		static void callDelegate(ref TaskFuncInfo tfi) {
 			assert(tfi.func is &callDelegate, "Wrong callDelegate called!?");
 
 			// copy original call data to stack
@@ -520,21 +523,23 @@ package struct TaskFuncInfo {
 			mixin(callWithMove!ARGS("c", "args.expand"));
 		}
 
-		return () @trusted {
-			TaskFuncInfo tfi;
-			tfi.func = &callDelegate;
+		func = &callDelegate;
 
-			static if (hasElaborateAssign!CALLABLE) tfi.initCallable!CALLABLE();
-			static if (hasElaborateAssign!TARGS) tfi.initArgs!TARGS();
-			tfi.typedCallable!CALLABLE = callable;
+		() @trusted {
+			static if (hasElaborateAssign!CALLABLE) initCallable!CALLABLE();
+			static if (hasElaborateAssign!TARGS) initArgs!TARGS();
+			typedCallable!CALLABLE = callable;
 			foreach (i, A; ARGS) {
-				static if (needsMove!A) args[i].move(tfi.typedArgs!TARGS.expand[i]);
-				else tfi.typedArgs!TARGS.expand[i] = args[i];
+				static if (needsMove!A) args[i].move(typedArgs!TARGS.expand[i]);
+				else typedArgs!TARGS.expand[i] = args[i];
 			}
-			return tfi;
 		} ();
 	}
 
+	void call()
+	{
+		this.func(this);
+	}
 
 	@property ref C typedCallable(C)()
 	{
