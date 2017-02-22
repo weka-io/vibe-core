@@ -328,13 +328,18 @@ final class FileLogger : Logger {
 				dst.formattedWrite(") %s] ", pref);
 				break;
 			case Format.threadTime:
+				dst.put('[');
 				auto tm = msg.time;
 				static if (is(typeof(tm.fracSecs))) auto msecs = tm.fracSecs.total!"msecs"; // 2.069 has deprecated "fracSec"
 				else auto msecs = tm.fracSec.msecs;
-				m_curFile.writef("[%08X:%08X %d.%02d.%02d %02d:%02d:%02d.%03d %s] ",
-					msg.threadID, msg.fiberID,
-					tm.year, tm.month, tm.day, tm.hour, tm.minute, tm.second, msecs,
-					pref);
+				m_curFile.writef("%d-%02d-%02d %02d:%02d:%02d.%03d ", tm.year, tm.month, tm.day, tm.hour, tm.minute, tm.second, msecs);
+
+				if (msg.threadName.length) dst.put(msg.threadName);
+				else dst.formattedWrite("%08X", msg.threadID);
+				dst.put('(');
+				import vibe.core.task : Task;
+				Task.getThis().getDebugID(dst);
+				dst.formattedWrite(") %s] ", pref);
 				break;
 		}
 	}
