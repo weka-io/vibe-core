@@ -554,14 +554,14 @@ package struct TaskFuncInfo {
 	}
 
 	void initCallable(C)()
-	{
-		C cinit;
+	nothrow {
+		static const C cinit;
 		this.callable[0 .. C.sizeof] = cast(void[])(&cinit)[0 .. 1];
 	}
 
 	void initArgs(A)()
-	{
-		A ainit;
+	nothrow {
+		static const A ainit;
 		this.args[0 .. A.sizeof] = cast(void[])(&ainit)[0 .. 1];
 	}
 }

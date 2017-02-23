@@ -341,7 +341,7 @@ auto runTaskScoped(FT, ARGS)(scope FT callable, ARGS args)
 }
 
 package Task runTask_internal(alias TFI_SETUP)()
-@safe nothrow {
+{
 	import std.typecons : Tuple, tuple;
 
 	TaskFiber f;
