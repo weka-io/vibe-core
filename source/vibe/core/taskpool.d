@@ -66,8 +66,22 @@ shared class TaskPool {
 		m_signal.emit();
 
 		auto ec = m_signal.emitCount;
-		while (m_state.lock.threads.length > 0)
-			ec = m_signal.waitUninterruptible(ec);
+		while (true) {
+			WorkerThread th;
+			with (m_state.lock)
+				if (threads.length) {
+					th = threads[0];
+					threads = threads[1 .. $];
+				}
+			if (!th) break;
+
+			() @trusted {
+				try th.join();
+				catch (Exception e) {
+					logWarn("Failed to wait for worker thread exit: %s", e.msg);
+				}
+			} ();
+		}
 
 		size_t cnt = m_state.lock.queue.length;
 		if (cnt > 0) logWarn("There were still %d worker tasks pending at exit.", cnt);
@@ -290,7 +304,6 @@ private class WorkerThread : Thread {
 			if (threads.length > 0 && !queue.empty)
 				logWarn("Worker threads shut down with worker tasks still left in the queue.");
 		}
-		m_pool.m_signal.emit();
 
 		exitEventLoop();
 	}
