@@ -13,6 +13,9 @@ mainSourceFile "source/vibe/appmain.d"
 configuration "winapi" {
 	subConfiguration "eventcore" "winapi"
 }
+configuration "winapi-optlink" {
+	subConfiguration "eventcore" "winapi-optlink"
+}
 configuration "epoll" {
 	subConfiguration "eventcore" "epoll"
 }
@@ -21,6 +24,9 @@ configuration "kqueue" {
 }
 configuration "select" {
 	subConfiguration "eventcore" "select"
+}
+configuration "select-optlink" {
+	subConfiguration "eventcore" "select-optlink"
 }
 configuration "libasync" {
 	subConfiguration "eventcore" "libasync"
