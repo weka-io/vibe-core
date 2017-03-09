@@ -79,7 +79,7 @@ before_build:
             $env:Darch = "x86";
           }
         elseif($env:arch -eq "x86_mscoff"){
-            $env:compilersetupargs = "amd64";
+            $env:compilersetupargs = "x86";
             $env:Darch = "x86_mscoff";
         }
         elseif($env:arch -eq "x64"){
