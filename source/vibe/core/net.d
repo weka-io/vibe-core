@@ -448,8 +448,6 @@ struct TCPConnection {
 		bool tcpNoDelay = false;
 		bool keepAlive = false;
 		Duration readTimeout = Duration.max;
-		NetworkAddress remoteAddress;
-		NetworkAddress localAddress;
 		string remoteAddressString;
 	}
 
@@ -465,13 +463,6 @@ struct TCPConnection {
 		m_socket = socket;
 		m_context = () @trusted { return &eventDriver.core.userData!Context(socket); } ();
 		m_context.readBuffer.capacity = 4096;
-		try m_context.remoteAddress = NetworkAddress(remote_address);
-		catch (Exception e) { logWarn("Failed to get remote address for TCP connection: %s", e.msg); }
-		scope laddr = new RefAddress(m_context.localAddress.sockAddr, m_context.localAddress.sockAddrMaxLen);
-		try {
-			enforce(eventDriver.sockets.getLocalAddress(socket, laddr), "Failed to query socket address.");
-			m_context.localAddress = NetworkAddress(laddr);
-		} catch (Exception e) { logWarn("Failed to get local address for TCP connection: %s", e.msg); }
 	}
 
 	this(this)
@@ -494,9 +485,23 @@ struct TCPConnection {
 	@property bool keepAlive() const nothrow { return m_context.keepAlive; }
 	@property void readTimeout(Duration duration) { m_context.readTimeout = duration; }
 	@property Duration readTimeout() const nothrow { return m_context.readTimeout; }
-	@property string peerAddress() const nothrow { return m_context.remoteAddress.toString(); }
-	@property NetworkAddress localAddress() const nothrow { return m_context.localAddress; }
-	@property NetworkAddress remoteAddress() const nothrow { return m_context.remoteAddress; }
+	@property string peerAddress() const nothrow { return this.remoteAddress.toString(); }
+	@property NetworkAddress localAddress() const nothrow {
+		NetworkAddress naddr;
+		scope addr = new RefAddress(naddr.sockAddr, naddr.sockAddrMaxLen);
+		try {
+			enforce(eventDriver.sockets.getLocalAddress(m_socket, addr), "Failed to query socket address.");
+		} catch (Exception e) { logWarn("Failed to get local address for TCP connection: %s", e.msg); }
+		return naddr;
+	}
+	@property NetworkAddress remoteAddress() const nothrow {
+		NetworkAddress naddr;
+		scope addr = new RefAddress(naddr.sockAddr, naddr.sockAddrMaxLen);
+		try {
+			enforce(eventDriver.sockets.getRemoteAddress(m_socket, addr), "Failed to query socket address.");
+		} catch (Exception e) { logWarn("Failed to get remote address for TCP connection: %s", e.msg); }
+		return naddr;
+	}
 	@property bool connected()
 	const nothrow {
 		if (m_socket == StreamSocketFD.invalid) return false;
