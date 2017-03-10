@@ -126,6 +126,8 @@ struct Path {
 
 	@property PathEntry front() const nothrow @nogc { return PathEntry(m_path[0 .. m_nextEntry], m_type, m_absolute); }
 
+	@property PathEntry head() const nothrow @nogc { return this[length-1]; }
+
 	@property Path save() const nothrow @nogc { return this; }
 
 	@property bool endsWithSlash()
@@ -242,6 +244,17 @@ struct Path {
 		}
 	}
 
+	hash_t toHash() const nothrow @trusted
+	{
+		hash_t ret;
+		auto strhash = &typeid(string).getHash;
+		try foreach (n; this.save) ret ^= strhash(&n.m_name);
+		catch (Throwable) assert(false);
+		if (this.absolute) ret ^= 0xfe3c1738;
+		if (this.endsWithSlash) ret ^= 0x6aa4352d;
+		return ret;
+	}
+
 	string toNativeString() const nothrow { return toString(PathType.native); }
 
 	Path opSlice() const nothrow @nogc { return this; }
@@ -259,8 +272,8 @@ struct Path {
 
 	PathEntry opIndex(size_t idx) const nothrow @nogc { auto ret = this[]; ret.popFrontExactly(idx); return ret.front; }
 
-	Path opBinary(string op : "~")(string subpath) nothrow { return this ~ Path(subpath); }
-	Path opBinary(string op : "~")(Path subpath) nothrow {
+	Path opBinary(string op : "~")(string subpath) const nothrow { return this ~ Path(subpath); }
+	Path opBinary(string op : "~")(Path subpath) const nothrow {
 		assert(!subpath.absolute || m_path.length == 0, "Cannot append absolute path.");
 
 		if (this.endsWithSlash)
@@ -275,7 +288,7 @@ struct Path {
 		}
 	}
 	
-	Path opBinary(string op : "~", R)(R entries) nothrow
+	Path opBinary(string op : "~", R)(R entries) const nothrow
 		if (!is(R == Path) && isInputRange!R && is(ElementType!R == PathEntry))
 	{
 		import std.array : join;
@@ -445,6 +458,15 @@ unittest
 	assert(Path("", PathType.posix) ~ Path("foo/bar") == Path("foo/bar"));
 	assert(Path("foo", PathType.posix) ~ Path("bar") == Path("foo/bar"));
 	assert(Path("foo/", PathType.posix) ~ Path("bar") == Path("foo/bar"));
+}
+
+@safe unittest {
+	import std.array : appender;
+	auto app = appender!(Path[]);
+	void test1(Path p) { app.put(p); }
+	void test2(Path[] ps) { app.put(ps); }
+	//void test3(const(Path) p) { app.put(p); } // DMD issue 17251
+	//void test4(const(Path)[] ps) { app.put(ps); }
 }
 
 
