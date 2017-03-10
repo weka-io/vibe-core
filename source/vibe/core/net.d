@@ -363,18 +363,18 @@ struct NetworkAddress {
 
 		switch (this.family) {
 			default: assert(false, "toAddressString() called for invalid address family.");
-			case AF_INET:
+			case AF_INET: {
 				ubyte[4] ip = () @trusted { return (cast(ubyte*)&addr_ip4.sin_addr.s_addr)[0 .. 4]; } ();
 				sink.formattedWrite("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
-				break;
-			case AF_INET6:
+				} break;
+			case AF_INET6: {
 				ubyte[16] ip = addr_ip6.sin6_addr.s6_addr;
 				foreach (i; 0 .. 8) {
 					if (i > 0) sink(":");
 					_dummy[] = ip[i*2 .. i*2+2];
 					sink.formattedWrite("%x", bigEndianToNative!ushort(_dummy));
 				}
-				break;
+				} break;
 			version (Posix) {
 				case AddressFamily.UNIX:
 					import std.traits : hasMember;
@@ -715,8 +715,6 @@ struct TCPListener {
 struct UDPConnection {
 	static struct Context {
 		bool canBroadcast;
-		NetworkAddress remoteAddress;
-		NetworkAddress localAddress;
 	}
 
 	private {
@@ -730,7 +728,6 @@ struct UDPConnection {
 		m_socket = eventDriver.sockets.createDatagramSocket(baddr, null);
 		enforce(m_socket != DatagramSocketFD.invalid, "Failed to create datagram socket.");
 		m_context = () @trusted { return &eventDriver.core.userData!Context(m_socket); } ();
-		m_context.localAddress = bind_address;
 	}
 
 
@@ -759,7 +756,14 @@ struct UDPConnection {
 	@property void canBroadcast(bool val) { enforce(eventDriver.sockets.setBroadcast(m_socket, val), "Failed to set UDP broadcast flag."); m_context.canBroadcast = val; }
 
 	/// The local/bind address of the underlying socket.
-	@property NetworkAddress localAddress() const { return m_context.localAddress; }
+	@property NetworkAddress localAddress() const nothrow {
+		NetworkAddress naddr;
+		scope addr = new RefAddress(naddr.sockAddr, naddr.sockAddrMaxLen);
+		try {
+			enforce(eventDriver.sockets.getLocalAddress(m_socket, addr), "Failed to query socket address.");
+		} catch (Exception e) { logWarn("Failed to get local address for TCP connection: %s", e.msg); }
+		return naddr;
+	}
 
 	/** Stops listening for datagrams and frees all resources.
 	*/
@@ -772,7 +776,11 @@ struct UDPConnection {
 	*/
 	void connect(string host, ushort port) { connect(resolveHost(host, port)); }
 	/// ditto
-	void connect(NetworkAddress address) { m_context.remoteAddress = address; }
+	void connect(NetworkAddress address)
+	{
+		scope addr = new RefAddress(address.sockAddr, address.sockAddrLen);
+		eventDriver.sockets.setTargetAddress(m_socket, addr);
+	}
 
 	/** Sends a single packet.
 
@@ -781,14 +789,15 @@ struct UDPConnection {
 	*/
 	void send(in ubyte[] data, in NetworkAddress* peer_address = null)
 	{
-		auto addr = () @trusted { return peer_address ? peer_address : &m_context.remoteAddress; } ();
-		scope addrc = new RefAddress(() @trusted { return (cast(NetworkAddress*)addr).sockAddr; } (), addr.sockAddrLen);
+		scope addrc = new RefAddress;
+		if (peer_address)
+			addrc.set(() @trusted { return (cast(NetworkAddress*)peer_address).sockAddr; } (), peer_address.sockAddrLen);
 
 		IOStatus status;
 		size_t nbytes;
 
 		Waitable!(DatagramIOCallback,
-			cb => eventDriver.sockets.send(m_socket, data, IOMode.once, addrc, cb),
+			cb => eventDriver.sockets.send(m_socket, data, IOMode.once, peer_address ? addrc : null, cb),
 			cb => eventDriver.sockets.cancelSend(m_socket),
 			(DatagramSocketFD, IOStatus status_, size_t nbytes_, scope RefAddress addr)
 			{
