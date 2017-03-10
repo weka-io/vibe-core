@@ -239,10 +239,13 @@ struct NetworkAddress {
 	version (Windows) import core.sys.windows.winsock2;
 	else import core.sys.posix.netinet.in_;
 
+	version(Posix) import core.sys.posix.sys.un : sockaddr_un;
+
 	@safe:
 
 	private union {
 		sockaddr addr;
+		version (Posix) sockaddr_un addr_unix;
 		sockaddr_in addr_ip4;
 		sockaddr_in6 addr_ip6;
 	}
@@ -266,6 +269,13 @@ struct NetworkAddress {
 				assert(addr.nameLen >= sockaddr_in6.sizeof);
 				*this.sockAddrInet6 = *cast(sockaddr_in6*)addr.name;
 				break;
+			version (Posix) {
+				case AddressFamily.UNIX:
+					this.family = AddressFamily.UNIX;
+					assert(addr.nameLen >= sockaddr_un.sizeof);
+					this.sockAddrUnix = *cast(sockaddr_un*)addr.name;
+					break;
+			}
 		}
 	}
 
@@ -312,6 +322,9 @@ struct NetworkAddress {
 			default: assert(false, "sockAddrLen() called for invalid address family.");
 			case AF_INET: return addr_ip4.sizeof;
 			case AF_INET6: return addr_ip6.sizeof;
+			version (Posix) {
+				case AF_UNIX: return addr_unix.sizeof;
+			}
 		}
 	}
 
@@ -322,6 +335,12 @@ struct NetworkAddress {
 	@property inout(sockaddr_in6)* sockAddrInet6() inout pure nothrow
 		in { assert (family == AF_INET6); }
 		body { return &addr_ip6; }
+
+	version (Posix) {
+		@property inout(sockaddr_un)* sockAddrUnix() inout pure nothrow
+			in { assert (family == AddressFamily.UNIX); }
+			body { return &addr_unix; }
+	}
 
 	/** Returns a string representation of the IP address
 	*/
@@ -356,6 +375,15 @@ struct NetworkAddress {
 					sink.formattedWrite("%x", bigEndianToNative!ushort(_dummy));
 				}
 				break;
+			version (Posix) {
+				case AddressFamily.UNIX:
+					import std.traits : hasMember;
+					static if (hasMember!(sockaddr_un, "sun_len"))
+						sink.formattedWrite("%s",() @trusted { return cast(char[])addr_unix.sun_path[0..addr_unix.sun_len]; } ());
+					else
+						sink.formattedWrite("%s",() @trusted { return (cast(char*)addr_unix.sun_path.ptr).fromStringz; } ());
+					break;
+			}
 		}
 	}
 
@@ -383,6 +411,9 @@ struct NetworkAddress {
 				sink("[");
 				toAddressString(sink);
 				sink.formattedWrite("]:%s", port);
+				break;
+			case AddressFamily.UNIX:
+				toAddressString(sink);
 				break;
 		}
 	}
