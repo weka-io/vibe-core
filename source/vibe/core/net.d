@@ -273,7 +273,7 @@ struct NetworkAddress {
 				case AddressFamily.UNIX:
 					this.family = AddressFamily.UNIX;
 					assert(addr.nameLen >= sockaddr_un.sizeof);
-					this.sockAddrUnix = *cast(sockaddr_un*)addr.name;
+					*this.sockAddrUnix = *cast(sockaddr_un*)addr.name;
 					break;
 			}
 		}
@@ -378,10 +378,11 @@ struct NetworkAddress {
 			version (Posix) {
 				case AddressFamily.UNIX:
 					import std.traits : hasMember;
+					import std.string : fromStringz;
 					static if (hasMember!(sockaddr_un, "sun_len"))
-						sink.formattedWrite("%s",() @trusted { return cast(char[])addr_unix.sun_path[0..addr_unix.sun_len]; } ());
+						sink(() @trusted { return cast(char[])addr_unix.sun_path[0..addr_unix.sun_len]; } ());
 					else
-						sink.formattedWrite("%s",() @trusted { return (cast(char*)addr_unix.sun_path.ptr).fromStringz; } ());
+						sink(() @trusted { return (cast(char*)addr_unix.sun_path.ptr).fromStringz; } ());
 					break;
 			}
 		}
