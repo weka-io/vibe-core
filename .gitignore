@@ -1,1 +1,3 @@
 .dub
+libvibe_core.a
+vibe-core-test-*
