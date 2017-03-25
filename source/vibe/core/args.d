@@ -14,7 +14,7 @@
 module vibe.core.args;
 
 import vibe.core.log;
-//import vibe.data.json;
+import std.json;
 
 import std.algorithm : any, map, sort;
 import std.array : array, join, replicate, split;
@@ -45,6 +45,7 @@ import core.runtime;
 	See_Also: readRequiredOption
 */
 bool readOption(T)(string names, T* pvalue, string help_text)
+	if (isOptionValue!T || is(T : E[], E) && isOptionValue!E)
 {
 	// May happen due to http://d.puremagic.com/issues/show_bug.cgi?id=9881
 	if (g_args is null) init();
@@ -60,15 +61,62 @@ bool readOption(T)(string names, T* pvalue, string help_text)
 	getopt(g_args, getoptConfig, names, pvalue);
 	if (g_args.length < olen) return true;
 
-	/*if (g_haveConfig) {
+	if (g_haveConfig) {
 		foreach (name; info.names)
 			if (auto pv = name in g_config) {
-				*pvalue = pv.to!T;
+				static if (isOptionValue!T) {
+					*pvalue = fromValue!T(*pv);
+				} else {
+					*pvalue = (*pv).array.map!(j => fromValue!(typeof(T.init[0]))(j)).array;
+				}
 				return true;
 			}
-	}*/
+	}
 
 	return false;
+}
+
+unittest {
+	bool had_json = g_haveConfig;
+	JSONValue json = g_config;
+
+	scope (exit) {
+		g_haveConfig = had_json;
+		g_config = json;
+	}
+
+	g_haveConfig = true;
+	g_config = parseJSON(`{
+		"a": true,
+		"b": 16000,
+		"c": 2000000000,
+		"d": 8000000000,
+		"e": 1.0,
+		"f": 2.0,
+		"g": "bar",
+		"h": [false, true],
+		"i": [-16000, 16000],
+		"j": [-2000000000, 2000000000],
+		"k": [-8000000000, 8000000000],
+		"l": [-1.0, 1.0],
+		"m": [-2.0, 2.0],
+		"n": ["bar", "baz"]
+	}`);
+
+	bool b; readOption("a", &b, ""); assert(b == true);
+	short s; readOption("b", &s, ""); assert(s == 16_000);
+	int i; readOption("c", &i, ""); assert(i == 2_000_000_000);
+	long l; readOption("d", &l, ""); assert(l == 8_000_000_000);
+	float f; readOption("e", &f, ""); assert(f == cast(float)1.0);
+	double d; readOption("f", &d, ""); assert(d == 2.0);
+	string st; readOption("g", &st, ""); assert(st == "bar");
+	bool[] ba; readOption("h", &ba, ""); assert(ba == [false, true]);
+	short[] sa; readOption("i", &sa, ""); assert(sa == [-16000, 16000]);
+	int[] ia; readOption("j", &ia, ""); assert(ia == [-2_000_000_000, 2_000_000_000]);
+	long[] la; readOption("k", &la, ""); assert(la == [-8_000_000_000, 8_000_000_000]);
+	float[] fa; readOption("l", &fa, ""); assert(fa == [cast(float)-1.0, cast(float)1.0]);
+	double[] da; readOption("m", &da, ""); assert(da == [-2.0, 2.0]);
+	string[] sta; readOption("n", &sta, ""); assert(sta == ["bar", "baz"]);
 }
 
 
@@ -165,6 +213,13 @@ bool finalizeCommandLineOptions(string[]* args_out = null)
 	return true;
 }
 
+/** Tests if a given type is supported by `readOption`.
+
+	Allowed types are Booleans, integers, floating point values and strings.
+	In addition to plain values, arrays of values are also supported.
+*/
+enum isOptionValue(T) = is(T == bool) || is(T : long) || is(T : double) || is(T == string);
+
 
 private struct OptionInfo {
 	string[] names;
@@ -175,7 +230,7 @@ private struct OptionInfo {
 private {
 	__gshared string[] g_args;
 	__gshared bool g_haveConfig;
-	//__gshared Json g_config;
+	__gshared JSONValue g_config;
 	__gshared OptionInfo[] g_options;
 	__gshared bool g_help;
 }
@@ -206,7 +261,7 @@ private void init()
 		if (cpath.exists) {
 			scope(failure) logError("Failed to parse config file %s.", cpath);
 			auto text = cpath.readText();
-			//g_config = text.parseJson();
+			g_config = text.parseJSON();
 			g_haveConfig = true;
 			break;
 		}
@@ -216,6 +271,17 @@ private void init()
 		logDiagnostic("No config file found in %s", searchpaths);
 
 	readOption("h|help", &g_help, "Prints this help screen.");
+}
+
+private T fromValue(T)(JSONValue val)
+{
+	import std.conv : to;
+	static if (is(T == bool)) return val.type == JSON_TYPE.TRUE;
+	else static if (is(T : long)) return val.integer.to!T;
+	else static if (is(T : double)) return val.floating.to!T;
+	else static if (is(T == string)) return val.str;
+	else static assert(false);
+
 }
 
 private enum configName = "vibe.conf";
