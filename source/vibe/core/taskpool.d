@@ -337,8 +337,11 @@ nothrow @safe:
 
 	bool consume(ref TaskFuncInfo tfi)
 	{
+		import std.algorithm.mutation : swap;
+		
 		if (m_queue.empty) return false;
-		m_queue.read(() @trusted { return (&tfi)[0 .. 1]; } ());
+		swap(tfi, m_queue.front);
+		m_queue.popFront();
 		return true;
 	}
 }
