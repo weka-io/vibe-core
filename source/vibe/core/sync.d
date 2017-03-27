@@ -923,8 +923,10 @@ struct ManualEvent {
 
 		() @trusted { logTrace("wait shared %s", cast(void*)&this); } ();
 
-		if (ms_threadEvent is EventID.invalid)
+		if (ms_threadEvent is EventID.invalid) {
 			ms_threadEvent = eventDriver.events.create();
+			assert(ms_threadEvent != EventID.invalid, "Failed to create event!");
+		}
 
 		SysTime target_timeout, now;
 		if (timeout != Duration.max) {
