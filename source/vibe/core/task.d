@@ -56,7 +56,7 @@ struct Task {
 		auto fiber = () @trusted { return Fiber.getThis(); } ();
 		if (!fiber) return Task.init;
 		auto tfiber = cast(TaskFiber)fiber;
-		assert(tfiber !is null, "Invalid or null fiber used to construct Task handle.");
+		if (!tfiber) return Task.init;
 		// FIXME: returning a non-.init handle for a finished task might break some layered logic
 		return () @trusted { return Task(tfiber, tfiber.m_taskCounter); } ();
 	}
