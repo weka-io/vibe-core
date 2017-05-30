@@ -293,6 +293,7 @@ final package class TaskFiber : Fiber {
 		ThreadInfo m_tidInfo;
 		shared size_t m_taskCounter;
 		shared bool m_running;
+		bool m_shutdown = false;
 
 		shared(ManualEvent) m_onExit;
 
@@ -352,6 +353,7 @@ final package class TaskFiber : Fiber {
 						logWarn("CoreTaskFiber was resumed with exception but without active task!");
 						logDiagnostic("Full error: %s", e.toString().sanitize());
 					}
+					if (m_shutdown) return;
 				}
 
 				TaskFuncInfo task;
@@ -430,6 +432,19 @@ final package class TaskFiber : Fiber {
 	@property ref inout(ThreadInfo) tidInfo() inout @safe nothrow { return m_tidInfo; }
 
 	@property size_t taskCounter() const @safe nothrow { return m_taskCounter; }
+
+	/** Shuts down the task handler loop.
+	*/
+	void shutdown()
+	@safe nothrow {
+		assert(!m_running);
+		m_shutdown = true;
+		while (state != Fiber.State.TERM)
+			() @trusted {
+				try call(Fiber.Rethrow.no);
+				catch (Exception e) assert(false, e.msg);
+			} ();
+	}
 
 	/** Blocks until the task has ended.
 	*/

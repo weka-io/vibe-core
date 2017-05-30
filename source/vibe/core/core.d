@@ -1,7 +1,7 @@
 /**
 	This module contains the core functionality of the vibe.d framework.
 
-	Copyright: © 2012-2016 RejectedSoftware e.K.
+	Copyright: © 2012-2017 RejectedSoftware e.K.
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 	Authors: Sönke Ludwig
 */
@@ -763,7 +763,7 @@ unittest {
 }
 
 /// Compatibility overload - use a `@safe nothrow` callback instead.
-deprecated("Use anothrow callback as argument to setTimer.")
+deprecated("Use an @safe nothrow callback as argument to setTimer.")
 Timer setTimer(Duration timeout, void delegate() callback, bool periodic = false)
 @safe nothrow {
 	return setTimer(timeout, () @trusted nothrow {
@@ -1108,6 +1108,7 @@ private {
 
 	TaskScheduler s_scheduler;
 	FixedRingBuffer!TaskFiber s_availableFibers;
+	size_t s_maxRecycledFibers = 100;
 
 	string s_privilegeLoweringUserName;
 	string s_privilegeLoweringGroupName;
@@ -1124,6 +1125,16 @@ package @property ref TaskScheduler taskScheduler() @safe nothrow @nogc { return
 
 package void recycleFiber(TaskFiber fiber)
 @safe nothrow {
+	if (s_availableFibers.length >= s_maxRecycledFibers) {
+		auto fl = s_availableFibers.front;
+		s_availableFibers.popFront();
+		fl.shutdown();
+		() @trusted {
+			try destroy(fl);
+			catch (Exception e) logWarn("Failed to destroy fiber: %s", e.msg);
+		} ();
+	}
+
 	if (s_availableFibers.full)
 		s_availableFibers.capacity = 2 * s_availableFibers.capacity;
 
