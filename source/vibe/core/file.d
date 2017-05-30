@@ -37,7 +37,9 @@ version(Posix){
 */
 FileStream openFile(Path path, FileMode mode = FileMode.read)
 {
-	return FileStream(eventDriver.files.open(path.toNativeString(), cast(FileOpenMode)mode), path, mode);
+	auto fil = eventDriver.files.open(path.toNativeString(), cast(FileOpenMode)mode);
+	enforce(fil != FileFD.invalid, "Failed to open file '"~path.toNativeString~"'");
+	return FileStream(fil, path, mode);
 }
 /// ditto
 FileStream openFile(string path, FileMode mode = FileMode.read)
@@ -393,8 +395,9 @@ struct FileStream {
 		CTX* m_ctx;
 	}
 
-	this(FileFD fd, Path path, FileMode mode)
+	private this(FileFD fd, Path path, FileMode mode)
 	{
+		assert(fd != FileFD.invalid, "Constructing FileStream from invalid file descriptor.");
 		m_fd = fd;
 		m_ctx = new CTX; // TODO: use FD custom storage
 		m_ctx.path = path;
