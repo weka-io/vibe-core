@@ -940,12 +940,30 @@ struct FileDescriptorEvent {
 		any = read|write  /// Match any kind of event
 	}
 
-	@safe nothrow:
+	private {
+		StreamSocketFD m_socket;
+		Trigger m_trigger;
+	}
+
+	@safe:
 
 	private this(int fd, Trigger event_mask)
-	{
-		assert(false);
+	nothrow {
+		m_socket = eventDriver.sockets.adoptStream(fd);
 	}
+
+	this(this)
+	nothrow {
+		if (m_socket != StreamSocketFD.invalid)
+			eventDriver.sockets.addRef(m_socket);
+	}
+
+	~this()
+	nothrow {
+		if (m_socket != StreamSocketFD.invalid)
+			eventDriver.sockets.releaseRef(m_socket);
+	}
+
 
 	/** Waits for the selected event to occur.
 
@@ -964,7 +982,18 @@ struct FileDescriptorEvent {
 	/// ditto
 	bool wait(Duration timeout, Trigger which = Trigger.any)
 	{
-		assert(false);
+		if ((which & m_trigger) == Trigger.none) return true;
+
+		assert((which & m_trigger) == Trigger.read, "Waiting for write event not yet supported.");
+
+		Waitable!(IOCallback,
+			cb => eventDriver.sockets.waitForData(m_socket, cb),
+			(cb) { assert(false, "timeout not supported."); }
+		) readwaiter;
+
+		asyncAwaitAny!true(timeout, readwaiter);
+
+		return true;
 	}
 }
 
