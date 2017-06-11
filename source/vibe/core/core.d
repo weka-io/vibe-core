@@ -27,7 +27,7 @@ import std.functional;
 import std.range : empty, front, popFront;
 import std.string;
 import std.traits : isFunctionPointer;
-import std.typecons : Typedef, Tuple, tuple;
+import std.typecons : Flag, Yes, Typedef, Tuple, tuple;
 import std.variant;
 import core.atomic;
 import core.sync.condition;
@@ -373,12 +373,11 @@ package Task runTask_internal(alias TFI_SETUP)()
 	f.bumpTaskCounter();
 	auto handle = f.task();
 
-	debug Task self = Task.getThis();
 	debug if (TaskFiber.ms_taskEventCallback) {
 		() @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.preStart, handle); } ();
 	}
 
-	s_scheduler.switchTo(handle);
+	s_scheduler.switchTo(handle, TaskFiber.getThis().m_yieldLockCount > 0 ? Flag!"defer".yes : Flag!"defer".no);
 
 	debug if (TaskFiber.ms_taskEventCallback) {
 		() @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.postStart, handle); } ();
@@ -648,6 +647,7 @@ void yield()
 		tf.handleInterrupt();
 	} else {
 		// Let yielded tasks execute
+		assert(TaskFiber.getThis().m_yieldLockCount == 0, "May not yield within an active yieldLock()!");
 		() @safe nothrow { performIdleProcessing(); } ();
 	}
 }
@@ -669,6 +669,7 @@ void hibernate(scope void delegate() @safe nothrow on_interrupt = null)
 @safe nothrow {
 	auto t = Task.getThis();
 	if (t == Task.init) {
+		assert(TaskFiber.getThis().m_yieldLockCount == 0, "May not yield within an active yieldLock!");
 		runEventLoopOnce();
 	} else {
 		auto tf = () @trusted { return t.taskFiber; } ();
@@ -1059,6 +1060,52 @@ struct Timer {
 			cb => m_driver.cancelWait(m_id)
 		);
 	}
+}
+
+
+/** Returns an object that ensures that no task switches happen during its life time.
+
+	Any attempt to run the event loop or switching to another task will cause
+	an assertion to be thrown within the scope that defines the lifetime of the
+	returned object.
+
+	Multiple yield locks can appear in nested scopes.
+*/
+auto yieldLock()
+{
+	static struct YieldLock {
+		private this(bool) { inc(); }
+		@disable this();
+		@disable this(this);
+		~this() { dec(); }
+
+		private void inc()
+		{
+			TaskFiber.getThis().m_yieldLockCount++;
+		}
+
+		private void dec()
+		{
+			TaskFiber.getThis().m_yieldLockCount--;
+		}
+	}
+
+	return YieldLock(true);
+}
+
+unittest {
+	auto tf = TaskFiber.getThis();
+	assert(tf.m_yieldLockCount == 0);
+	{
+		auto lock = yieldLock();
+		assert(tf.m_yieldLockCount == 1);
+		{
+			auto lock2 = yieldLock();
+			assert(tf.m_yieldLockCount == 2);
+		}
+		assert(tf.m_yieldLockCount == 1);
+	}
+	assert(tf.m_yieldLockCount == 0);
 }
 
 

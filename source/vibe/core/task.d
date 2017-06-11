@@ -302,6 +302,7 @@ final package class TaskFiber : Fiber {
 		void[] m_fls;
 
 		bool m_interrupt; // Task.interrupt() is progress
+		package int m_yieldLockCount;
 
 		static TaskFiber ms_globalDummyFiber;
 		static FLSInfo[] ms_flsInfo;
@@ -325,7 +326,7 @@ final package class TaskFiber : Fiber {
 		auto f = () @trusted nothrow {
 			return Fiber.getThis();
 		} ();
-		if (f) return cast(TaskFiber)f;
+		if (auto tf = cast(TaskFiber)f) return tf;
 		if (!ms_globalDummyFiber) ms_globalDummyFiber = new TaskFiber;
 		return ms_globalDummyFiber;
 	}
@@ -637,6 +638,8 @@ package struct TaskScheduler {
 	*/
 	ExitReason process()
 	{
+		assert(TaskFiber.getThis().m_yieldLockCount == 0, "May not process events within an active yieldLock()!");
+
 		bool any_events = false;
 		while (true) {
 			// process pending tasks
@@ -742,7 +745,7 @@ package struct TaskScheduler {
 		This forces immediate execution of the specified task. After the tasks finishes or yields,
 		the calling task will continue execution.
 	*/
-	void switchTo(Task t)
+	void switchTo(Task t, Flag!"defer" defer = No.defer)
 	{
 		auto thist = Task.getThis();
 
@@ -750,14 +753,15 @@ package struct TaskScheduler {
 
 		auto thisthr = thist ? thist.thread : () @trusted { return Thread.getThis(); } ();
 		assert(t.thread is thisthr, "Cannot switch to a task that lives in a different thread.");
-		if (thist == Task.init) {
+		if (thist == Task.init && defer == No.defer) {
+			assert(TaskFiber.getThis().m_yieldLockCount == 0, "Cannot yield within an active yieldLock()!");
 			logTrace("switch to task from global context");
 			resumeTask(t);
 			logTrace("task yielded control back to global context");
 		} else {
 			auto tf = () @trusted { return t.taskFiber; } ();
 			auto thistf = () @trusted { return thist.taskFiber; } ();
-			assert(!thistf.m_queue, "Calling task is running, but scheduled to be resumed!?");
+			assert(!thistf || !thistf.m_queue, "Calling task is running, but scheduled to be resumed!?");
 			if (tf.m_queue) {
 				logTrace("Task to switch to is already scheduled. Moving to front of queue.");
 				assert(tf.m_queue is &m_taskQueue, "Task is already enqueued, but not in the main task queue.");
@@ -766,9 +770,13 @@ package struct TaskScheduler {
 			}
 
 			logDebugV("Switching tasks (%s already in queue)", m_taskQueue.length);
-			m_taskQueue.insertFront(thistf);
-			m_taskQueue.insertFront(tf);
-			doYield(thist);
+			if (defer) {
+				m_taskQueue.insertFront(tf);
+			} else {
+				m_taskQueue.insertFront(thistf);
+				m_taskQueue.insertFront(tf);
+				doYield(thist);
+			}
 		}
 	}
 
@@ -840,6 +848,7 @@ package struct TaskScheduler {
 
 	private void doYield(Task task)
 	{
+		assert(() @trusted { return task.taskFiber; } ().m_yieldLockCount == 0, "May not yield while in an active yieldLock()!");
 		debug if (TaskFiber.ms_taskEventCallback) () @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.yield, task); } ();
 		() @trusted { Fiber.yield(); } ();
 		debug if (TaskFiber.ms_taskEventCallback) () @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.resume, task); } ();
