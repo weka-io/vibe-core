@@ -1112,8 +1112,9 @@ struct Future(T) {
 	Starts an asynchronous computation and returns a future for the result value.
 
 	If the supplied callable and arguments are all weakly isolated,
-	$(D vibe.core.core.runWorkerTask) will be used to perform the computation.
-	Otherwise, $(D vibe.core.core.runTask) will be used.
+	$(D vibe.core.core.runWorkerTask) will be used to perform the computation in
+	a separate worker thread. Otherwise, $(D vibe.core.core.runTask) will be
+	used and the result is computed within a separate task within the calling thread.
 
 	Params:
 		callable: A callable value, can be either a function, a delegate, or a
