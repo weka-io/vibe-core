@@ -36,7 +36,7 @@ Path relativeTo(Path path, Path base_path)
 	size_t base = commonPrefix(path[], base_path[]).length;
 
 	auto ret = Path("../".replicate(base_path.length - base), path.type) ~ path[base .. $];
-	if (path.endsWithSlash && !ret.endsWithSlash) ret ~= Path("./");
+	if (path.endsWithSlash && !ret.endsWithSlash) ret ~= Path("./", path.type);
 	return ret;
 }
 
@@ -233,7 +233,7 @@ struct Path {
 
 		if (m_type == type) return m_path;
 		if (type == PathType.windows) {
-			auto ret = this[].map!(p => p.toString()).join('\\');
+			auto ret = (absolute ? this[1 .. $] : this[]).map!(p => p.toString()).join('\\');
 			if (endsWithSlash) ret ~= '\\';
 			return ret;
 		} else {
@@ -277,14 +277,14 @@ struct Path {
 		assert(!subpath.absolute || m_path.length == 0, "Cannot append absolute path.");
 
 		if (this.endsWithSlash)
-			return Path(m_path ~ subpath.m_path, m_type);
-		if (!m_path.length) return subpath;
+			return Path(m_path ~ subpath.toString(m_type), m_type);
+		if (!m_path.length) return subpath.m_type == m_type ? subpath : Path(subpath.toString(m_type), m_type);
 		
 		final switch (m_type) {
 			case PathType.inet, PathType.posix:
-				return Path(m_path ~ '/' ~ subpath.m_path, m_type);
+				return Path(m_path ~ '/' ~ subpath.toString(m_type), m_type);
 			case PathType.windows:
-				return Path(m_path ~ '\\' ~ subpath.m_path, m_type);
+				return Path(m_path ~ '\\' ~ subpath.toString(m_type), m_type);
 		}
 	}
 	
@@ -450,6 +450,14 @@ unittest
 		assert(p1.relativeTo(p2).toString() == "");
 		assert(p2.relativeTo(p2).toString() == "./");
 	}
+
+	assert(Path("C:\\Windows", PathType.windows).absolute);
+	assert(Path("C:\\Windows", PathType.windows).toString(PathType.inet) == "/C:/Windows");
+	assert((Path("C:\\Windows", PathType.windows) ~ Path("test/this", PathType.inet)).toString() == "C:\\Windows\\test\\this");
+	assert(Path("/C:/Windows", PathType.inet).absolute);
+	assert(Path("/C:/Windows", PathType.inet).toString(PathType.windows) == "C:\\Windows");
+	assert((Path("/C:/Windows", PathType.inet) ~ Path("test\\this", PathType.windows)).toString() == "/C:/Windows/test/this");
+	assert((Path("", PathType.inet) ~ Path("foo\\bar", PathType.windows)).toString() == "foo/bar");
 
 	assert(Path("").empty);
 	assert(Path("a/b/c")[1 .. 3].map!(p => p.toString()).equal(["b", "c"]));
