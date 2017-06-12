@@ -14,7 +14,7 @@ The core package provides the low level I/O and concurrency primitives that are 
  - Command line argument parsing
  - Various smaller utilities
 
-The fundamental building block is the fiber based task concept, together with the event based asynchronous I/O model. The enables developing highly scalable I/O concurrent applications without running into the complexities and design implications that asynchronous I/O programming models usually impose. See the [features page](https://vibed.org/features) for a more detailed explanation.
+The fundamental building block is the fiber based task concept, together with the event based asynchronous I/O model. This enables developing highly scalable I/O concurrent applications without running into the complexities and design implications that asynchronous I/O programming models usually impose. See the [features page](https://vibed.org/features) for a more detailed explanation.
 
 [![DUB Package](https://img.shields.io/dub/v/vibe-core.svg)](https://code.dlang.org/packages/vibe-core)
 [![Posix Build Status](https://travis-ci.org/vibe-d/vibe-core.svg?branch=master)](https://travis-ci.org/vibe-d/vibe-core)
