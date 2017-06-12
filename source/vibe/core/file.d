@@ -672,9 +672,9 @@ struct DirectoryChange {
 private FileInfo makeFileInfo(DirEntry ent)
 @trusted {
 	FileInfo ret;
-	ret.name = baseName(ent.name);
-	if( ret.name.length == 0 ) ret.name = ent.name;
-	assert(ret.name.length > 0);
+	auto fullname = ent.name.endsWith('/') || ent.name.endsWith('\\') ? ent.name[0 .. $-1] : ent.name;
+	ret.name = baseName(fullname);
+	if (ret.name.length == 0) ret.name = fullname;
 	ret.size = ent.size;
 	ret.timeModified = ent.timeLastModified;
 	version(Windows) ret.timeCreated = ent.timeCreated;
