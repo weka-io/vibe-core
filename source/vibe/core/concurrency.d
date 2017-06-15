@@ -37,8 +37,14 @@ pure nothrow @safe {
 	return ScopedLock!T(object);
 }
 /// ditto
-void lock(T : const(Object))(shared(T) object, scope void delegate(scope T) accessor)
+void lock(T : const(Object))(shared(T) object, scope void delegate(scope T) nothrow accessor)
 nothrow {
+	auto l = lock(object);
+	accessor(l.unsafeGet());
+}
+/// ditto
+void lock(T : const(Object))(shared(T) object, scope void delegate(scope T) accessor)
+{
 	auto l = lock(object);
 	accessor(l.unsafeGet());
 }
