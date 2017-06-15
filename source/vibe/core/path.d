@@ -238,8 +238,11 @@ struct Path {
 			return ret;
 		} else {
 			if (m_type == PathType.windows) {
-				if (m_absolute) return '/' ~ this[].map!(n => n.toString()).join('/');
-				else return this[].map!(n => n.toString()).join('/');
+				string ret;
+				if (m_absolute) ret = '/' ~ this[].map!(n => n.toString()).join('/');
+				else ret = this[].map!(n => n.toString()).join('/');
+				if (endsWithSlash) ret ~= '/';
+				return ret;
 			} else return m_path;
 		}
 	}
@@ -458,6 +461,7 @@ unittest
 	assert(Path("/C:/Windows", PathType.inet).toString(PathType.windows) == "C:\\Windows");
 	assert((Path("/C:/Windows", PathType.inet) ~ Path("test\\this", PathType.windows)).toString() == "/C:/Windows/test/this");
 	assert((Path("", PathType.inet) ~ Path("foo\\bar", PathType.windows)).toString() == "foo/bar");
+	assert(Path("C:\\Windows\\", PathType.windows).toString(PathType.inet) == "/C:/Windows/");
 
 	assert(Path("").empty);
 	assert(Path("a/b/c")[1 .. 3].map!(p => p.toString()).equal(["b", "c"]));
