@@ -35,7 +35,7 @@ version(Posix){
 /**
 	Opens a file stream with the specified mode.
 */
-FileStream openFile(Path path, FileMode mode = FileMode.read)
+FileStream openFile(NativePath path, FileMode mode = FileMode.read)
 {
 	auto fil = eventDriver.files.open(path.toNativeString(), cast(FileOpenMode)mode);
 	enforce(fil != FileFD.invalid, "Failed to open file '"~path.toNativeString~"'");
@@ -44,7 +44,7 @@ FileStream openFile(Path path, FileMode mode = FileMode.read)
 /// ditto
 FileStream openFile(string path, FileMode mode = FileMode.read)
 {
-	return openFile(Path(path), mode);
+	return openFile(NativePath(path), mode);
 }
 
 
@@ -58,7 +58,7 @@ FileStream openFile(string path, FileMode mode = FileMode.read)
 		path = The path of the file to read
 		buffer = An optional buffer to use for storing the file contents
 */
-ubyte[] readFile(Path path, ubyte[] buffer = null, size_t max_size = size_t.max)
+ubyte[] readFile(NativePath path, ubyte[] buffer = null, size_t max_size = size_t.max)
 {
 	auto fil = openFile(path);
 	scope (exit) fil.close();
@@ -71,14 +71,14 @@ ubyte[] readFile(Path path, ubyte[] buffer = null, size_t max_size = size_t.max)
 /// ditto
 ubyte[] readFile(string path, ubyte[] buffer = null, size_t max_size = size_t.max)
 {
-	return readFile(Path(path), buffer, max_size);
+	return readFile(NativePath(path), buffer, max_size);
 }
 
 
 /**
 	Write a whole file at once.
 */
-void writeFile(Path path, in ubyte[] contents)
+void writeFile(NativePath path, in ubyte[] contents)
 {
 	auto fil = openFile(path, FileMode.createTrunc);
 	scope (exit) fil.close();
@@ -87,13 +87,13 @@ void writeFile(Path path, in ubyte[] contents)
 /// ditto
 void writeFile(string path, in ubyte[] contents)
 {
-	writeFile(Path(path), contents);
+	writeFile(NativePath(path), contents);
 }
 
 /**
 	Convenience function to append to a file.
 */
-void appendToFile(Path path, string data) {
+void appendToFile(NativePath path, string data) {
 	auto fil = openFile(path, FileMode.append);
 	scope(exit) fil.close();
 	fil.write(data);
@@ -101,7 +101,7 @@ void appendToFile(Path path, string data) {
 /// ditto
 void appendToFile(string path, string data)
 {
-	appendToFile(Path(path), data);
+	appendToFile(NativePath(path), data);
 }
 
 /**
@@ -110,7 +110,7 @@ void appendToFile(string path, string data)
 	The resulting string will be sanitized and will have the
 	optional byte order mark (BOM) removed.
 */
-string readFileUTF8(Path path)
+string readFileUTF8(NativePath path)
 {
 	import vibe.internal.string;
 
@@ -119,7 +119,7 @@ string readFileUTF8(Path path)
 /// ditto
 string readFileUTF8(string path)
 {
-	return readFileUTF8(Path(path));
+	return readFileUTF8(NativePath(path));
 }
 
 
@@ -128,7 +128,7 @@ string readFileUTF8(string path)
 
 	The file will have a byte order mark (BOM) prepended.
 */
-void writeFileUTF8(Path path, string contents)
+void writeFileUTF8(NativePath path, string contents)
 {
 	static immutable ubyte[] bom = [0xEF, 0xBB, 0xBF];
 	auto fil = openFile(path, FileMode.createTrunc);
@@ -163,7 +163,7 @@ FileStream createTempFile(string suffix = null)
 		auto fd = () @trusted { return mkstemps(templ.ptr, cast(int)suffix.length); } ();
 		enforce(fd >= 0, "Failed to create temporary file.");
 		auto efd = eventDriver.files.adopt(fd);
-		return FileStream(efd, Path(templ[0 .. $-1].idup), FileMode.createTrunc);
+		return FileStream(efd, NativePath(templ[0 .. $-1].idup), FileMode.createTrunc);
 	}
 }
 
@@ -176,7 +176,7 @@ FileStream createTempFile(string suffix = null)
 		copy_fallback = Determines if copy/remove should be used in case of the
 			source and destination path pointing to different devices.
 */
-void moveFile(Path from, Path to, bool copy_fallback = false)
+void moveFile(NativePath from, NativePath to, bool copy_fallback = false)
 {
 	moveFile(from.toNativeString(), to.toNativeString(), copy_fallback);
 }
@@ -210,7 +210,7 @@ void moveFile(string from, string to, bool copy_fallback = false)
 	Throws:
 		An Exception if the copy operation fails for some reason.
 */
-void copyFile(Path from, Path to, bool overwrite = false)
+void copyFile(NativePath from, NativePath to, bool overwrite = false)
 {
 	{
 		auto src = openFile(from, FileMode.read);
@@ -226,13 +226,13 @@ void copyFile(Path from, Path to, bool overwrite = false)
 /// ditto
 void copyFile(string from, string to)
 {
-	copyFile(Path(from), Path(to));
+	copyFile(NativePath(from), NativePath(to));
 }
 
 /**
 	Removes a file
 */
-void removeFile(Path path)
+void removeFile(NativePath path)
 {
 	removeFile(path.toNativeString());
 }
@@ -245,7 +245,7 @@ void removeFile(string path)
 /**
 	Checks if a file exists
 */
-bool existsFile(Path path) nothrow
+bool existsFile(NativePath path) nothrow
 {
 	return existsFile(path.toNativeString());
 }
@@ -262,7 +262,7 @@ bool existsFile(string path) nothrow
 
 	Throws: A `FileException` is thrown if the file does not exist.
 */
-FileInfo getFileInfo(Path path)
+FileInfo getFileInfo(NativePath path)
 @trusted {
 	auto ent = DirEntry(path.toNativeString());
 	return makeFileInfo(ent);
@@ -270,26 +270,26 @@ FileInfo getFileInfo(Path path)
 /// ditto
 FileInfo getFileInfo(string path)
 {
-	return getFileInfo(Path(path));
+	return getFileInfo(NativePath(path));
 }
 
 /**
 	Creates a new directory.
 */
-void createDirectory(Path path)
+void createDirectory(NativePath path)
 {
 	() @trusted { mkdir(path.toNativeString()); } ();
 }
 /// ditto
 void createDirectory(string path)
 {
-	createDirectory(Path(path));
+	createDirectory(NativePath(path));
 }
 
 /**
 	Enumerates all files in the specified directory.
 */
-void listDirectory(Path path, scope bool delegate(FileInfo info) del)
+void listDirectory(NativePath path, scope bool delegate(FileInfo info) del)
 @trusted {
 	foreach( DirEntry ent; dirEntries(path.toNativeString(), SpanMode.shallow) )
 		if( !del(makeFileInfo(ent)) )
@@ -298,10 +298,10 @@ void listDirectory(Path path, scope bool delegate(FileInfo info) del)
 /// ditto
 void listDirectory(string path, scope bool delegate(FileInfo info) del)
 {
-	listDirectory(Path(path), del);
+	listDirectory(NativePath(path), del);
 }
 /// ditto
-int delegate(scope int delegate(ref FileInfo)) iterateDirectory(Path path)
+int delegate(scope int delegate(ref FileInfo)) iterateDirectory(NativePath path)
 {
 	int iterator(scope int delegate(ref FileInfo) del){
 		int ret = 0;
@@ -316,28 +316,28 @@ int delegate(scope int delegate(ref FileInfo)) iterateDirectory(Path path)
 /// ditto
 int delegate(scope int delegate(ref FileInfo)) iterateDirectory(string path)
 {
-	return iterateDirectory(Path(path));
+	return iterateDirectory(NativePath(path));
 }
 
 /**
 	Starts watching a directory for changes.
 */
-DirectoryWatcher watchDirectory(Path path, bool recursive = true)
+DirectoryWatcher watchDirectory(NativePath path, bool recursive = true)
 {
 	return DirectoryWatcher(path, recursive);
 }
 // ditto
 DirectoryWatcher watchDirectory(string path, bool recursive = true)
 {
-	return watchDirectory(Path(path), recursive);
+	return watchDirectory(NativePath(path), recursive);
 }
 
 /**
 	Returns the current working directory.
 */
-Path getWorkingDirectory()
+NativePath getWorkingDirectory()
 {
-	return Path(() @trusted { return std.file.getcwd(); } ());
+	return NativePath(() @trusted { return std.file.getcwd(); } ());
 }
 
 
@@ -384,7 +384,7 @@ struct FileStream {
 	@safe:
 
 	private struct CTX {
-		Path path;
+		NativePath path;
 		ulong size;
 		FileMode mode;
 		ulong ptr;
@@ -395,7 +395,7 @@ struct FileStream {
 		CTX* m_ctx;
 	}
 
-	private this(FileFD fd, Path path, FileMode mode)
+	private this(FileFD fd, NativePath path, FileMode mode)
 	{
 		assert(fd != FileFD.invalid, "Constructing FileStream from invalid file descriptor.");
 		m_fd = fd;
@@ -420,7 +420,7 @@ struct FileStream {
 	@property int fd() { return cast(int)m_fd; }
 
 	/// The path of the file.
-	@property Path path() const { return ctx.path; }
+	@property NativePath path() const { return ctx.path; }
 
 	/// Determines if the file stream is still open
 	@property bool isOpen() const { return m_fd != FileFD.invalid; }
@@ -568,7 +568,7 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 	@safe:
 
 	private static struct Context {
-		Path path;
+		NativePath path;
 		bool recursive;
 		Appender!(DirectoryChange[]) changes;
 		LocalManualEvent changeEvent;
@@ -581,7 +581,7 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 				case FileChangeKind.removed: ct = DirectoryChangeType.removed; break;
 				case FileChangeKind.modified: ct = DirectoryChangeType.modified; break;
 			}
-			this.changes ~= DirectoryChange(ct, Path(change.directory) ~ change.name.idup);
+			this.changes ~= DirectoryChange(ct, NativePath.fromTrustedString(change.directory) ~ NativePath.fromTrustedString(change.name.idup));
 			this.changeEvent.emit();
 		}
 	}
@@ -591,7 +591,7 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 		Context* m_context;
 	}
 
-	private this(Path path, bool recursive)
+	private this(NativePath path, bool recursive)
 	{
 		m_context = new Context; // FIME: avoid GC allocation (use FD user data slot)
 		m_watcher = eventDriver.watchers.watchDirectory(path.toNativeString, recursive, &m_context.onChange);
@@ -604,7 +604,7 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 	~this() nothrow { if (m_watcher != WatcherID.invalid) eventDriver.watchers.releaseRef(m_watcher); }
 
 	/// The path of the watched directory
-	@property Path path() const nothrow { return m_context.path; }
+	@property NativePath path() const nothrow { return m_context.path; }
 
 	/// Indicates if the directory is watched recursively
 	@property bool recursive() const nothrow { return m_context.recursive; }
@@ -665,7 +665,7 @@ struct DirectoryChange {
 	DirectoryChangeType type;
 
 	/// Path of the file/directory that was changed
-	Path path;
+	NativePath path;
 }
 
 
