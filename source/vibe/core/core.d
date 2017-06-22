@@ -764,9 +764,8 @@ unittest {
 }
 
 /// Compatibility overload - use a `@safe nothrow` callback instead.
-deprecated("Use an @safe nothrow callback as argument to setTimer.")
 Timer setTimer(Duration timeout, void delegate() callback, bool periodic = false)
-@safe nothrow {
+@system nothrow {
 	return setTimer(timeout, () @trusted nothrow {
 		try callback();
 		catch (Exception e) {
