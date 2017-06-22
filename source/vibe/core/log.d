@@ -745,7 +745,10 @@ private {
 	shared(FileLogger) ss_stdoutLogger;
 }
 
-private shared(Logger)[] getLoggers() nothrow @trusted { return ss_loggers; }
+/**
+Returns a list of all registered loggers.
+*/
+shared(Logger)[] getLoggers() nothrow @trusted { return ss_loggers; }
 
 package void initializeLogModule()
 {
