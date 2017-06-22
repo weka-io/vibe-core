@@ -1,3 +1,9 @@
 .dub
+.vs
 libvibe_core.a
 vibe-core-test-*
+*.exe
+*.obj
+*.sln
+dub.selections.json
+vibe_core.lib
