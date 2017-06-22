@@ -1249,7 +1249,7 @@ struct InetPathFormat {
 
 			for (size_t i = idx; i < s.length; i++) {
 				if (s[i] == '%') {
-					assert(i+3 < s.length, "segment string not validated!?");
+					assert(i+2 < s.length, "segment string not validated!?");
 					ret.put(cast(char)(hexDigit(s[i+1]) << 4 | hexDigit(s[i+2])));
 					i += 2;
 				} else ret.put(s[i]);
@@ -1270,5 +1270,6 @@ struct InetPathFormat {
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
 		assert(decodeSegment!Segment("fo%20o\\").equal([Segment("fo o\\")]));
+		assert(decodeSegment!Segment("foo%20").equal([Segment("foo ")]));
 	}
 }
