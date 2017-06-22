@@ -29,17 +29,17 @@ Another major design change is that instead of the previous driver model, there 
 
 Finally, the stream design has received two big changes. Streams can now either be implemented as classes, as usual, or they can be implemented as structs in a duck typing/DbC fashion. This, coupled with templated wrapper stream types, allows to eliminate the overhead of virtual function calls, enables reference counting instead of GC allocations, and allows the compiler to inline across stream boundaries. The second change to streams is the added support for an [`IOMode`](https://github.com/vibe-d/eventcore/blob/c242fdae16470ae4dc4e7e6578d582c1d3ba57ec/source/eventcore/driver.d#L533) parameter that enables I/O patterns as they are possible when using OS sockets directly. The `leastSize` and `dataAvailableForRead` properties will in turn be deprecated.
 
-The implementation is mostly finished, except for final production testing.
-
 
 Supported compilers
 -------------------
 
 The following compilers are tested and supported:
 
-- DMD 2.073.0
+- DMD 2.074.1
+- DMD 2.073.2
 - DMD 2.072.2
 - DMD 2.071.2
 - DMD 2.070.2
+- LDC 1.2.0
 - LDC 1.1.0
 - LDC 1.0.0
