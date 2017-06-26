@@ -461,7 +461,7 @@ struct TCPConnection {
 		import std.exception : enforce;
 
 		m_socket = socket;
-		m_context = () @trusted { return &eventDriver.core.userData!Context(socket); } ();
+		m_context = () @trusted { return &eventDriver.sockets.userData!Context(socket); } ();
 		m_context.readBuffer.capacity = 4096;
 	}
 
@@ -727,7 +727,7 @@ struct UDPConnection {
 		scope baddr = new RefAddress(bind_address.sockAddr, bind_address.sockAddrLen);
 		m_socket = eventDriver.sockets.createDatagramSocket(baddr, null);
 		enforce(m_socket != DatagramSocketFD.invalid, "Failed to create datagram socket.");
-		m_context = () @trusted { return &eventDriver.core.userData!Context(m_socket); } ();
+		m_context = () @trusted { return &eventDriver.sockets.userData!Context(m_socket); } ();
 	}
 
 
