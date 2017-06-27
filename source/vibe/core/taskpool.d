@@ -8,7 +8,7 @@
 module vibe.core.taskpool;
 
 import vibe.core.concurrency : isWeaklyIsolated;
-import vibe.core.core : exitEventLoop, logicalProcessorCount, runEventLoop, runTask, runTask_internal;
+import vibe.core.core : exitEventLoop, logicalProcessorCount, runEventLoop, runTask, runTaskScoped, runTask_internal;
 import vibe.core.log;
 import vibe.core.sync : ManualEvent, Monitor, SpinLock, createSharedManualEvent, createMonitor;
 import vibe.core.task : Task, TaskFuncInfo, callWithMove;
@@ -145,7 +145,11 @@ shared final class TaskPool {
 		// workaround for runWorkerTaskH to work when called outside of a task
 		if (caller == Task.init) {
 			Task ret;
-			.runTask(&runTaskHWrapper!(FT, ARGS), () @trusted { return &ret; } (), func, args).join();
+			{
+				Task* t = () @trusted { return &ret; } ();
+				auto f = &runTaskScoped!(typeof(&runTaskHWrapper!(FT, ARGS)), Task*, FT, ARGS);
+				f(&runTaskHWrapper!(FT, ARGS), t, func, args);
+			}
 			return ret;
 		}
 
@@ -193,7 +197,7 @@ shared final class TaskPool {
 		runTaskDist_unsafe(func, args);
 	}
 
-	private void runTaskHWrapper(FT, ARGS...)(Task* ret, FT func, ARGS args)
+	private void runTaskHWrapper(FT, ARGS...)(Task* ret, FT func, ref ARGS args)
 	{
 		*ret = runTaskH!(FT, ARGS)(func, args);
 	}

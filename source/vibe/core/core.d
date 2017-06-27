@@ -336,12 +336,14 @@ Task runTask(CALLABLE, ARGS...)(CALLABLE task, auto ref ARGS args)
 	Runs an asyncronous task that is guaranteed to finish before the caller's
 	scope is left.
 */
-auto runTaskScoped(FT, ARGS)(scope FT callable, ARGS args)
+auto runTaskScoped(FT, ARGS...)(scope FT callable, ARGS args)
 {
 	static struct S {
 		Task handle;
 
 		@disable this(this);
+
+		alias handle this;
 
 		~this()
 		{

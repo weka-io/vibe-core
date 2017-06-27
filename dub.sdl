@@ -11,6 +11,8 @@ targetName "vibe_core"
 
 mainSourceFile "source/vibe/appmain.d"
 
+dflags "-dip1000"
+
 configuration "winapi" {
 	subConfiguration "eventcore" "winapi"
 }

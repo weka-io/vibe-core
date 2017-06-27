@@ -503,7 +503,7 @@ struct FileStream {
 		return null;
 	}
 
-	size_t read(ubyte[] dst, IOMode mode)
+	size_t read(scope ubyte[] dst, IOMode mode)
 	{
 		auto res = asyncAwait!(FileIOCallback,
 			cb => eventDriver.files.read(m_fd, ctx.ptr, dst, mode, cb),
@@ -514,7 +514,7 @@ struct FileStream {
 		return res[2];
 	}
 
-	void read(ubyte[] dst)
+	void read(scope ubyte[] dst)
 	{
 		auto ret = read(dst, IOMode.all);
 		assert(ret == dst.length, "File.read returned less data than requested for IOMode.all.");

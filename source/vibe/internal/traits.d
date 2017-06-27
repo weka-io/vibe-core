@@ -397,8 +397,10 @@ template validateInterfaceConformance(T, I)
 	of the interface that is not properly implemented by `T`.
 */
 template checkInterfaceConformance(T, I) {
+	import std.format : format;
 	import std.meta : AliasSeq;
 	import std.traits : FunctionAttribute, FunctionTypeOf, MemberFunctionsTuple, ParameterTypeTuple, ReturnType, functionAttributes;
+	import std.range : iota;
 
 	alias Members = AliasSeq!(__traits(allMembers, I));
 
@@ -411,9 +413,13 @@ template checkInterfaceConformance(T, I) {
 				alias PT = ParameterTypeTuple!F;
 				alias RT = ReturnType!F;
 				enum attribs = functionAttributeString!F(true);
+
+				enum pnames = format("%(p%s, %)", iota(PT.length));
+				enum pdecls = parameterDecls!F;
+
 				static if (functionAttributes!F & FunctionAttribute.property) {
 					static if (PT.length > 0) {
-						static if (!is(typeof(mixin("function RT (ref T t)"~attribs~"{ return t."~mem~" = PT.init; }"))))
+						static if (!is(typeof(mixin("function RT (ref T t, "~pdecls~")"~attribs~"{ return t."~mem~" = "~pnames~"; }"))))
 							enum impl = T.stringof ~ " does not implement property setter \"" ~ mem ~ "\" of type " ~ FT.stringof;
 						else enum string impl = impl!(i+1);
 					} else {
@@ -423,15 +429,15 @@ template checkInterfaceConformance(T, I) {
 					}
 				} else {
 					static if (is(RT == void)) {
-						static if (!is(typeof(mixin("function void(ref T t, ref PT p)"~attribs~"{ t."~mem~"(p); }")))) {
+						static if (!is(typeof(mixin("function void(ref T t, "~pdecls~")"~attribs~"{ t."~mem~"("~pnames~"); }")))) {
 							static if (mem == "write" && PT.length == 2) {
-								auto f = mixin("function void(ref T t, ref PT p)"~attribs~"{ t."~mem~"(p); }");
+								auto f = mixin("function void(T t, "~pdecls~")"~attribs~"{ t."~mem~"("~pnames~"); }");
 							}
 							enum impl = T.stringof ~ " does not implement method \"" ~ mem ~ "\" of type " ~ FT.stringof;
 						}
 						else enum string impl = impl!(i+1);
 					} else {
-						static if (!is(typeof(mixin("function RT(ref T t, ref PT p)"~attribs~"{ return t."~mem~"(p); }"))))
+						static if (!is(typeof(mixin("function RT(ref T t, "~pdecls~")"~attribs~"{ return t."~mem~"("~pnames~"); }"))))
 							enum impl = T.stringof ~ " does not implement method \"" ~ mem ~ "\" of type " ~ FT.stringof;
 						else enum string impl = impl!(i+1);
 					}
@@ -513,6 +519,24 @@ unittest {
 
 	static assert(checkInterfaceConformance!(NonOSStruct2, OutputStream) ==
 		"NonOSStruct2 does not implement method \"write\" of type @safe void(const(ubyte[]) bytes)");
+}
+
+private string parameterDecls(alias F)()
+{
+	import std.format : format;
+	import std.traits : ParameterTypeTuple, ParameterStorageClass, ParameterStorageClassTuple;
+
+	string ret;
+	alias PST = ParameterStorageClassTuple!F;
+	foreach (i, PT; ParameterTypeTuple!F) {
+		static if (i > 0) ret ~= ", ";
+		static if (PST[i] & ParameterStorageClass.scope_) ret ~= "scope ";
+		static if (PST[i] & ParameterStorageClass.out_) ret ~= "out ";
+		static if (PST[i] & ParameterStorageClass.ref_) ret ~= "ref ";
+		static if (PST[i] & ParameterStorageClass.lazy_) ret ~= "lazy ";
+		ret ~= format("PT[%s] p%s", i, i);
+	}
+	return ret;
 }
 
 string functionAttributeString(alias F)(bool restrictions_only)
