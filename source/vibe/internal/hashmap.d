@@ -219,7 +219,7 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 		scope(exit) m_resizing = false;
 
 		if (!m_allocator) {
-			try m_allocator = processAllocator();
+			try m_allocator = vibeThreadAllocator();
 			catch (Exception e) assert(false, e.msg);
 		}
 
