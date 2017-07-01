@@ -3,6 +3,7 @@
 libvibe_core.a
 vibe-core-test-*
 *.exe
+*.lst
 *.obj
 *.sln
 dub.selections.json
