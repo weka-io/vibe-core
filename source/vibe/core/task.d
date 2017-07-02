@@ -77,7 +77,7 @@ struct Task {
 		}
 
 		package @property ref ThreadInfo tidInfo() @system { return m_fiber ? taskFiber.tidInfo : s_tidInfo; } // FIXME: this is not thread safe!
-		
+
 		@property Tid tid() @trusted { return tidInfo.ident; }
 	}
 
@@ -341,7 +341,7 @@ final package class TaskFiber : Fiber {
 		import std.concurrency : Tid, thisTid;
 		import std.encoding : sanitize;
 		import vibe.core.core : isEventLoopRunning, recycleFiber, taskScheduler, yield;
-		
+
 		version (VibeDebugCatchAll) alias UncaughtException = Throwable;
 		else alias UncaughtException = Exception;
 		try {
@@ -725,7 +725,7 @@ package struct TaskScheduler {
 
 	/** Holds execution until the task gets explicitly resumed.
 
-		
+
 	*/
 	void hibernate()
 	{

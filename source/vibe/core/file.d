@@ -410,7 +410,7 @@ struct FileStream {
 		if (m_fd != FileFD.invalid)
 			eventDriver.files.addRef(m_fd);
 	}
-	
+
 	~this()
 	{
 		if (m_fd != FileFD.invalid)

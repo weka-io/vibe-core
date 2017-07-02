@@ -192,9 +192,9 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 	return () @trusted { // scope
 		scope uaddr = new RefAddress(addr.sockAddr, addr.sockAddrLen);
 		scope baddr = new RefAddress(bind_address.sockAddr, bind_address.sockAddrLen);
-		
+
 		// FIXME: make this interruptible
-		auto result = asyncAwaitUninterruptible!(ConnectCallback, 
+		auto result = asyncAwaitUninterruptible!(ConnectCallback,
 			cb => eventDriver.sockets.connectStream(uaddr, baddr, cb)
 			//cb => eventDriver.sockets.cancelConnect(cb)
 		);
@@ -511,7 +511,7 @@ struct TCPConnection {
 	@property bool empty() { return leastSize == 0; }
 	@property ulong leastSize() { waitForData(); return m_context && m_context.readBuffer.length; }
 	@property bool dataAvailableForRead() { return waitForData(0.seconds); }
-	
+
 	void close()
 	nothrow {
 		//logInfo("close %s", cast(int)m_fd);
@@ -522,7 +522,7 @@ struct TCPConnection {
 			m_context = null;
 		}
 	}
-	
+
 	bool waitForData(Duration timeout = Duration.max)
 	{
 mixin(tracer);
@@ -602,7 +602,7 @@ mixin(tracer);
 		auto res = asyncAwait!(IOCallback,
 			cb => eventDriver.sockets.write(m_socket, bytes, mode, cb),
 			cb => eventDriver.sockets.cancelWrite(m_socket));
-		
+
 		switch (res[1]) {
 			default:
 				throw new Exception("Error writing data to socket.");
@@ -667,7 +667,7 @@ private void loopWithTimeout(alias LoopBody, ExceptionType = Exception)(Duration
 	do {
 		if (LoopBody(timeout))
 			return;
-		
+
 		if (timeout != Duration.max) {
 			auto prev = now;
 			now = Clock.currTime(UTC());
@@ -722,7 +722,7 @@ struct UDPConnection {
 		Context* m_context;
 	}
 
-	private this(ref NetworkAddress bind_address) 
+	private this(ref NetworkAddress bind_address)
 	{
 		scope baddr = new RefAddress(bind_address.sockAddr, bind_address.sockAddrLen);
 		m_socket = eventDriver.sockets.createDatagramSocket(baddr, null);

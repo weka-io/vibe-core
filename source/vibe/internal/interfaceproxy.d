@@ -163,7 +163,7 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 			}
 			return ret;
 		}
-		
+
 		mixin(impl());
 	}
 
