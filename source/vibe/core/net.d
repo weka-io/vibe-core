@@ -34,7 +34,7 @@ NetworkAddress resolveHost(string host, AddressFamily address_family = AddressFa
 NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = true)
 {
 	import std.socket : parseAddress;
-	version (Windows) import std.c.windows.winsock : sockaddr_in, sockaddr_in6;
+	version (Windows) import core.sys.windows.winsock2 : sockaddr_in, sockaddr_in6;
 	else import core.sys.posix.netinet.in_ : sockaddr_in, sockaddr_in6;
 
 	enforce(host.length > 0, "Host name must not be empty.");
