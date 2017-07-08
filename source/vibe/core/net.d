@@ -765,6 +765,27 @@ struct UDPConnection {
 		return naddr;
 	}
 
+	/** Set IP multicast loopback mode.
+
+		This is on by default. All packets send will also loopback if enabled.
+		Useful if more than one application is running on same host and both need each other's packets.
+	*/
+	@property void multicastLoopback(bool loop)
+	{
+		assert(false, "not implemented.");
+	}
+
+	/** Become a member of an IP multicast group.
+
+		The multiaddr parameter should be in the range 239.0.0.0-239.255.255.255.
+		See https://www.iana.org/assignments/multicast-addresses/multicast-addresses.xml#multicast-addresses-12
+		and https://www.iana.org/assignments/ipv6-multicast-addresses/ipv6-multicast-addresses.xhtml
+	*/
+	void addMembership(ref NetworkAddress multiaddr)
+	{
+		assert(false, "not implemented.");
+	}
+
 	/** Stops listening for datagrams and frees all resources.
 	*/
 	void close() { eventDriver.sockets.releaseRef(m_socket); m_socket = DatagramSocketFD.init; }
