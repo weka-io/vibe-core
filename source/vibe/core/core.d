@@ -1294,7 +1294,7 @@ shared static this()
 
 	version(VibeIdleCollect) {
 		logTrace("setup gc");
-		driverCore.setupGcTimer();
+		setupGcTimer();
 	}
 
 	version (VibeNoDefaultArgs) {}
