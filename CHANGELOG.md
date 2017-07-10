@@ -1,4 +1,4 @@
-1.0.0 - 2016-06-
+1.0.0 - 2016-07-10
 ==================
 
 This is the initial release of the `vibe-core` package. The source code was derived from the original `:core` sub package of vibe.d and received a complete work over, mostly under the surface, but also in parts of the API. The changes have been made in a way that is usually backwards compatible from the point of view of an application developer. At the same time, vibe.d 0.8.0 contains a number of forward compatibility declarations, so that switching back and forth between the still existing `vibe-d:core` and `vibe-core` is possible without changing the application code.
@@ -6,12 +6,12 @@ This is the initial release of the `vibe-core` package. The source code was deri
 To use this package, it is currently necessary to put an explicit dependency with a sub configuration directive in the DUB package recipe:
 ```
 // for dub.sdl:
-dependency "vibe-d:core" version="~>0.8.0-rc"
+dependency "vibe-d:core" version="~>0.8.0"
 subConfiguration "vibe-d:core" "vibe-core"
 
 // for dub.json:
 "dependencies": {
-	"vibe-d:core": "~>0.8.0-rc"
+	"vibe-d:core": "~>0.8.0"
 },
 "subConfigurations": {
 	"vibe-d:core": "vibe-core"
