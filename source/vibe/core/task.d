@@ -228,7 +228,7 @@ struct TaskLocal(T)
 			}
 
 			if (m_hasInitValue) {
-				static if (__traits(compiles, emplace!T(data, m_initValue)))
+				static if (__traits(compiles, () @trusted { emplace!T(data, m_initValue); } ()))
 					() @trusted { emplace!T(data, m_initValue); } ();
 				else assert(false, "Cannot emplace initialization value for type "~T.stringof);
 			} else () @trusted { emplace!T(data); } ();
