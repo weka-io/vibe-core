@@ -515,13 +515,15 @@ package struct TaskFuncInfo {
 
 		import std.algorithm : move;
 		import std.traits : hasElaborateAssign;
+		import std.conv : to;	
 
 		static struct TARGS { ARGS expand; }
 
-		static assert(CALLABLE.sizeof <= TaskFuncInfo.callable.length);
+		static assert(CALLABLE.sizeof <= TaskFuncInfo.callable.length,
+			"Storage required for task callable is too large ("~CALLABLE.sizeof~" vs max "~callable.length~"): "~CALLABLE.stringof);
 		static assert(TARGS.sizeof <= maxTaskParameterSize,
 			"The arguments passed to run(Worker)Task must not exceed "~
-			maxTaskParameterSize.to!string~" bytes in total size.");
+			maxTaskParameterSize.to!string~" bytes in total size: "~TARGS.sizeof.stringof~" bytes");
 
 		static void callDelegate(ref TaskFuncInfo tfi) {
 			assert(tfi.func is &callDelegate, "Wrong callDelegate called!?");
