@@ -1,3 +1,11 @@
+1.1.0 - 2016-07-16
+==================
+
+- Added a new debug hook `setTaskCreationCallback`
+- Fixed a compilation error for `VibeIdleCollect`
+- Fixed a possible double-free in `ManualEvent` that resulted in an endless loop - [pull #23][issue23]
+
+
 1.0.0 - 2016-07-10
 ==================
 

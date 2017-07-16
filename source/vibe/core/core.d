@@ -942,7 +942,7 @@ void setTaskCreationCallback(TaskCreationCallback func)
 /**
 	A version string representing the current vibe version
 */
-enum vibeVersionString = "1.0.0";
+enum vibeVersionString = "1.1.0";
 
 
 /**
