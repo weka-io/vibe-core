@@ -262,7 +262,13 @@ enum TaskEvent {
 	fail       /// Ended with an exception
 }
 
+struct TaskCreationInfo {
+	Task handle;
+	const(void)* functionPointer;
+}
+
 alias TaskEventCallback = void function(TaskEvent, Task) nothrow;
+alias TaskCreationCallback = void function(ref TaskCreationInfo) nothrow @safe;
 
 /**
 	The maximum combined size of all parameters passed to a task delegate
@@ -314,6 +320,7 @@ final package class TaskFiber : Fiber {
 	package TaskFuncInfo m_taskFunc;
 	package __gshared size_t ms_taskStackSize = defaultTaskStackSize;
 	package __gshared debug TaskEventCallback ms_taskEventCallback;
+	package __gshared debug TaskCreationCallback ms_taskCreationCallback;
 
 	this()
 	@trusted nothrow {
@@ -323,9 +330,7 @@ final package class TaskFiber : Fiber {
 
 	static TaskFiber getThis()
 	@safe nothrow {
-		auto f = () @trusted nothrow {
-			return Fiber.getThis();
-		} ();
+		auto f = () @trusted nothrow { return Fiber.getThis(); } ();
 		if (auto tf = cast(TaskFiber)f) return tf;
 		if (!ms_globalDummyFiber) ms_globalDummyFiber = new TaskFiber;
 		return ms_globalDummyFiber;
@@ -508,6 +513,7 @@ package struct TaskFuncInfo {
 	void function(ref TaskFuncInfo) func;
 	void[2*size_t.sizeof] callable;
 	void[maxTaskParameterSize] args;
+	debug ulong functionPointer;
 
 	void set(CALLABLE, ARGS...)(ref CALLABLE callable, ref ARGS args)
 	{
@@ -524,6 +530,8 @@ package struct TaskFuncInfo {
 		static assert(TARGS.sizeof <= maxTaskParameterSize,
 			"The arguments passed to run(Worker)Task must not exceed "~
 			maxTaskParameterSize.to!string~" bytes in total size: "~TARGS.sizeof.stringof~" bytes");
+
+		debug functionPointer = callPointer(callable);
 
 		static void callDelegate(ref TaskFuncInfo tfi) {
 			assert(tfi.func is &callDelegate, "Wrong callDelegate called!?");
@@ -582,6 +590,16 @@ package struct TaskFuncInfo {
 		static const A ainit;
 		this.args[0 .. A.sizeof] = cast(void[])(&ainit)[0 .. 1];
 	}
+}
+
+private ulong callPointer(C)(ref C callable)
+@trusted nothrow @nogc {
+	alias IP = ulong;
+	static if (is(C == function)) return cast(IP)cast(void*)callable;
+	else static if (is(C == delegate)) return cast(IP)callable.funcptr;
+	else static if (is(typeof(&callable.opCall) == function)) return cast(IP)cast(void*)&callable.opCall;
+	else static if (is(typeof(&callable.opCall) == delegate)) return cast(IP)(&callable.opCall).funcptr;
+	else return cast(IP)&callable;
 }
 
 package struct TaskScheduler {

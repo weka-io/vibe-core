@@ -373,6 +373,13 @@ package Task runTask_internal(alias TFI_SETUP)()
 	f.bumpTaskCounter();
 	auto handle = f.task();
 
+	debug if (TaskFiber.ms_taskCreationCallback) {
+		TaskCreationInfo info;
+		info.handle = handle;
+		info.functionPointer = () @trusted { return cast(void*)f.m_taskFunc.functionPointer; } ();
+		() @trusted { TaskFiber.ms_taskCreationCallback(info); } ();
+	}
+
 	debug if (TaskFiber.ms_taskEventCallback) {
 		() @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.preStart, handle); } ();
 	}
@@ -914,6 +921,21 @@ void lowerPrivileges()
 void setTaskEventCallback(TaskEventCallback func)
 {
 	debug TaskFiber.ms_taskEventCallback = func;
+}
+
+/**
+	Sets a callback that is invoked whenever new task is created.
+
+	The callback is guaranteed to be invoked before the one set by
+	`setTaskEventCallback` for the same task handle.
+
+	This function is useful mostly for implementing debuggers that
+	analyze the life time of tasks, including task switches. Note that
+	the callback will only be called for debug builds.
+*/
+void setTaskCreationCallback(TaskCreationCallback func)
+{
+	debug TaskFiber.ms_taskCreationCallback = func;
 }
 
 
