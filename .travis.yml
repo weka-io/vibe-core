@@ -18,7 +18,8 @@ d:
 env:
     - CONFIG=select
     - CONFIG=epoll
-    - CONFIG=libasync
+    # disabled until the libasync driver of eventcore is more than a stub
+    #- CONFIG=libasync
 
 matrix:
   allow_failures:

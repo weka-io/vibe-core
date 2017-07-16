@@ -26,6 +26,12 @@ environment:
     DVersion: 1.0.0
     arch: x64
 
+matrix:
+  allow_failures:
+      - DC: ldc
+        DVersion: 1.0.0
+        arch: x64
+
 skip_tags: false
 
 install:
