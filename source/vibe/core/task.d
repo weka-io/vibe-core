@@ -521,7 +521,7 @@ package struct TaskFuncInfo {
 
 		import std.algorithm : move;
 		import std.traits : hasElaborateAssign;
-		import std.conv : to;	
+		import std.conv : to;
 
 		static struct TARGS { ARGS expand; }
 
