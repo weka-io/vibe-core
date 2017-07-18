@@ -11,10 +11,13 @@ module vibe.core.channel;
 // TODO: implement a multi-channel wait, e.g.
 // TaggedAlgebraic!(...) consumeAny(ch1, ch2, ch3); - requires a waitOnMultipleConditions function
 // TODO: implement close()
+// TODO: fully support non-copyable types using swap/move where appropriate
+// TODO: add unit tests
+// Q: Should this be exposed as a class, or as an RC struct?
 
 private final class Channel(T, size_t buffer_size = 100) {
 	import vibe.core.concurrency : isWeaklyIsolated;
-	//static assert(isWeaklyIsolated!T, "Channel data type "~T.stringof~" is not safe to pass between threads.");
+	static assert(isWeaklyIsolated!T, "Channel data type "~T.stringof~" is not safe to pass between threads.");
 
 	Mutex m_mutex;
 	TaskCondition m_condition;
