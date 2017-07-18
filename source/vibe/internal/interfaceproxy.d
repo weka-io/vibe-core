@@ -131,7 +131,9 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 		import std.conv : emplace;
 		clear();
 		m_intf = ProxyImpl!O.get();
-		emplace!O(m_value[0 .. O.sizeof]);
+		if (is(O == class))
+			(cast(O[])m_value[0 .. O.sizeof])[0] = object;
+		else emplace!O(m_value[0 .. O.sizeof]);
 		(cast(O[])m_value[0 .. O.sizeof])[0] = object;
 	}
 
@@ -163,7 +165,7 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 			}
 			return ret;
 		}
-		
+
 		mixin(impl());
 	}
 
