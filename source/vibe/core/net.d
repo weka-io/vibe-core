@@ -34,7 +34,7 @@ NetworkAddress resolveHost(string host, AddressFamily address_family = AddressFa
 NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = true)
 {
 	import std.socket : parseAddress;
-	version (Windows) import std.c.windows.winsock : sockaddr_in, sockaddr_in6;
+	version (Windows) import core.sys.windows.winsock2 : sockaddr_in, sockaddr_in6;
 	else import core.sys.posix.netinet.in_ : sockaddr_in, sockaddr_in6;
 
 	enforce(host.length > 0, "Host name must not be empty.");
@@ -683,6 +683,9 @@ private void loopWithTimeout(alias LoopBody, ExceptionType = Exception)(Duration
 	Represents a listening TCP socket.
 */
 struct TCPListener {
+	// FIXME: copying may lead to dangling FDs - this somehow needs to employ reference counting without breaking
+	//        the previous behavior of keeping the socket alive when the listener isn't stored. At the same time,
+	//        stopListening() needs to keep working.
 	private {
 		StreamListenSocketFD m_socket;
 		NetworkAddress m_bindAddress;
@@ -704,7 +707,10 @@ struct TCPListener {
 	/// Stops listening and closes the socket.
 	void stopListening()
 	{
-		assert(false);
+		if (m_socket != StreamListenSocketFD.invalid) {
+			eventDriver.sockets.releaseRef(m_socket);
+			m_socket = StreamListenSocketFD.invalid;
+		}
 	}
 }
 
@@ -763,6 +769,27 @@ struct UDPConnection {
 			enforce(eventDriver.sockets.getLocalAddress(m_socket, addr), "Failed to query socket address.");
 		} catch (Exception e) { logWarn("Failed to get local address for TCP connection: %s", e.msg); }
 		return naddr;
+	}
+
+	/** Set IP multicast loopback mode.
+
+		This is on by default. All packets send will also loopback if enabled.
+		Useful if more than one application is running on same host and both need each other's packets.
+	*/
+	@property void multicastLoopback(bool loop)
+	{
+		assert(false, "not implemented.");
+	}
+
+	/** Become a member of an IP multicast group.
+
+		The multiaddr parameter should be in the range 239.0.0.0-239.255.255.255.
+		See https://www.iana.org/assignments/multicast-addresses/multicast-addresses.xml#multicast-addresses-12
+		and https://www.iana.org/assignments/ipv6-multicast-addresses/ipv6-multicast-addresses.xhtml
+	*/
+	void addMembership(ref NetworkAddress multiaddr)
+	{
+		assert(false, "not implemented.");
 	}
 
 	/** Stops listening for datagrams and frees all resources.

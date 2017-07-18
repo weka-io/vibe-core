@@ -480,7 +480,7 @@ struct GenericPath(F) {
 		auto b = Format.getBackNode(m_path);
 		static const Exception e = new Exception("Path has no parent path");
 		if (b.length >= m_path.length) throw e;
-		return GenericPath.fromTrustedString(m_path[0 .. b.length]);
+		return GenericPath.fromTrustedString(m_path[0 .. $ - b.length]);
 	}
 
 	/** Removes any redundant path segments and replaces all separators by the
@@ -720,6 +720,29 @@ unittest {
 	assert(p.bySegment.equal([InetPath.Segment("",'/'), InetPath.Segment("foo/bar",'/')]));
 	p ~= InetPath.Segment("baz/bam");
 	assert(p.toString() == "/foo%2fbar/baz%2Fbam", p.toString);
+}
+
+unittest {
+	assert(!PosixPath("").hasParentPath);
+	assert(!PosixPath("/").hasParentPath);
+	assert(!PosixPath("foo\\bar").hasParentPath);
+	assert(PosixPath("foo/bar").parentPath.toString() == "foo/");
+	assert(PosixPath("./foo").parentPath.toString() == "./");
+	assert(PosixPath("./foo").parentPath.toString() == "./");
+
+	assert(!WindowsPath("").hasParentPath);
+	assert(!WindowsPath("/").hasParentPath);
+	assert(WindowsPath("foo\\bar").parentPath.toString() == "foo\\");
+	assert(WindowsPath("foo/bar").parentPath.toString() == "foo/");
+	assert(WindowsPath("./foo").parentPath.toString() == "./");
+	assert(WindowsPath("./foo").parentPath.toString() == "./");
+
+	assert(!InetPath("").hasParentPath);
+	assert(!InetPath("/").hasParentPath);
+	assert(InetPath("foo/bar").parentPath.toString() == "foo/");
+	assert(InetPath("foo/bar%2Fbaz").parentPath.toString() == "foo/");
+	assert(InetPath("./foo").parentPath.toString() == "./");
+	assert(InetPath("./foo").parentPath.toString() == "./");
 }
 
 /// Thrown when an invalid string representation of a path is detected.
