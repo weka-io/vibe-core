@@ -77,7 +77,7 @@ struct Task {
 		}
 
 		package @property ref ThreadInfo tidInfo() @system { return m_fiber ? taskFiber.tidInfo : s_tidInfo; } // FIXME: this is not thread safe!
-		
+
 		@property Tid tid() @trusted { return tidInfo.ident; }
 	}
 
@@ -346,7 +346,7 @@ final package class TaskFiber : Fiber {
 		import std.concurrency : Tid, thisTid;
 		import std.encoding : sanitize;
 		import vibe.core.core : isEventLoopRunning, recycleFiber, taskScheduler, yield;
-		
+
 		version (VibeDebugCatchAll) alias UncaughtException = Throwable;
 		else alias UncaughtException = Exception;
 		try {
@@ -416,13 +416,13 @@ final package class TaskFiber : Fiber {
 			logDiagnostic("Full error: %s", th.toString().sanitize());
 		} catch (Throwable th) {
 			import std.stdio : stderr, writeln;
-			import core.stdc.stdlib : exit;
+			import core.stdc.stdlib : abort;
 			try stderr.writeln(th);
 			catch (Exception e) {
 				try stderr.writeln(th.msg);
 				catch (Exception e) {}
 			}
-			exit(1);
+			abort();
 		}
 	}
 
@@ -521,7 +521,7 @@ package struct TaskFuncInfo {
 
 		import std.algorithm : move;
 		import std.traits : hasElaborateAssign;
-		import std.conv : to;	
+		import std.conv : to;
 
 		static struct TARGS { ARGS expand; }
 
@@ -745,7 +745,7 @@ package struct TaskScheduler {
 
 	/** Holds execution until the task gets explicitly resumed.
 
-		
+
 	*/
 	void hibernate()
 	{
