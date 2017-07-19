@@ -252,7 +252,7 @@ final class FileLogger : Logger {
 	Format infoFormat = Format.thread;
 
 	/** Use escape sequences to color log output.
-		
+
 		Note that the terminal must support 256-bit color codes.
 	*/
 	bool useColors = false;

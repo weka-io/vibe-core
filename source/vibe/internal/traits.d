@@ -440,7 +440,7 @@ template checkInterfaceConformance(T, I) {
 		}
 		alias checkMemberConformance = impl!0;
 	}
-	
+
 	template impl(size_t i) {
 		static if (i < Members.length) {
 			static if (__traits(compiles, __traits(getMember, I, Members[i])))

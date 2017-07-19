@@ -4,6 +4,9 @@ set -e -x -o pipefail
 
 DUB_FLAGS=${DUB_FLAGS:-}
 
+# Check for trailing whitespace"
+grep -nrI --include='*.d' '\s$' . && (echo "Trailing whitespace found"; exit 1)
+
 # test for successful release build
 dub build -b release --compiler=$DC -c $CONFIG $DUB_FLAGS
 

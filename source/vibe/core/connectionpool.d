@@ -133,7 +133,7 @@ unittest {
 
 struct LockedConnection(Connection) {
 	import vibe.core.task : Task;
-	
+
 	private {
 		ConnectionPool!Connection m_pool;
 		Task m_task;

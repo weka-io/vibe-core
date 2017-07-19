@@ -47,7 +47,7 @@ shared class TaskPool {
 			threads.length = thread_count;
 			foreach (i; 0 .. thread_count) {
 				WorkerThread thr;
-				() @trusted { 
+				() @trusted {
 					thr = new WorkerThread(this);
 					thr.name = format("vibe-%s", i);
 					thr.start();
@@ -338,7 +338,7 @@ nothrow @safe:
 	bool consume(ref TaskFuncInfo tfi)
 	{
 		import std.algorithm.mutation : swap;
-		
+
 		if (m_queue.empty) return false;
 		swap(tfi, m_queue.front);
 		m_queue.popFront();

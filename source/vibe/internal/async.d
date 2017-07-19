@@ -61,7 +61,7 @@ struct Waitable(CB, alias wait, alias cancel, on_result...)
 
 	bool cancelled;
 	auto waitCallback(Callback cb) nothrow { return wait(cb); }
-	
+
 	static if (is(ReturnType!waitCallback == void))
 		void cancelCallback(Callback cb) nothrow { cancel(cb); }
 	else

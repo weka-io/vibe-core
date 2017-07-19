@@ -391,7 +391,7 @@ struct GenericPath(F) {
 
 	/** Constructs a path from an input range of `Segment`s.
 
-		Throws: 
+		Throws:
 			Since path segments are pre-validated, this constructor does not
 			throw an exception.
 	*/

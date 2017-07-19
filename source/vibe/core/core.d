@@ -668,7 +668,7 @@ void yield()
 	to call `switchToTask` will result in task starvation and resource leakage.
 
 	Params:
-		on_interrupt = If specified, is required to 
+		on_interrupt = If specified, is required to
 
 	See_Also: `switchToTask`
 */
@@ -1064,7 +1064,7 @@ struct Timer {
 
 	/** Resets the timer to the specified timeout
 	*/
-	void rearm(Duration dur, bool periodic = false) nothrow 
+	void rearm(Duration dur, bool periodic = false) nothrow
 		in { assert(dur > 0.seconds, "Negative timer duration specified."); }
 		body { m_driver.set(m_id, dur, periodic ? dur : 0.seconds); }
 
