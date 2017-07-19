@@ -416,13 +416,13 @@ final package class TaskFiber : Fiber {
 			logDiagnostic("Full error: %s", th.toString().sanitize());
 		} catch (Throwable th) {
 			import std.stdio : stderr, writeln;
-			import core.stdc.stdlib : exit;
+			import core.stdc.stdlib : abort;
 			try stderr.writeln(th);
 			catch (Exception e) {
 				try stderr.writeln(th.msg);
 				catch (Exception e) {}
 			}
-			exit(1);
+			abort();
 		}
 	}
 

@@ -237,7 +237,7 @@ private class WorkerThread : Thread {
 
 	private void main()
 	nothrow {
-		import core.stdc.stdlib : exit;
+		import core.stdc.stdlib : abort;
 		import core.exception : InvalidMemoryOperationError;
 		import std.encoding : sanitize;
 
@@ -249,19 +249,13 @@ private class WorkerThread : Thread {
 			if (!m_pool.m_state.lock.term) runEventLoop();
 			logDebug("Worker thread exit.");
 		} catch (Exception e) {
-			scope (failure) exit(-1);
+			scope (failure) abort();
 			logFatal("Worker thread terminated due to uncaught exception: %s", e.msg);
 			logDebug("Full error: %s", e.toString().sanitize());
-		} catch (InvalidMemoryOperationError e) {
-			import std.stdio;
-			scope(failure) assert(false);
-			writeln("Error message: ", e.msg);
-			writeln("Full error: ", e.toString().sanitize());
-			exit(-1);
 		} catch (Throwable th) {
 			logFatal("Worker thread terminated due to uncaught error: %s", th.msg);
 			logDebug("Full error: %s", th.toString().sanitize());
-			exit(-1);
+			abort();
 		}
 	}
 
