@@ -363,6 +363,9 @@ struct NetworkAddress {
 
 		switch (this.family) {
 			default: assert(false, "toAddressString() called for invalid address family.");
+			case AF_UNSPEC:
+				sink("<UNSPEC>");
+				break;
 			case AF_INET: {
 				ubyte[4] ip = () @trusted { return (cast(ubyte*)&addr_ip4.sin_addr.s_addr)[0 .. 4]; } ();
 				sink.formattedWrite("%d.%d.%d.%d", ip[0], ip[1], ip[2], ip[3]);
@@ -401,21 +404,27 @@ struct NetworkAddress {
 	void toString(scope void delegate(const(char)[]) @safe sink)
 	const nothrow {
 		import std.format : formattedWrite;
-		scope (failure) assert(false);
-		switch (this.family) {
-			default: assert(false, "toString() called for invalid address family.");
-			case AF_INET:
-				toAddressString(sink);
-				sink.formattedWrite(":%s", port);
-				break;
-			case AF_INET6:
-				sink("[");
-				toAddressString(sink);
-				sink.formattedWrite("]:%s", port);
-				break;
-			case AddressFamily.UNIX:
-				toAddressString(sink);
-				break;
+		try {
+			switch (this.family) {
+				default: assert(false, "toString() called for invalid address family.");
+				case AF_UNSPEC:
+					sink("<UNSPEC>");
+					break;
+				case AF_INET:
+					toAddressString(sink);
+					sink.formattedWrite(":%s", port);
+					break;
+				case AF_INET6:
+					sink("[");
+					toAddressString(sink);
+					sink.formattedWrite("]:%s", port);
+					break;
+				case AddressFamily.UNIX:
+					toAddressString(sink);
+					break;
+			}
+		} catch (Exception e) {
+			assert(false, "Unexpected exception: "~e.msg);
 		}
 	}
 
@@ -489,17 +498,15 @@ struct TCPConnection {
 	@property NetworkAddress localAddress() const nothrow {
 		NetworkAddress naddr;
 		scope addr = new RefAddress(naddr.sockAddr, naddr.sockAddrMaxLen);
-		try {
-			enforce(eventDriver.sockets.getLocalAddress(m_socket, addr), "Failed to query socket address.");
-		} catch (Exception e) { logWarn("Failed to get local address for TCP connection: %s", e.msg); }
+		if (!eventDriver.sockets.getLocalAddress(m_socket, addr))
+			logWarn("Failed to get local address for TCP connection");
 		return naddr;
 	}
 	@property NetworkAddress remoteAddress() const nothrow {
 		NetworkAddress naddr;
 		scope addr = new RefAddress(naddr.sockAddr, naddr.sockAddrMaxLen);
-		try {
-			enforce(eventDriver.sockets.getRemoteAddress(m_socket, addr), "Failed to query socket address.");
-		} catch (Exception e) { logWarn("Failed to get remote address for TCP connection: %s", e.msg); }
+		if (!eventDriver.sockets.getRemoteAddress(m_socket, addr))
+			logWarn("Failed to get remote address for TCP connection");
 		return naddr;
 	}
 	@property bool connected()
