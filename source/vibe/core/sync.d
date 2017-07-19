@@ -1173,7 +1173,7 @@ private struct ThreadLocalWaiter {
 		ThreadLocalWaiter* next;
 		NativeEventDriver m_driver;
 		EventID m_event = EventID.invalid;
-		Waiter* m_waiters;
+		StackSList!Waiter m_waiters;
 		int m_refCount = 1;
 	}
 
@@ -1189,7 +1189,7 @@ private struct ThreadLocalWaiter {
 			m_driver.events.releaseRef(m_event);
 	}
 
-	@property bool unused() const @safe nothrow { return m_waiters is null; }
+	@property bool unused() const @safe nothrow { return m_waiters.empty; }
 
 	void addRef() @safe nothrow { m_refCount++; }
 	bool releaseRef() @safe nothrow { return --m_refCount > 0; }
@@ -1201,8 +1201,19 @@ private struct ThreadLocalWaiter {
 
 		Waiter w;
 		Waiter* pw = () @trusted { return &w; } ();
-		w.next = m_waiters;
-		m_waiters = pw;
+
+
+		debug void assertWaiterNotInQueue()
+		{
+			m_waiters.iterate((w) {
+				assert(w !is pw, "Thread local waiter already in queue!?");
+				return true;
+			});
+		}
+
+		m_waiters.add(pw);
+
+		scope (failure) m_waiters.remove(pw);
 
 		SysTime target_timeout, now;
 		if (timeout != Duration.max) {
@@ -1215,22 +1226,6 @@ private struct ThreadLocalWaiter {
 			cb => w.wait(cb),
 			cb => w.cancel(),
 		) waitable;
-
-		void removeWaiter()
-		@safe nothrow {
-			Waiter* piw = m_waiters, ppiw = null;
-			while (piw !is null) {
-				if (piw is pw) {
-					if (ppiw) ppiw.next = piw.next;
-					else m_waiters = piw.next;
-					break;
-				}
-				ppiw = piw;
-				piw = piw.next;
-			}
-		}
-
-		scope (failure) removeWaiter();
 
 		if (evt != EventID.invalid) {
 			Waitable!(EventCallback,
@@ -1251,45 +1246,41 @@ private struct ThreadLocalWaiter {
 		}
 
 		if (waitable.cancelled) {
-			removeWaiter();
+			m_waiters.remove(pw);
 			return false;
-		} else debug {
-			Waiter* piw = m_waiters;
-			while (piw !is null) {
-				assert(piw !is pw, "Thread local waiter still in queue after it got notified!?");
-				piw = piw.next;
-			}
-		}
+		} else debug assertWaiterNotInQueue();
 
 		return true;
 	}
 
 	bool emit()
 	@safe nothrow {
-		if (!m_waiters) return false;
+		import std.algorithm.mutation : swap;
 
-		Waiter* waiters = m_waiters;
-		m_waiters = null;
-		while (waiters) {
-			auto wnext = waiters.next;
-			assert(wnext !is waiters);
-			if (waiters.notifier !is null) {
-				logTrace("notify task %s %s %s", cast(void*)waiters, () @trusted { return cast(void*)waiters.notifier.funcptr; } (), waiters.notifier.ptr);
-				waiters.notifier();
-				waiters.notifier = null;
+		if (m_waiters.empty) return false;
+
+		StackSList!Waiter waiters;
+		swap(m_waiters, waiters);
+
+		// FIXME: during iteration, waiters could remove themselves, but the head element will always stay in the list!
+		waiters.iterate((w) {
+			if (w.notifier !is null) {
+				logTrace("notify task %s %s %s", cast(void*)w, () @trusted { return cast(void*)w.notifier.funcptr; } (), w.notifier.ptr);
+				w.notifier();
+				w.notifier = null;
 			} else logTrace("notify callback is null");
-			waiters = wnext;
-		}
+			return true;
+		});
 
 		return true;
 	}
 
 	bool emitSingle()
 	@safe nothrow {
-		if (!m_waiters) return false;
+		if (m_waiters.empty) return false;
 
-		auto w = m_waiters;
-		m_waiters = w.next;
+		auto w = m_waiters.first;
+		m_waiters.remove(w);
 		if (w.notifier !is null) {
 			logTrace("notify task %s %s %s", cast(void*)w, () @trusted { return cast(void*)w.notifier.funcptr; } (), w.notifier.ptr);
 			w.notifier();
@@ -1322,11 +1313,13 @@ private struct StackSList(T)
 
 	bool remove(T* elem)
 	{
+		debug uint counter = 0;
 		T* w = m_first, wp;
 		while (w !is elem) {
 			if (!w) return false;
 			wp = w;
 			w = w.next;
+			debug assert(++counter < 1_000_000, "Cycle in linked list?");
 		}
 		if (wp) wp.next = w.next;
 		else m_first = w.next;
@@ -1335,6 +1328,7 @@ private struct StackSList(T)
 
 	void filter(scope bool delegate(T* el) @safe nothrow del)
 	{
+		debug uint counter = 0;
 		T* w = m_first, pw;
 		while (w !is null) {
 			auto wnext = w.next;
@@ -1343,16 +1337,19 @@ private struct StackSList(T)
 				else m_first = wnext;
 			} else pw = w;
 			w = wnext;
+			debug assert(++counter < 1_000_000, "Cycle in linked list?");
 		}
 	}
 
 	void iterate(scope bool delegate(T* el) @safe nothrow del)
 	{
+		debug uint counter = 0;
 		T* w = m_first;
 		while (w !is null) {
 			auto wnext = w.next;
 			if (!del(w)) break;
 			w = wnext;
+			debug assert(++counter < 1_000_000, "Cycle in linked list?");
 		}
 	}
 }
