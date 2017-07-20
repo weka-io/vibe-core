@@ -802,7 +802,7 @@ unittest {
 	runEventLoop();
 }
 
-unittest {
+unittest { // ensure that cancelled waiters are properly handled and that a FIFO order is implemented
 	import vibe.core.core : exitEventLoop, runEventLoop, runTask, sleep;
 
 	LocalManualEvent l = createManualEvent();
@@ -822,6 +822,22 @@ unittest {
 	});
 	runTask({
 		l.emit();
+	});
+	runEventLoop();
+}
+
+unittest { // ensure that LocalManualEvent behaves correctly after being copied
+	import vibe.core.core : exitEventLoop, runEventLoop, runTask, sleep;
+
+	LocalManualEvent l = createManualEvent();
+	runTask({
+		auto lc = l;
+		sleep(100.msecs);
+		lc.emit();
+	});
+	runTask({
+		assert(l.wait(1.seconds, l.emitCount));
+		exitEventLoop();
 	});
 	runEventLoop();
 }
