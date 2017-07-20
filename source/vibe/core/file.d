@@ -563,7 +563,7 @@ private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, Input
 */
 struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 	import std.array : Appender, appender;
-	import vibe.core.sync : LocalManualEvent;
+	import vibe.core.sync : LocalManualEvent, createManualEvent;
 
 	@safe:
 
@@ -594,6 +594,7 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 	private this(NativePath path, bool recursive)
 	{
 		m_context = new Context; // FIME: avoid GC allocation (use FD user data slot)
+		m_context.changeEvent = createManualEvent();
 		m_watcher = eventDriver.watchers.watchDirectory(path.toNativeString, recursive, &m_context.onChange);
 		m_context.path = path;
 		m_context.recursive = recursive;
