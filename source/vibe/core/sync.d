@@ -802,6 +802,30 @@ unittest {
 	runEventLoop();
 }
 
+unittest {
+	import vibe.core.core : exitEventLoop, runEventLoop, runTask, sleep;
+
+	LocalManualEvent l = createManualEvent();
+
+	Task t2;
+	runTask({
+		l.wait();
+		t2.interrupt();
+		sleep(20.msecs);
+		exitEventLoop();
+	});
+	t2 = runTask({
+		try {
+			l.wait();
+			assert(false, "Shouldn't reach this.");
+		} catch (InterruptException e) {}
+	});
+	runTask({
+		l.emit();
+	});
+	runEventLoop();
+}
+
 
 /** A manually triggered multi threaded cross-task event.
 
