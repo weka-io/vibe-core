@@ -894,7 +894,7 @@ struct UDPConnection {
 enum TCPListenOptions {
 	/// Don't enable any particular option
 	defaults = 0,
-	/// Causes incoming connections to be distributed across the thread pool
+	/// Deprecated: causes incoming connections to be distributed across the thread pool
 	distribute = 1<<0,
 	/// Disables automatic closing of the connection when the connection callback exits
 	disableAutoClose = 1<<1,
