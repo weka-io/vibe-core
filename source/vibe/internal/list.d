@@ -39,7 +39,16 @@ struct CircularDList(T)
 		pivot.prev = elem;
 	}
 
-	void insertFront(T elem) { insertBefore(elem, m_pivot.next); }
+	void insertAfter(T elem, T pivot)
+	{
+		assert(elem.prev is null && elem.next is null);
+		elem.prev = pivot;
+		elem.next = pivot.next;
+		pivot.next.prev = elem;
+		pivot.next = elem;
+	}
+
+	void insertFront(T elem) { insertAfter(elem, m_pivot); }
 
 	void insertBack(T elem) { insertBefore(elem, m_pivot); }
 
