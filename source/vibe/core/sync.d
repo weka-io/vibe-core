@@ -716,6 +716,7 @@ struct LocalManualEvent {
 	/// Emits the signal, waking up all owners of the signal.
 	int emit()
 	nothrow {
+		assert(m_waiter !is null, "LocalManualEvent is not initialized - use createManualEvent()");
 		logTrace("unshared emit");
 		auto ec = m_waiter.m_emitCount++;
 		m_waiter.emit();
@@ -725,6 +726,7 @@ struct LocalManualEvent {
 	/// Emits the signal, waking up a single owners of the signal.
 	int emitSingle()
 	nothrow {
+		assert(m_waiter !is null, "LocalManualEvent is not initialized - use createManualEvent()");
 		logTrace("unshared single emit");
 		auto ec = m_waiter.m_emitCount++;
 		m_waiter.emitSingle();
@@ -767,6 +769,8 @@ struct LocalManualEvent {
 	private int doWait(bool interruptible)(Duration timeout, int emit_count)
 	{
 		import std.datetime : Clock, SysTime, UTC;
+
+		assert(m_waiter !is null, "LocalManualEvent is not initialized - use createManualEvent()");
 
 		SysTime target_timeout, now;
 		if (timeout != Duration.max) {
