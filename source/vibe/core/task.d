@@ -809,7 +809,7 @@ package struct TaskScheduler {
 			Returns `true` $(I iff) there are more tasks left to process.
 	*/
 	ScheduleStatus schedule()
-	{
+	nothrow {
 		if (m_taskQueue.empty)
 			return ScheduleStatus.idle;
 
@@ -846,7 +846,7 @@ package struct TaskScheduler {
 
 	/// Resumes execution of a yielded task.
 	private void resumeTask(Task t)
-	{
+	nothrow {
 		import std.encoding : sanitize;
 
 		logTrace("task fiber resume");
