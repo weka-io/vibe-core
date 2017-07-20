@@ -53,7 +53,7 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 		enforce(use_dns, "Malformed IP address string.");
 		NetworkAddress res;
 		bool success = false;
-		Waitable!(DNSLookupCallback,
+		alias waitable = Waitable!(DNSLookupCallback,
 			cb => eventDriver.dns.lookupHost(host, cb),
 			(cb, id) => eventDriver.dns.cancelLookup(id),
 			(DNSLookupID, DNSStatus status, scope RefAddress[] addrs) {
@@ -63,9 +63,9 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 					success = true;
 				}
 			}
-		) waitable;
+		);
 
-		asyncAwaitAny!true(waitable);
+		asyncAwaitAny!(true, waitable);
 
 		enforce(success, "Failed to lookup host '"~host~"'.");
 		return res;
@@ -542,22 +542,27 @@ mixin(tracer);
 		if (m_context.readBuffer.length > 0) return true;
 		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
 
-		Waitable!(IOCallback,
+		bool cancelled;
+		IOStatus status;
+		size_t nbytes;
+
+		alias waiter = Waitable!(IOCallback,
 			cb => eventDriver.sockets.read(m_socket, m_context.readBuffer.peekDst(), mode, cb),
-			cb => eventDriver.sockets.cancelRead(m_socket)
-		) waiter;
+			(cb) { cancelled = true; eventDriver.sockets.cancelRead(m_socket); },
+			(sock, st, nb) { assert(sock == m_socket); status = st; nbytes = nb; }
+		);
 
-		asyncAwaitAny!true(timeout, waiter);
+		asyncAwaitAny!(true, waiter)(timeout);
 
-		if (waiter.cancelled) return false;
+		if (cancelled) return false;
 
-		logTrace("Socket %s, read %s bytes: %s", waiter.results[0], waiter.results[2], waiter.results[1]);
+		logTrace("Socket %s, read %s bytes: %s", m_socket, nbytes, status);
 
 		assert(m_context.readBuffer.length == 0);
-		m_context.readBuffer.putN(waiter.results[2]);
-		switch (waiter.results[1]) {
+		m_context.readBuffer.putN(nbytes);
+		switch (status) {
 			default:
-				logDebug("Error status when waiting for data: %s", waiter.results[1]);
+				logDebug("Error status when waiting for data: %s", status);
 				break;
 			case IOStatus.ok: break;
 			case IOStatus.wouldBlock: assert(mode == IOMode.immediate); break;
@@ -837,20 +842,21 @@ struct UDPConnection {
 
 		IOStatus status;
 		size_t nbytes;
+		bool cancelled;
 
-		Waitable!(DatagramIOCallback,
+		alias waitable = Waitable!(DatagramIOCallback,
 			cb => eventDriver.sockets.send(m_socket, data, IOMode.once, peer_address ? addrc : null, cb),
-			cb => eventDriver.sockets.cancelSend(m_socket),
+			(cb) { cancelled = true; eventDriver.sockets.cancelSend(m_socket); },
 			(DatagramSocketFD, IOStatus status_, size_t nbytes_, scope RefAddress addr)
 			{
 				status = status_;
 				nbytes = nbytes_;
 			}
-		) waitable;
+		);
 
-		asyncAwaitAny!true(waitable);
+		asyncAwaitAny!(true, waitable);
 
-		enforce(!waitable.cancelled && status == IOStatus.ok, "Failed to send packet.");
+		enforce(!cancelled && status == IOStatus.ok, "Failed to send packet.");
 		enforce(nbytes == data.length, "Packet was only sent partially.");
 	}
 
@@ -873,10 +879,11 @@ struct UDPConnection {
 
 		IOStatus status;
 		size_t nbytes;
+		bool cancelled;
 
-		Waitable!(DatagramIOCallback,
+		alias waitable = Waitable!(DatagramIOCallback,
 			cb => eventDriver.sockets.receive(m_socket, buf, IOMode.once, cb),
-			cb => eventDriver.sockets.cancelReceive(m_socket),
+			(cb) { cancelled = true; eventDriver.sockets.cancelReceive(m_socket); },
 			(DatagramSocketFD, IOStatus status_, size_t nbytes_, scope RefAddress addr)
 			{
 				status = status_;
@@ -886,10 +893,10 @@ struct UDPConnection {
 					catch (Exception e) logWarn("Failed to store datagram source address: %s", e.msg);
 				}
 			}
-		) waitable;
+		);
 
-		asyncAwaitAny!true(timeout, waitable);
-		enforce(!waitable.cancelled, "Receive timeout.");
+		asyncAwaitAny!(true, waitable)(timeout);
+		enforce(!cancelled, "Receive timeout.");
 		enforce(status == IOStatus.ok, "Failed to receive packet.");
 		return buf[0 .. nbytes];
 	}

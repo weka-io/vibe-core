@@ -1010,14 +1010,17 @@ struct FileDescriptorEvent {
 
 		assert((which & m_trigger) == Trigger.read, "Waiting for write event not yet supported.");
 
-		Waitable!(IOCallback,
+		bool got_data;
+
+		alias readwaiter = Waitable!(IOCallback,
 			cb => eventDriver.sockets.waitForData(m_socket, cb),
-			cb => eventDriver.sockets.cancelRead(m_socket)
-		) readwaiter;
+			cb => eventDriver.sockets.cancelRead(m_socket),
+			(StreamSocketFD fd, IOStatus st, size_t nb) { got_data = st == IOStatus.ok; }
+		);
 
-		asyncAwaitAny!true(timeout, readwaiter);
+		asyncAwaitAny!(true, readwaiter)(timeout);
 
-		return !readwaiter.cancelled;
+		return got_data;
 	}
 }
 
