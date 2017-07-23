@@ -138,7 +138,7 @@ unittest {
 	is used in `vibe.core.connectionpool` to limit the number of concurrent
 	connections.
 */
-class LocalTaskSemaphore
+final class LocalTaskSemaphore
 {
 @safe:
 
@@ -273,7 +273,7 @@ class LocalTaskSemaphore
 
 	See_Also: InterruptibleTaskMutex, RecursiveTaskMutex, core.sync.mutex.Mutex
 */
-class TaskMutex : core.sync.mutex.Mutex, Lockable {
+final class TaskMutex : core.sync.mutex.Mutex, Lockable {
 @safe:
 
 	private TaskMutexImpl!false m_impl;
@@ -408,7 +408,7 @@ unittest {
 
 	See_Also: TaskMutex, core.sync.mutex.Mutex
 */
-class RecursiveTaskMutex : core.sync.mutex.Mutex, Lockable {
+final class RecursiveTaskMutex : core.sync.mutex.Mutex, Lockable {
 @safe:
 
 	private RecursiveTaskMutexImpl!false m_impl;
@@ -576,7 +576,7 @@ private void runMutexUnitTests(M)()
 
 	See_Also: InterruptibleTaskCondition
 */
-class TaskCondition : core.sync.condition.Condition {
+final class TaskCondition : core.sync.condition.Condition {
 @safe:
 
 	private TaskConditionImpl!(false, Mutex) m_impl;
@@ -1905,7 +1905,7 @@ private struct ReadWriteMutexState(bool INTERRUPTIBLE)
  *
  *  cf. $(D core.sync.mutex.ReadWriteMutex)
  */
-class TaskReadWriteMutex
+final class TaskReadWriteMutex
 {
     private {
         alias State = ReadWriteMutexState!false;
@@ -1970,7 +1970,7 @@ class TaskReadWriteMutex
  *
  *  cf. $(D core.sync.mutex.ReadWriteMutex)
  */
-class InterruptibleTaskReadWriteMutex
+final class InterruptibleTaskReadWriteMutex
 {
 	@safe:
 
