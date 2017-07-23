@@ -10,7 +10,7 @@ InterfaceProxyClass!(I, O) asInterface(I, O)(O obj) if (is(I == interface) && !i
 
 InterfaceProxy!I interfaceProxy(I, O)(O o) { return InterfaceProxy!I(o); }
 
-private class InterfaceProxyClass(I, O) : I
+private final class InterfaceProxyClass(I, O) : I
 {
 	import std.meta : AliasSeq;
 	import std.traits : FunctionAttribute, MemberFunctionsTuple, ReturnType, ParameterTypeTuple, functionAttributes;

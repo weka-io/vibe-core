@@ -20,7 +20,7 @@ import std.traits : isFunctionPointer;
 
 /** Implements a shared, multi-threaded task pool.
 */
-shared class TaskPool {
+shared final class TaskPool {
 	private {
 		struct State {
 			WorkerThread[] threads;
@@ -222,7 +222,7 @@ shared class TaskPool {
 	}
 }
 
-private class WorkerThread : Thread {
+private final class WorkerThread : Thread {
 	private {
 		shared(TaskPool) m_pool;
 		TaskQueue m_queue;

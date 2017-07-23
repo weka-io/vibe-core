@@ -1226,7 +1226,7 @@ void prioritySend(ARGS...)(Task task, ARGS args) { std.concurrency.prioritySend(
 void prioritySend(ARGS...)(Tid tid, ARGS args) { std.concurrency.prioritySend(tid, args); }
 
 
-package class VibedScheduler : Scheduler {
+package final class VibedScheduler : Scheduler {
 	import core.sync.mutex;
 	import vibe.core.core;
 	import vibe.core.sync;

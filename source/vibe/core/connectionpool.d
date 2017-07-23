@@ -27,7 +27,7 @@ import vibe.internal.freelistref;
 	reopen it if necessary. The `ConnectionPool` class has no knowledge of the
 	internals of the connection objects.
 */
-class ConnectionPool(Connection)
+final class ConnectionPool(Connection)
 {
 	private {
 		Connection delegate() @safe m_connectionFactory;
