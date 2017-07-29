@@ -972,6 +972,7 @@ struct FileDescriptorEvent {
 	private this(int fd, Trigger event_mask)
 	nothrow {
 		m_socket = eventDriver.sockets.adoptStream(fd);
+		m_trigger = event_mask;
 	}
 
 	this(this)
