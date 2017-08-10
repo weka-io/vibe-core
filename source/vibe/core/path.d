@@ -597,9 +597,12 @@ struct GenericPath(F) {
 	/// Appends a relative path to this path.
 	void opOpAssign(string op : "~", T)(T op) { this = this ~ op; }
 
-	deprecated("Use .bySegment together with std.algorithm.searching.startsWith instead.")
+	/** Tests whether the given path is a prefix of this path.
+	
+		Any path separators will be ignored during the comparison.
+	*/
 	bool startsWith(GenericPath prefix)
-	{
+	const nothrow {
 		return bySegment.map!(n => n.name).startsWith(prefix.bySegment.map!(n => n.name));
 	}
 }
