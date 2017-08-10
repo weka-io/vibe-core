@@ -598,7 +598,7 @@ struct GenericPath(F) {
 	void opOpAssign(string op : "~", T)(T op) { this = this ~ op; }
 
 	/** Tests whether the given path is a prefix of this path.
-	
+
 		Any path separators will be ignored during the comparison.
 	*/
 	bool startsWith(GenericPath prefix)
