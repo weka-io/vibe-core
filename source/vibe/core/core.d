@@ -1011,7 +1011,7 @@ struct FileDescriptorEvent {
 
 		Waitable!(IOCallback,
 			cb => eventDriver.sockets.waitForData(m_socket, cb),
-			(cb) { assert(false, "timeout not supported."); }
+			cb => eventDriver.sockets.cancelRead(m_socket)
 		) readwaiter;
 
 		asyncAwaitAny!true(timeout, readwaiter);
