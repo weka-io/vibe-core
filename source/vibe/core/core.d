@@ -1016,7 +1016,7 @@ struct FileDescriptorEvent {
 
 		asyncAwaitAny!true(timeout, readwaiter);
 
-		return true;
+		return !readwaiter.cancelled;
 	}
 }
 
