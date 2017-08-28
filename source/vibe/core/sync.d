@@ -216,7 +216,6 @@ final class LocalTaskSemaphore
 		while (true) {
 			m_signal.waitUninterruptible();
 			if (m_waiters.front.seq == w.seq && tryLock()) {
-				m_locks++;
 				return;
 			}
 		}
