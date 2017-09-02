@@ -1,10 +1,11 @@
 import vibe.core.core;
 import vibe.core.log;
 import vibe.core.net;
-//import vibe.stream.operations;
+import vibe.core.stream;
 
 import std.exception : enforce;
 import std.functional : toDelegate;
+import std.range.primitives : isOutputRange;
 
 
 void main()
@@ -13,19 +14,14 @@ void main()
 	nothrow @safe {
 		try {
 			while (!conn.empty) {
-				logInfo("read request");
 				while (true) {
 					CountingRange r;
 					conn.readLine(r);
 					if (!r.count) break;
 				}
-				logInfo("write answer");
-				conn.write(cast(const(ubyte)[])"HTTP/1.1 200 OK\r\nContent-Length: 13\r\nContent-Type: text/plain\r\n\r\nHello, World!");
-				logInfo("flush");
+				conn.write(cast(const(ubyte)[])"HTTP/1.1 200 OK\r\nContent-Length: 13\r\nContent-Type: text/plain\r\nConnection: keep-alive\r\n\r\nHello, World!");
 				conn.flush();
-				logInfo("wait for next request");
 			}
-			logInfo("out");
 		} catch (Exception e) {
 			scope (failure) assert(false);
 			logError("Error processing request: %s", e.msg);
@@ -33,8 +29,9 @@ void main()
 	}
 
 	auto listener = listenTCP(8080, &staticAnswer, "127.0.0.1");
+	logInfo("Listening to HTTP requests on http://127.0.0.1:8080/");
 
-	runEventLoop();
+	runApplication();
 }
 
 struct CountingRange {
@@ -44,21 +41,16 @@ struct CountingRange {
 	void put(in ubyte[] arr) { count += arr.length; }
 }
 
-
-import std.range.primitives : isOutputRange;
-
 void readLine(R, InputStream)(InputStream stream, ref R dst, size_t max_bytes = size_t.max)
-	if (isOutputRange!(R, ubyte))
+	if (isInputStream!InputStream && isOutputRange!(R, ubyte))
 {
 	import std.algorithm.comparison : min, max;
 	import std.algorithm.searching : countUntil;
 
 	enum end_marker = "\r\n";
-
-	assert(end_marker.length >= 1 && end_marker.length <= 2);
+	enum nmarker = end_marker.length;
 
 	size_t nmatched = 0;
-	size_t nmarker = end_marker.length;
 
 	while (true) {
 		enforce(!stream.empty, "Reached EOF while searching for end marker.");
@@ -83,6 +75,8 @@ void readLine(R, InputStream)(InputStream stream, ref R dst, size_t max_bytes = 
 				if (nmatched == nmarker) return;
 			}
 		} else {
+			assert(nmatched == 0);
+
 			auto idx = pm.countUntil(end_marker[0]);
 			if (idx < 0) {
 				dst.put(pm);
@@ -90,29 +84,15 @@ void readLine(R, InputStream)(InputStream stream, ref R dst, size_t max_bytes = 
 				stream.skip(pm.length);
 			} else {
 				dst.put(pm[0 .. idx]);
-				stream.skip(idx+1);
-				if (nmarker == 2) {
-					ubyte[1] next;
-					stream.read(next);
-					if (next[0] == end_marker[1])
-						return;
-					dst.put(end_marker[0]);
-					dst.put(next[0]);
-				} else return;
+				if (idx+1 < pm.length && pm[idx+1] == end_marker[1]) {
+					assert(nmarker == 2);
+					stream.skip(idx+2);
+					return;
+				} else {
+					nmatched++;
+					stream.skip(idx+1);
+				}
 			}
-		}
-	}
-}
-
-static if (!is(typeof(TCPConnection.init.skip(0))))
-{
-	private void skip(ref TCPConnection str, ulong count)
-	{
-		ubyte[156] buf = void;
-		while (count > 0) {
-			auto n = min(buf.length, count);
-			str.read(buf[0 .. n]);
-			count -= n;
 		}
 	}
 }
