@@ -20,6 +20,7 @@ The fundamental building block is the fiber based task concept, together with th
 [![Posix Build Status](https://travis-ci.org/vibe-d/vibe-core.svg?branch=master)](https://travis-ci.org/vibe-d/vibe-core)
 [![Windows Build status](https://ci.appveyor.com/api/projects/status/eexephyroa7ag3xr/branch/master?svg=true)](https://ci.appveyor.com/project/s-ludwig/vibe-core/branch/master)
 
+
 Separation of the former `vibe-d:core` package
 ----------------------------------------------
 
@@ -35,12 +36,17 @@ Supported compilers
 
 The following compilers are tested and supported:
 
+- DMD 2.076.0
+- DMD 2.075.1
 - DMD 2.074.1
 - DMD 2.073.2
 - DMD 2.072.2
 - DMD 2.071.2
-- DMD 2.070.2
 - LDC 1.3.0
 - LDC 1.2.0
 - LDC 1.1.0
+
+Supported up to 1.1.1:
+
+- DMD 2.070.2
 - LDC 1.0.0
