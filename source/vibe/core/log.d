@@ -401,6 +401,8 @@ final class HTMLLogger : Logger {
 		m_logFile.writef(`<div class="timeStamp">%s</div>`, msg.time.toISOExtString());
 		if (msg.thread)
 			m_logFile.writef(`<div class="threadName">%s</div>`, msg.thread.name);
+		if (msg.fiber)
+			m_logFile.writef(`<div class="taskID">%s</div>`, msg.fiberID);
 		m_logFile.write(`<div class="message">`);
 	}
 
@@ -463,10 +465,16 @@ final class HTMLLogger : Logger {
 			left: 150pt;
 			width: 100pt;
 		}
+		div.taskID {
+			position: absolute;
+			top: 0pt;
+			left: 250pt;
+			width: 70pt;
+		}
 		div.message {
 			position: relative;
 			top: 0pt;
-			left: 250pt;
+			left: 320pt;
 		}
 		body {
 			font-family: Tahoma, Arial, sans-serif;
