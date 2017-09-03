@@ -790,7 +790,8 @@ struct UDPConnection {
 	*/
 	@property void multicastLoopback(bool loop)
 	{
-		assert(false, "not implemented.");
+		enforce(eventDriver.sockets.setOption(m_socket, DatagramSocketOption.multicastLoopback, loop),
+			"Failed to set multicast loopback mode.");
 	}
 
 	/** Become a member of an IP multicast group.
@@ -801,7 +802,9 @@ struct UDPConnection {
 	*/
 	void addMembership(ref NetworkAddress multiaddr)
 	{
-		assert(false, "not implemented.");
+		scope addr = new RefAddress(multiaddr.sockAddr, multiaddr.sockAddrMaxLen);
+		enforce(eventDriver.sockets.joinMulticastGroup(m_socket, addr),
+			"Failed to add multicast membership.");
 	}
 
 	/** Stops listening for datagrams and frees all resources.
