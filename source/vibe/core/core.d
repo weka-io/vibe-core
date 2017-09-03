@@ -780,7 +780,7 @@ Timer setTimer(Duration timeout, void delegate() callback, bool periodic = false
 			scope (failure) assert(false);
 			logDebug("Full error: %s", e.toString().sanitize);
 		}
-	});
+	}, periodic);
 }
 
 /**
