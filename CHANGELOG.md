@@ -1,3 +1,17 @@
+1.2.0 - 2017-09-
+==================
+
+- Compiles on DMD 2.071.2 up to 2.076.0
+- Marked a number of classes as `final` that were accidentally left as overridable
+- Un-deprecated `GenericPath.startsWith` due to the different semantics compared to the replacement suggestion
+- Fixed a deadlock caused by an invalid lock count in `LocalTaskSemaphore` (by Boris-Barboris) - [pull #31][issue31]
+- Fixed `FileDescriptorEvent` to adhere to the given event mask
+- Fixed `FileDescriptorEvent.wait` in conjunction with a finite timeout
+- Fixed the return value of `FileDescriptorEvent.wait`
+
+[issue31]: https://github.com/vibe-d/vibe-core/issues/31
+
+
 1.1.1 - 2017-07-20
 ==================
 
