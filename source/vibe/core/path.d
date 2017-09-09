@@ -748,6 +748,10 @@ unittest {
 	assert(InetPath("./foo").parentPath.toString() == "./");
 }
 
+unittest {
+	assert(WindowsPath([WindowsPath.Segment("foo"), WindowsPath.Segment("bar")]).toString() == "foo\\bar");
+}
+
 /// Thrown when an invalid string representation of a path is detected.
 class PathValidationException : Exception {
 	this(string text, string file = __FILE__, size_t line = cast(size_t)__LINE__, Throwable next = null)
@@ -776,11 +780,15 @@ struct WindowsPathFormat {
 				dst.put(sep(s));
 		}
 
+		char lastsep = '\0';
+		bool first = true;
 		foreach (s; segments) {
+			if (!first || lastsep) dst.put(sep(lastsep));
+			else first = false;
 			dst.put(s.name);
-			if (s.separator)
-				dst.put(sep(s.separator));
+			lastsep = s.separator;
 		}
+		if (lastsep) dst.put(sep(lastsep));
 	}
 
 	unittest {
@@ -799,6 +807,7 @@ struct WindowsPathFormat {
 		assert(str(Segment("",'\\'), Segment("C:")) == "C:");
 		assert(str(Segment("",'\\'), Segment("C:", '/')) == "C:/");
 		assert(str(Segment("foo",'\\'), Segment("C:")) == "foo\\C:");
+		assert(str(Segment("foo"), Segment("bar")) == "foo\\bar");
 	}
 
 @safe nothrow pure:
@@ -982,10 +991,15 @@ struct WindowsPathFormat {
 struct PosixPathFormat {
 	static void toString(I, O)(I segments, O dst)
 	{
+		char lastsep = '\0';
+		bool first = true;
 		foreach (s; segments) {
+			if (!first || lastsep) dst.put('/');
+			else first = false;
 			dst.put(s.name);
-			if (s.separator != '\0') dst.put('/');
+			lastsep = s.separator;
 		}
+		if (lastsep) dst.put('/');
 	}
 
 	unittest {
@@ -999,6 +1013,7 @@ struct PosixPathFormat {
 		assert(str(Segment("",'/'), Segment("foo",'\0')) == "/foo");
 		assert(str(Segment("",'\\'), Segment("foo",'\\')) == "/foo/");
 		assert(str(Segment("f oo")) == "f oo");
+		assert(str(Segment("foo"), Segment("bar")) == "foo/bar");
 	}
 
 @safe nothrow pure:
@@ -1109,7 +1124,11 @@ struct InetPathFormat {
 	{
 		import std.format : formattedWrite;
 
+		char lastsep = '\0';
+		bool first = true;
 		foreach (e; segments) {
+			if (!first || lastsep) dst.put('/');
+			else first = false;
 			foreach (char c; e.name) {
 				switch (c) {
 					default:
@@ -1125,8 +1144,9 @@ struct InetPathFormat {
 						break;
 				}
 			}
-			if (e.separator != '\0') dst.put('/');
+			lastsep = e.separator;
 		}
+		if (lastsep) dst.put('/');
 	}
 
 	unittest {
@@ -1139,6 +1159,7 @@ struct InetPathFormat {
 		assert(str(Segment("",'/'), Segment("foo",'\0')) == "/foo");
 		assert(str(Segment("",'\\'), Segment("foo",'\\')) == "/foo/");
 		assert(str(Segment("f oo")) == "f%20oo");
+		assert(str(Segment("foo"), Segment("bar")) == "foo/bar");
 	}
 
 @safe pure nothrow:
