@@ -800,10 +800,10 @@ struct UDPConnection {
 		See https://www.iana.org/assignments/multicast-addresses/multicast-addresses.xml#multicast-addresses-12
 		and https://www.iana.org/assignments/ipv6-multicast-addresses/ipv6-multicast-addresses.xhtml
 	*/
-	void addMembership(ref NetworkAddress multiaddr)
+	void addMembership(ref NetworkAddress multiaddr, uint interface_address = 0)
 	{
 		scope addr = new RefAddress(multiaddr.sockAddr, multiaddr.sockAddrMaxLen);
-		enforce(eventDriver.sockets.joinMulticastGroup(m_socket, addr),
+		enforce(eventDriver.sockets.joinMulticastGroup(m_socket, addr, interface_address),
 			"Failed to add multicast membership.");
 	}
 
