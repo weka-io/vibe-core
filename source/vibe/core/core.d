@@ -1429,10 +1429,9 @@ private extern(C) void extrap()
 
 private extern(C) void onSignal(int signal)
 nothrow {
+	logInfo("Received signal %d. Shutting down.", signal);
 	atomicStore(st_term, true);
 	try st_threadsSignal.emit(); catch (Throwable) {}
-
-	logInfo("Received signal %d. Shutting down.", signal);
 }
 
 private extern(C) void onBrokenPipe(int signal)
