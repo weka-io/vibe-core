@@ -29,6 +29,7 @@ shared final class TaskPool {
 		}
 		vibe.core.sync.Monitor!(State, shared(SpinLock)) m_state;
 		shared(ManualEvent) m_signal;
+		immutable size_t m_threadCount;
 	}
 
 	/** Creates a new task pool with the specified number of threads.
@@ -40,6 +41,7 @@ shared final class TaskPool {
 	@safe {
 		import std.format : format;
 
+		m_threadCount = thread_count;
 		m_signal = createSharedManualEvent();
 
 		with (m_state.lock) {
@@ -56,6 +58,10 @@ shared final class TaskPool {
 			}
 		}
 	}
+
+	/** Returns the number of worker threads.
+	*/
+	@property size_t threadCount() const shared { return m_threadCount; }
 
 	/** Instructs all worker threads to terminate and waits until all have
 		finished.
