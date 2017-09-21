@@ -834,7 +834,7 @@ private struct LogOutputRange {
 			this.info.level = level;
 			this.info.thread = () @trusted { return Thread.getThis(); }(); // not @safe as of 2.065
 			this.info.threadID = makeid(this.info.thread);
-			this.info.threadName = () @trusted { return this.info.thread.name; } ();
+			this.info.threadName = () @trusted { return this.info.thread ? this.info.thread.name : ""; } ();
 			this.info.fiber = () @trusted { return Fiber.getThis(); }(); // not @safe as of 2.065
 			this.info.fiberID = makeid(this.info.fiber);
 		} catch (Exception e) {
