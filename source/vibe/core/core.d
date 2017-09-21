@@ -859,7 +859,8 @@ nothrow {
 	out(count) { assert(count > 0, "No worker threads started after setupWorkerThreads!?"); }
 body {
 	setupWorkerThreads();
-	return st_threads.count!(c => c.isWorker);
+	synchronized (st_threadsMutex)
+		return st_workerPool.threadCount;
 }
 
 
@@ -1178,9 +1179,6 @@ package(vibe) void performIdleProcessing()
 
 private struct ThreadContext {
 	Thread thread;
-	bool isWorker;
-
-	this(Thread thr, bool worker) { this.thread = thr; this.isWorker = worker; }
 }
 
 /**************************************************************************************************/
@@ -1311,7 +1309,7 @@ shared static this()
 	auto thisthr = Thread.getThis();
 	thisthr.name = "main";
 	assert(st_threads.length == 0, "Main thread not the first thread!?");
-	st_threads ~= ThreadContext(thisthr, false);
+	st_threads ~= ThreadContext(thisthr);
 
 	st_threadsSignal = createSharedManualEvent();
 
@@ -1354,7 +1352,7 @@ static this()
 	auto thisthr = Thread.getThis();
 	synchronized (st_threadsMutex)
 		if (!st_threads.any!(c => c.thread is thisthr))
-			st_threads ~= ThreadContext(thisthr, false);
+			st_threads ~= ThreadContext(thisthr);
 
 
 	import vibe.core.sync : SpinLock;
