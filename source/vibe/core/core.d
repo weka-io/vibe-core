@@ -590,7 +590,7 @@ public void setupWorkerThreads(uint num = logicalProcessorCount())
 
 	synchronized (st_threadsMutex) {
 		if (!st_workerPool)
-			st_workerPool = new shared TaskPool;
+			st_workerPool = new shared TaskPool(num);
 	}
 }
 
