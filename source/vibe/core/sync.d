@@ -1236,15 +1236,14 @@ private final class ThreadLocalWaiter(bool EVENT_TRIGGERED) {
 	private {
 		static struct TaskWaiter {
 			TaskWaiter* prev, next;
-			Task task;
 			void delegate() @safe nothrow notifier;
-			bool cancelled;
 
 			void wait(void delegate() @safe nothrow del) @safe nothrow {
 				assert(notifier is null, "Local waiter is used twice!");
 				notifier = del;
 			}
-			void cancel() @safe nothrow { cancelled = true; notifier = null; }
+			void cancel() @safe nothrow { notifier = null; }
+			void emit() @safe nothrow { auto n = notifier; notifier = null; n(); }
 		}
 
 		static if (EVENT_TRIGGERED) {
@@ -1301,30 +1300,35 @@ private final class ThreadLocalWaiter(bool EVENT_TRIGGERED) {
 			target_timeout = now + timeout;
 		}
 
-		Waitable!(typeof(TaskWaiter.notifier),
-			cb => waiter.wait(cb),
-			cb => waiter.cancel(),
-		) waitable;
+		bool cancelled;
+
+		alias waitable = Waitable!(typeof(TaskWaiter.notifier),
+			(cb) { waiter.wait(cb); },
+			(cb) { cancelled = true; waiter.cancel(); },
+			() {}
+		);
+
+		alias ewaitable = Waitable!(EventCallback,
+			(cb) {
+				eventDriver.events.wait(evt, cb);
+				// check for exit condition *after* starting to wait for the event
+				// to avoid a race condition
+				if (exit_condition()) {
+					eventDriver.events.cancelWait(evt, cb);
+					cb(evt);
+				}
+			},
+			(cb) { eventDriver.events.cancelWait(evt, cb); },
+			(EventID) {}
+		);
 
 		if (evt != EventID.invalid) {
-			Waitable!(EventCallback,
-				(cb) {
-					eventDriver.events.wait(evt, cb);
-					// check for exit condition *after* starting to wait for the event
-					// to avoid a race condition
-					if (exit_condition()) {
-						eventDriver.events.cancelWait(evt, cb);
-						cb(evt);
-					}
-				},
-				cb => eventDriver.events.cancelWait(evt, cb)
-			) ewaitable;
-			asyncAwaitAny!interruptible(timeout, waitable, ewaitable);
+			asyncAwaitAny!(interruptible, waitable, ewaitable)(timeout);
 		} else {
-			asyncAwaitAny!interruptible(timeout, waitable);
+			asyncAwaitAny!(interruptible, waitable)(timeout);
 		}
 
-		if (waitable.cancelled) {
+		if (cancelled) {
 			assert(waiter.next !is null, "Cancelled waiter not in queue anymore!?");
 			return false;
 		} else {
@@ -1363,6 +1367,19 @@ private final class ThreadLocalWaiter(bool EVENT_TRIGGERED) {
 	bool emitSingle()
 	@safe nothrow {
 		if (m_waiters.empty) return false;
+
+		TaskWaiter* pivot = () @trusted { return &m_emitPivot; } ();
+
+		if (pivot.next) { // another emit in progress?
+			// shift pivot to the right, so that the other emit call will process another waiter
+			if (pivot !is m_waiters.back) {
+				auto n = pivot.next;
+				m_waiters.remove(pivot);
+				m_waiters.insertAfter(pivot, n);
+			}
+			return true;
+		}
+
 		emitWaiter(m_waiters.front);
 		return true;
 	}
@@ -1373,8 +1390,7 @@ private final class ThreadLocalWaiter(bool EVENT_TRIGGERED) {
 
 		if (w.notifier !is null) {
 			logTrace("notify task %s %s %s", cast(void*)w, () @trusted { return cast(void*)w.notifier.funcptr; } (), w.notifier.ptr);
-			w.notifier();
-			w.notifier = null;
+			w.emit();
 		} else logTrace("notify callback is null");
 	}
 }
