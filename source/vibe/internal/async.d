@@ -116,7 +116,8 @@ void asyncAwaitAny(bool interruptible, Waitables...)(string func = __FUNCTION__)
 			ret ~= q{
 				alias PT%1$s = ParameterTypeTuple!(Waitables[%1$s].Callback);
 				scope callback_%1$s = (%2$s) @safe nothrow {
-					() @trusted { logDebugV("siw %%x", &still_inside); } ();
+					// NOTE: this triggers DigitalMars/optlink#18
+					//() @trusted { logDebugV("siw %%x", &still_inside); } ();
 					debug(VibeAsyncLog) logDebugV("Waitable %%s in %%s fired (istask=%%s).", %1$s, func, t != Task.init);
 					assert(still_inside, "Notification fired after asyncAwait had already returned!");
 					fired[%1$s] = true;
