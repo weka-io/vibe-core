@@ -705,7 +705,6 @@ struct TCPListener {
 	//        stopListening() needs to keep working.
 	private {
 		StreamListenSocketFD m_socket;
-		NetworkAddress m_bindAddress;
 	}
 
 	this(StreamListenSocketFD socket)
@@ -718,7 +717,11 @@ struct TCPListener {
 	/// The local address at which TCP connections are accepted.
 	@property NetworkAddress bindAddress()
 	{
-		return m_bindAddress;
+		NetworkAddress ret;
+		scope ra = new RefAddress(ret.sockAddr, ret.sockAddrMaxLen);
+		enforce(eventDriver.sockets.getLocalAddress(m_socket, ra),
+			"Failed to query bind address of listening socket.");
+		return ret;
 	}
 
 	/// Stops listening and closes the socket.
