@@ -4,6 +4,6 @@ import vibe.core.stream : pipe;
 
 void main()
 {
-	listenTCP(7000, (conn) => pipe(conn, conn));
+	listenTCP(7000, (conn) { pipe(conn, conn); });
 	runApplication();
 }
