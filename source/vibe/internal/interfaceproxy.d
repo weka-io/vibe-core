@@ -1,12 +1,29 @@
 module vibe.internal.interfaceproxy;
 
 import vibe.internal.traits;
+import vibe.internal.freelistref;
+import vibe.internal.allocator;
+import std.algorithm.mutation : move, swap;
 import std.meta : staticMap;
 import std.traits : BaseTypeTuple;
 
 
 O asInterface(I, O)(O obj) if (is(I == interface) && is(O : I)) { return obj; }
 InterfaceProxyClass!(I, O) asInterface(I, O)(O obj) if (is(I == interface) && !is(O : I)) { return new InterfaceProxyClass!(I, O)(obj); }
+
+InterfaceProxyClass!(I, O) asInterface(I, O)(O obj, IAllocator allocator)
+@trusted if (is(I == interface) && !is(O : I))
+{
+	alias R = InterfaceProxyClass!(I, O);
+	return allocator.makeGCSafe!R(obj);
+}
+
+void freeInterface(I, O)(InterfaceProxyClass!(I, O) inst, IAllocator allocator)
+{
+	allocator.disposeGCSafe(inst);
+}
+
+FreeListRef!(InterfaceProxyClass!(I, O)) asInterfaceFL(I, O)(O obj) { return FreeListRef!(InterfaceProxyClass!(I, O))(obj); }
 
 InterfaceProxy!I interfaceProxy(I, O)(O o) { return InterfaceProxy!I(o); }
 
@@ -19,7 +36,7 @@ private final class InterfaceProxyClass(I, O) : I
 		O m_obj;
 	}
 
-	this(O obj) { m_obj = obj; }
+	this(ref O obj) { swap(m_obj, obj); }
 
 	mixin methodDefs!0;
 
@@ -65,25 +82,28 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 	import vibe.internal.traits : checkInterfaceConformance;
 
 	private {
-		void[4*(void*).sizeof] m_value;
+		void*[4] m_value;
+		enum maxSize = m_value.length * m_value[0].sizeof;
 		Proxy m_intf;
 	}
 
 	this(IP : InterfaceProxy!J, J)(IP proxy) @safe
 	{
-		() @trusted { m_value[] = proxy.m_value[]; } ();
-		m_intf = proxy.m_intf;
-		m_intf._postblit(m_value);
+		() @trusted {
+			swap(proxy.m_value, m_value);
+			proxy.m_intf = null;
+		} ();
 	}
 
 	this(O)(O object) @trusted
 	{
-		static assert(O.sizeof <= m_value.length, "Object ("~O.stringof~") is too big to be stored in an InterfaceProxy.");
+		static assert(O.sizeof % m_value[0].sizeof == 0, "Sizeof object ("~O.stringof~") must be a multiple of a pointer size.");
+		static assert(O.sizeof <= maxSize, "Object ("~O.stringof~") is too big to be stored in an InterfaceProxy.");
 		import std.conv : emplace;
 		m_intf = ProxyImpl!O.get();
 		static if (is(O == struct))
-			emplace!O(m_value[0 .. O.sizeof]);
-		(cast(O[])m_value[0 .. O.sizeof])[0] = object;
+			emplace!O(m_value[0 .. O.sizeof/m_value[0].sizeof]);
+		swap((cast(O[])m_value[0 .. O.sizeof/m_value[0].sizeof])[0], object);
 	}
 
 	~this() @safe
@@ -101,7 +121,7 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 		if (m_intf) {
 			m_intf._destroy(m_value);
 			m_intf = null;
-			() @trusted { (cast(ubyte[])m_value)[] = 0; } ();
+			m_value[] = null;
 		}
 	}
 
@@ -109,7 +129,7 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 	@trusted nothrow {
 		if (!m_intf || m_intf._typeInfo() !is typeid(T))
 			assert(false, "Extraction of wrong type from InterfaceProxy.");
-		return (cast(T[])m_value[0 .. T.sizeof])[0];
+		return (cast(T[])m_value[0 .. T.sizeof/m_value[0].sizeof])[0];
 	}
 
 	void opAssign(IP : InterfaceProxy!J, J)(IP proxy) @safe
@@ -118,23 +138,24 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 
 		clear();
 		if (proxy.m_intf) {
-			() @trusted { m_value[] = proxy.m_value[]; } ();
 			m_intf = proxy.m_intf;
-			m_intf._postblit(m_value);
+			m_value[] = proxy.m_value[];
+			proxy.m_intf = null;
 		}
 	}
 
 	void opAssign(O)(O object) @trusted
 		if (checkInterfaceConformance!(O, I) is null)
 	{
-		static assert(O.sizeof <= m_value.length, "Object is too big to be stored in an InterfaceProxy.");
+		static assert(O.sizeof % m_value[0].sizeof == 0, "Sizeof object ("~O.stringof~") must be a multiple of a pointer size.");
+		static assert(O.sizeof <= maxSize, "Object is too big to be stored in an InterfaceProxy.");
 		import std.conv : emplace;
 		clear();
 		m_intf = ProxyImpl!O.get();
 		if (is(O == class))
-			(cast(O[])m_value[0 .. O.sizeof])[0] = object;
-		else emplace!O(m_value[0 .. O.sizeof]);
-		(cast(O[])m_value[0 .. O.sizeof])[0] = object;
+			(cast(O[])m_value[0 .. O.sizeof/m_value[0].sizeof])[0] = object;
+		else emplace!O(m_value[0 .. O.sizeof/m_value[0].sizeof]);
+		swap((cast(O[])m_value[0 .. O.sizeof/m_value[0].sizeof])[0], object);
 	}
 
 	bool opCast(T)() const @safe nothrow if (is(T == bool)) { return m_intf !is null; }
