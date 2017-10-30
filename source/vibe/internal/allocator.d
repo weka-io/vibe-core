@@ -26,7 +26,7 @@ auto makeGCSafe(T, Allocator, A...)(Allocator allocator, A args)
 	static if (is (T == class)) enum tsize = __traits(classInstanceSize, T);
 	else enum tsize = T.sizeof;
 	static if (hasIndirections!T)
-		GC.addRange(cast(void*)ret, tsize, typeid(T));
+		() @trusted { GC.addRange(cast(void*)ret, tsize, typeid(T)); } ();
 	return ret;
 }
 
