@@ -30,8 +30,12 @@ public import eventcore.driver : IOMode;
 	The number of bytes written is either the whole input stream when `nbytes == 0`, or exactly
 	`nbytes` for `nbytes > 0`. If the input stream contains less than `nbytes` of data, an
 	exception is thrown.
+
+	Returns:
+		The actual number of bytes written is returned. If `nbytes` is  given
+		and not equal to `ulong.max`, íts value will be returned.
 */
-void pipe(InputStream, OutputStream)(InputStream source, OutputStream sink, ulong nbytes)
+ulong pipe(InputStream, OutputStream)(InputStream source, OutputStream sink, ulong nbytes)
 	@blocking @trusted
 	if (isOutputStream!OutputStream && isInputStream!InputStream)
 {
@@ -43,6 +47,7 @@ void pipe(InputStream, OutputStream)(InputStream source, OutputStream sink, ulon
 	auto buffer = bufferobj.bytes;
 
 	//logTrace("default write %d bytes, empty=%s", nbytes, stream.empty);
+	ulong ret = 0;
 	if (nbytes == ulong.max) {
 		while (!source.empty) {
 			size_t chunk = min(source.leastSize, buffer.length);
@@ -50,6 +55,7 @@ void pipe(InputStream, OutputStream)(InputStream source, OutputStream sink, ulon
 			//logTrace("read pipe chunk %d", chunk);
 			source.read(buffer[0 .. chunk]);
 			sink.write(buffer[0 .. chunk]);
+			ret += chunk;
 		}
 	} else {
 		while (nbytes > 0) {
@@ -58,15 +64,17 @@ void pipe(InputStream, OutputStream)(InputStream source, OutputStream sink, ulon
 			source.read(buffer[0 .. chunk]);
 			sink.write(buffer[0 .. chunk]);
 			nbytes -= chunk;
+			ret += chunk;
 		}
 	}
+	return ret;
 }
 /// ditto
-void pipe(InputStream, OutputStream)(InputStream source, OutputStream sink)
+ulong pipe(InputStream, OutputStream)(InputStream source, OutputStream sink)
 	@blocking
 	if (isOutputStream!OutputStream && isInputStream!InputStream)
 {
-	pipe(source, sink, ulong.max);
+	return pipe(source, sink, ulong.max);
 }
 
 
