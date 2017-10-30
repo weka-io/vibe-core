@@ -475,7 +475,7 @@ struct FileStream {
 	void read(ubyte[] dst)
 	{
 		auto ret = read(dst, IOMode.all);
-		assert(ret == dst.length);
+		assert(ret == dst.length, "File.read returned less data than requested for IOMode.all.");
 	}
 
 	size_t write(in ubyte[] bytes, IOMode mode)
