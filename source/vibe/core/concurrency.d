@@ -1143,7 +1143,7 @@ Future!(ReturnType!CALLABLE) async(CALLABLE, ARGS...)(CALLABLE callable, ARGS ar
 	Future!RET ret;
 	ret.init();
 	static void compute(FreeListRef!(shared(RET)) dst, CALLABLE callable, ARGS args) {
-		dst = cast(shared(RET))callable(args);
+		dst.get = cast(shared(RET))callable(args);
 	}
 	static if (isWeaklyIsolated!CALLABLE && isWeaklyIsolated!ARGS) {
 		ret.m_task = runWorkerTaskH(&compute, ret.m_result, callable, args);

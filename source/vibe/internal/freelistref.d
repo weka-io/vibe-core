@@ -133,6 +133,8 @@ struct FreeListRef(T, bool INIT = true)
 		}
 	}
 
+	bool opCast(T)() const if (is(T == bool)) { return m_object !is null; }
+
 	void opAssign(FreeListRef other)
 	{
 		clear();
@@ -159,7 +161,6 @@ struct FreeListRef(T, bool INIT = true)
 		@property inout(T) get() inout @safe nothrow { return m_object; }
 	} else {
 		@property ref inout(T) get() inout @safe nothrow { return *m_object; }
-		void opAssign(T t) { *m_object = t; }
 	}
 	alias get this;
 
