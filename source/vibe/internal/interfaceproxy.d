@@ -90,6 +90,7 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 	this(IP : InterfaceProxy!J, J)(IP proxy) @safe
 	{
 		() @trusted {
+			m_intf = proxy.m_intf;
 			swap(proxy.m_value, m_value);
 			proxy.m_intf = null;
 		} ();
