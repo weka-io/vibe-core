@@ -361,6 +361,13 @@ struct FileInfo {
 
 	/// True if this is a directory or a symlink pointing to a directory
 	bool isDirectory;
+
+	/** True if the file's hidden attribute is set.
+
+		On systems that don't support a hidden attribute, any file starting with
+		a single dot will be treated as hidden.
+	*/
+	bool hidden;
 }
 
 /**
@@ -682,5 +689,10 @@ private FileInfo makeFileInfo(DirEntry ent)
 	else ret.timeCreated = ent.timeLastModified;
 	ret.isSymlink = ent.isSymlink;
 	ret.isDirectory = ent.isDir;
+	version (Windows) {
+		import core.sys.windows.windows : FILE_ATTRIBUTE_HIDDEN;
+		ret.hidden = (ent.attributes & FILE_ATTRIBUTE_HIDDEN) != 0;
+	}
+	else ret.hidden = ret.name.startsWith('.');
 	return ret;
 }
