@@ -1,3 +1,21 @@
+1.3.0 - 2017-11-17
+==================
+
+- Compiles on DMD 2.071.2 up to 2.077.0
+- Fixes the fiber event scheduling mechanism to not cause any heap allocations - this alone gives a performance boost of around 20% in the bench-dummy-http example - [pull #27][issue27]
+- Added `FileInfo.hidden` property
+- `pipe()` now returns the actual number of bytes written
+- Fixed `TCPListener.bindAddress`
+- Fixed a segmentation fault when logging from a non-D thread
+- Fixed `setupWorkerThreads` and `workerThreadCount` - [issue #35][issue35]
+- Added `TaskPool.threadCount` property
+- Added an `interface_index` parameter to `UDPConnection.addMembership`
+- `Task.tid` can now be called on a `const(Task)`
+
+[issue27]: https://github.com/vibe-d/vibe-core/issues/27
+[issue35]: https://github.com/vibe-d/vibe-core/issues/35
+
+
 1.2.0 - 2017-09-05
 ==================
 

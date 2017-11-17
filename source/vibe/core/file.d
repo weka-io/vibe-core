@@ -492,7 +492,6 @@ struct FileStream {
 			cb => eventDriver.files.cancelWrite(m_fd)
 		);
 		ctx.ptr += res[2];
-logDebug("Written %s", res[2]);
 		if (ctx.ptr > ctx.size) ctx.size = ctx.ptr;
 		enforce(res[1] == IOStatus.ok, "Failed to read data from disk.");
 		return res[2];
