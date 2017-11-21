@@ -587,7 +587,13 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 				case FileChangeKind.removed: ct = DirectoryChangeType.removed; break;
 				case FileChangeKind.modified: ct = DirectoryChangeType.modified; break;
 			}
-			this.changes ~= DirectoryChange(ct, NativePath.fromTrustedString(change.directory) ~ NativePath.fromTrustedString(change.name.idup));
+
+			static if (is(typeof(change.baseDirectory))) {
+				// eventcore 0.8.23 and up
+				this.changes ~= DirectoryChange(ct, NativePath.fromTrustedString(change.baseDirectory) ~ NativePath.fromTrustedString(change.directory) ~ NativePath.fromTrustedString(change.name.idup));
+			} else {
+				this.changes ~= DirectoryChange(ct, NativePath.fromTrustedString(change.directory) ~ NativePath.fromTrustedString(change.name.idup));
+			}
 			this.changeEvent.emit();
 		}
 	}
