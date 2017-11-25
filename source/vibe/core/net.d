@@ -156,7 +156,8 @@ TCPListener listenTCP_s(ushort port, TCPConnectionFunction connection_callback, 
 /**
 	Establishes a connection to the given host/port.
 */
-TCPConnection connectTCP(string host, ushort port, string bind_interface = null, ushort bind_port = 0)
+TCPConnection connectTCP(string host, ushort port, string bind_interface = null,
+	ushort bind_port = 0, Duration timeout = Duration.max)
 {
 	NetworkAddress addr = resolveHost(host);
 	addr.port = port;
@@ -173,10 +174,11 @@ TCPConnection connectTCP(string host, ushort port, string bind_interface = null,
 	if (addr.family != AddressFamily.UNIX)
 		bind_address.port = bind_port;
 
-	return connectTCP(addr, bind_address);
+	return connectTCP(addr, bind_address, timeout);
 }
 /// ditto
-TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyAddress)
+TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyAddress,
+	Duration timeout = Duration.max)
 {
 	import std.conv : to;
 
@@ -193,14 +195,26 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 		scope uaddr = new RefAddress(addr.sockAddr, addr.sockAddrLen);
 		scope baddr = new RefAddress(bind_address.sockAddr, bind_address.sockAddrLen);
 
-		// FIXME: make this interruptible
-		auto result = asyncAwaitUninterruptible!(ConnectCallback,
-			cb => eventDriver.sockets.connectStream(uaddr, baddr, cb)
-			//cb => eventDriver.sockets.cancelConnect(cb)
-		);
-		enforce(result[1] == ConnectStatus.connected, "Failed to connect to "~addr.toString()~": "~result[1].to!string);
+		bool cancelled;
+		StreamSocketFD sock;
+		ConnectStatus status;
 
-		return TCPConnection(result[0], uaddr);
+		alias waiter = Waitable!(ConnectCallback,
+			cb => eventDriver.sockets.connectStream(uaddr, baddr, cb),
+			(ConnectCallback cb, StreamSocketFD sock_fd) {
+				cancelled = true;
+				eventDriver.sockets.cancelConnectStream(sock_fd);
+			},
+			(fd, st) { sock = fd; status = st; }
+		);
+
+		asyncAwaitAny!(true, waiter)(timeout);
+
+		enforce(!cancelled, "Failed to connect to " ~ addr.toString() ~
+			": timeout");
+		enforce(status == ConnectStatus.connected, "Failed to connect to "~addr.toString()~": "~status.to!string);
+
+		return TCPConnection(sock, uaddr);
 	} ();
 }
 
