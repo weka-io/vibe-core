@@ -1,7 +1,8 @@
-1.3.0 - 2017-11-17
+1.3.0 - 2017-12-03
 ==================
 
 - Compiles on DMD 2.071.2 up to 2.077.0
+- Added a `timeout` parameter in `connectTCP` (by Boris Baboris) - [pull #44][issue44], [pull #41][issue41]
 - Fixes the fiber event scheduling mechanism to not cause any heap allocations - this alone gives a performance boost of around 20% in the bench-dummy-http example - [pull #27][issue27]
 - Added `FileInfo.hidden` property
 - `pipe()` now returns the actual number of bytes written
@@ -14,6 +15,8 @@
 
 [issue27]: https://github.com/vibe-d/vibe-core/issues/27
 [issue35]: https://github.com/vibe-d/vibe-core/issues/35
+[issue41]: https://github.com/vibe-d/vibe-core/issues/41
+[issue44]: https://github.com/vibe-d/vibe-core/issues/44
 
 
 1.2.0 - 2017-09-05
