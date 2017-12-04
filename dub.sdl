@@ -5,6 +5,7 @@ copyright "Copyright © 2016, rejectedsoftware e.K."
 license "MIT"
 
 dependency "eventcore" version="~>0.8.18"
+dependency "stdx-allocator" version="~>2.77.0"
 
 targetName "vibe_core"
 
