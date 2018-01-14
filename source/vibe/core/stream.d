@@ -39,12 +39,10 @@ ulong pipe(InputStream, OutputStream)(InputStream source, OutputStream sink, ulo
 	@blocking @trusted
 	if (isOutputStream!OutputStream && isInputStream!InputStream)
 {
-	import vibe.internal.allocator : theAllocator, make, dispose;
+	import vibe.internal.allocator : theAllocator, makeArray, dispose;
 
-	static struct Buffer { ubyte[64*1024] bytes = void; }
-	auto bufferobj = theAllocator.make!Buffer();
-	scope (exit) theAllocator.dispose(bufferobj);
-	auto buffer = bufferobj.bytes;
+	scope buffer = cast(ubyte[]) theAllocator.allocate(64*1024);
+	scope (exit) theAllocator.dispose(buffer);
 
 	//logTrace("default write %d bytes, empty=%s", nbytes, stream.empty);
 	ulong ret = 0;
