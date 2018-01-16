@@ -658,10 +658,10 @@ mixin(tracer);
 		if (isInputStream!InputStream)
 	{
 		import std.algorithm.comparison : min;
+		import vibe.internal.allocator : theAllocator, makeArray, dispose;
 
-		static struct Buffer { ubyte[64*1024 - 4*size_t.sizeof] bytes = void; }
-		scope bufferobj = new Buffer; // FIXME: use heap allocation
-		auto buffer = bufferobj.bytes[];
+		scope buffer = () @trusted { return cast(ubyte[]) theAllocator.allocate(64*1024); }();
+		scope (exit) () @trusted { theAllocator.dispose(buffer); }();
 
 		//logTrace("default write %d bytes, empty=%s", nbytes, stream.empty);
 		if( nbytes == 0 ){
