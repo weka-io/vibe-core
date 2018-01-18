@@ -8,3 +8,4 @@ vibe-core-test-*
 *.sln
 dub.selections.json
 vibe_core.lib
+tests/tests
