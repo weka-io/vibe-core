@@ -359,7 +359,7 @@ final package class TaskFiber : Fiber {
 			while (true) {
 				while (!m_taskFunc.func) {
 					try {
-						logTrace("putting fiber to sleep waiting for new task...");
+						debug (VibeTaskLog) logTrace("putting fiber to sleep waiting for new task...");
 						Fiber.yield();
 					} catch (Exception e) {
 						logWarn("CoreTaskFiber was resumed with exception but without active task!");
@@ -379,9 +379,9 @@ final package class TaskFiber : Fiber {
 
 					debug if (ms_taskEventCallback) ms_taskEventCallback(TaskEvent.start, handle);
 					if (!isEventLoopRunning) {
-						logTrace("Event loop not running at task start - yielding.");
+						debug (VibeTaskLog) logTrace("Event loop not running at task start - yielding.");
 						taskScheduler.yieldUninterruptible();
-						logTrace("Initial resume of task.");
+						debug (VibeTaskLog) logTrace("Initial resume of task.");
 					}
 					task.call();
 					debug if (ms_taskEventCallback) ms_taskEventCallback(TaskEvent.end, handle);
@@ -399,7 +399,7 @@ final package class TaskFiber : Fiber {
 
 				this.tidInfo.ident = Tid.init; // clear message box
 
-				logTrace("Notifying joining tasks.");
+				debug (VibeTaskLog) logTrace("Notifying joining tasks.");
 				m_onExit.emit();
 
 				// make sure that the task does not get left behind in the yielder queue if terminated during yield()
@@ -485,7 +485,7 @@ final package class TaskFiber : Fiber {
 			assert(caller != this.task, "A task cannot interrupt itself.");
 			assert(caller.thread is this.thread, "Interrupting tasks in different threads is not yet supported.");
 		} else assert(() @trusted { return Thread.getThis(); } () is this.thread, "Interrupting tasks in different threads is not yet supported.");
-		logTrace("Resuming task with interrupt flag.");
+		debug (VibeTaskLog) logTrace("Resuming task with interrupt flag.");
 		m_interrupt = true;
 		taskScheduler.switchTo(this.task);
 	}
@@ -500,7 +500,7 @@ final package class TaskFiber : Fiber {
 	@safe nothrow {
 		assert(() @trusted { return Task.getThis().fiber; } () is this, "Handling interrupt outside of the corresponding fiber.");
 		if (m_interrupt && on_interrupt) {
-			logTrace("Handling interrupt flag.");
+			debug (VibeTaskLog) logTrace("Handling interrupt flag.");
 			m_interrupt = false;
 			on_interrupt();
 		}
@@ -634,7 +634,7 @@ package struct TaskScheduler {
 		auto t = Task.getThis();
 		if (t == Task.init) return; // not really a task -> no-op
 		auto tf = () @trusted { return t.taskFiber; } ();
-		logTrace("Yielding (interrupt=%s)", tf.m_interrupt);
+		debug (VibeTaskLog) logTrace("Yielding (interrupt=%s)", tf.m_interrupt);
 		tf.handleInterrupt();
 		if (tf.m_queue !is null) return; // already scheduled to be resumed
 		m_taskQueue.insertBack(tf);
@@ -671,9 +671,9 @@ package struct TaskScheduler {
 			// process pending tasks
 			bool any_tasks_processed = schedule() != ScheduleStatus.idle;
 
-			logTrace("Processing pending events...");
+			debug (VibeTaskLog) logTrace("Processing pending events...");
 			ExitReason er = eventDriver.core.processEvents(0.seconds);
-			logTrace("Done.");
+			debug (VibeTaskLog) logTrace("Done.");
 
 			final switch (er) {
 				case ExitReason.exited: return ExitReason.exited;
@@ -720,9 +720,9 @@ package struct TaskScheduler {
 
 		// if the first run didn't process any events, block and
 		// process one chunk
-		logTrace("Wait for new events to process...");
+		debug (VibeTaskLog) logTrace("Wait for new events to process...");
 		er = eventDriver.core.processEvents(Duration.max);
-		logTrace("Done.");
+		debug (VibeTaskLog) logTrace("Done.");
 		final switch (er) {
 			case ExitReason.exited: return ExitReason.exited;
 			case ExitReason.outOfWaiters:
@@ -781,21 +781,21 @@ package struct TaskScheduler {
 		assert(t.thread is thisthr, "Cannot switch to a task that lives in a different thread.");
 		if (thist == Task.init && defer == No.defer) {
 			assert(TaskFiber.getThis().m_yieldLockCount == 0, "Cannot yield within an active yieldLock()!");
-			logTrace("switch to task from global context");
+			debug (VibeTaskLog) logTrace("switch to task from global context");
 			resumeTask(t);
-			logTrace("task yielded control back to global context");
+			debug (VibeTaskLog) logTrace("task yielded control back to global context");
 		} else {
 			auto tf = () @trusted { return t.taskFiber; } ();
 			auto thistf = () @trusted { return thist.taskFiber; } ();
 			assert(!thistf || !thistf.m_queue, "Calling task is running, but scheduled to be resumed!?");
 			if (tf.m_queue) {
-				logTrace("Task to switch to is already scheduled. Moving to front of queue.");
+				debug (VibeTaskLog) logTrace("Task to switch to is already scheduled. Moving to front of queue.");
 				assert(tf.m_queue is &m_taskQueue, "Task is already enqueued, but not in the main task queue.");
 				m_taskQueue.remove(tf);
 				assert(!tf.m_queue, "Task removed from queue, but still has one set!?");
 			}
 
-			logDebugV("Switching tasks (%s already in queue)", m_taskQueue.length);
+			debug (VibeTaskLog) logDebugV("Switching tasks (%s already in queue)", m_taskQueue.length);
 			if (defer) {
 				m_taskQueue.insertFront(tf);
 			} else {
@@ -834,9 +834,9 @@ package struct TaskScheduler {
 		while (m_taskQueue.front !is m_markerTask) {
 			auto t = m_taskQueue.front;
 			m_taskQueue.popFront();
-			logTrace("resuming task");
+			debug (VibeTaskLog) logTrace("resuming task");
 			resumeTask(t.task);
-			logTrace("task out");
+			debug (VibeTaskLog) logTrace("task out");
 
 			assert(!m_taskQueue.empty, "Marker task got removed from tasks queue!?");
 			if (m_taskQueue.empty) return ScheduleStatus.idle; // handle gracefully in release mode
@@ -845,7 +845,7 @@ package struct TaskScheduler {
 		// remove marker task
 		m_taskQueue.popFront();
 
-		logDebugV("schedule finished - %s tasks left in queue", m_taskQueue.length);
+		debug (VibeTaskLog) logDebugV("schedule finished - %s tasks left in queue", m_taskQueue.length);
 
 		return m_taskQueue.empty ? ScheduleStatus.allProcessed : ScheduleStatus.busy;
 	}
@@ -855,9 +855,9 @@ package struct TaskScheduler {
 	nothrow {
 		import std.encoding : sanitize;
 
-		logTrace("task fiber resume");
+		debug (VibeTaskLog) logTrace("task fiber resume");
 		auto uncaught_exception = () @trusted nothrow { return t.fiber.call!(Fiber.Rethrow.no)(); } ();
-		logTrace("task fiber yielded");
+		debug (VibeTaskLog) logTrace("task fiber yielded");
 
 		if (uncaught_exception) {
 			auto th = cast(Throwable)uncaught_exception;
