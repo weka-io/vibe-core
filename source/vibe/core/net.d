@@ -586,6 +586,31 @@ mixin(tracer);
 		return m_context.readBuffer.length > 0;
 	}
 
+	void waitForDataAsync(void delegate(bool) @safe read_callback, Duration timeout = Duration.max)
+	{
+mixin(tracer);
+		import vibe.core.core : runTask;
+
+		if (!m_context) {
+			runTask(read_callback, false);
+			return;
+		}
+		if (m_context.readBuffer.length > 0) {
+			runTask(read_callback, true);
+			return;
+		}
+
+
+		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
+		bool cancelled;
+		IOStatus status;
+		size_t nbytes;
+		eventDriver.sockets.waitForData(m_socket,
+				(sock, st, nb) { if(st != IOStatus.ok) runTask(read_callback, false);
+					else runTask(read_callback, true);
+				});
+	}
+
 	const(ubyte)[] peek() { return m_context ? m_context.readBuffer.peek() : null; }
 
 	void skip(ulong count)
