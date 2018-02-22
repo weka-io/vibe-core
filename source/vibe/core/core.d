@@ -254,6 +254,7 @@ void exitEventLoop(bool shutdown_all_threads = false)
 	assert(s_eventLoopRunning || shutdown_all_threads, "Exiting event loop when none is running.");
 	if (shutdown_all_threads) {
 		() @trusted nothrow {
+			shutdownWorkerPool();
 			atomicStore(st_term, true);
 			st_threadsSignal.emit();
 		} ();
@@ -1349,13 +1350,8 @@ static ~this()
 	}
 
 	if (is_main_thread) {
-		shared(TaskPool) tpool;
-		synchronized (st_threadsMutex) swap(tpool, st_workerPool);
-		if (tpool) {
-			logDiagnostic("Main thread still waiting for worker threads.");
-			tpool.terminate();
-		}
 		logDiagnostic("Main thread exiting");
+		shutdownWorkerPool();
 	}
 
 	synchronized (st_threadsMutex) {
@@ -1371,6 +1367,19 @@ static ~this()
 	if (!is_main_thread) shutdownDriver();
 
 	st_threadShutdownCondition.notifyAll();
+}
+
+private void shutdownWorkerPool()
+nothrow {
+	shared(TaskPool) tpool;
+
+	try synchronized (st_threadsMutex) swap(tpool, st_workerPool);
+	catch (Exception e) assert(false, e.msg);
+
+	if (tpool) {
+		logDiagnostic("Still waiting for worker threads to exit.");
+		tpool.terminate();
+	}
 }
 
 private void shutdownDriver()
