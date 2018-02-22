@@ -414,6 +414,8 @@ final package class TaskFiber : Fiber {
 					}
 				}
 
+				assert(!m_queue, "Fiber done but still scheduled to be resumed!?");
+
 				// make the fiber available for the next task
 				recycleFiber(this);
 			}
@@ -456,7 +458,7 @@ final package class TaskFiber : Fiber {
 				try call(Fiber.Rethrow.no);
 				catch (Exception e) assert(false, e.msg);
 			} ();
-	}
+		}
 
 	/** Blocks until the task has ended.
 	*/
@@ -779,21 +781,23 @@ package struct TaskScheduler {
 
 		auto thisthr = thist ? thist.thread : () @trusted { return Thread.getThis(); } ();
 		assert(t.thread is thisthr, "Cannot switch to a task that lives in a different thread.");
+
+		auto tf = () @trusted { return t.taskFiber; } ();
+		if (tf.m_queue) {
+			debug (VibeTaskLog) logTrace("Task to switch to is already scheduled. Moving to front of queue.");
+			assert(tf.m_queue is &m_taskQueue, "Task is already enqueued, but not in the main task queue.");
+			m_taskQueue.remove(tf);
+			assert(!tf.m_queue, "Task removed from queue, but still has one set!?");
+		}
+
 		if (thist == Task.init && defer == No.defer) {
 			assert(TaskFiber.getThis().m_yieldLockCount == 0, "Cannot yield within an active yieldLock()!");
 			debug (VibeTaskLog) logTrace("switch to task from global context");
 			resumeTask(t);
 			debug (VibeTaskLog) logTrace("task yielded control back to global context");
 		} else {
-			auto tf = () @trusted { return t.taskFiber; } ();
 			auto thistf = () @trusted { return thist.taskFiber; } ();
 			assert(!thistf || !thistf.m_queue, "Calling task is running, but scheduled to be resumed!?");
-			if (tf.m_queue) {
-				debug (VibeTaskLog) logTrace("Task to switch to is already scheduled. Moving to front of queue.");
-				assert(tf.m_queue is &m_taskQueue, "Task is already enqueued, but not in the main task queue.");
-				m_taskQueue.remove(tf);
-				assert(!tf.m_queue, "Task removed from queue, but still has one set!?");
-			}
 
 			debug (VibeTaskLog) logDebugV("Switching tasks (%s already in queue)", m_taskQueue.length);
 			if (defer) {
@@ -878,6 +882,7 @@ package struct TaskScheduler {
 		debug if (TaskFiber.ms_taskEventCallback) () @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.yield, task); } ();
 		() @trusted { Fiber.yield(); } ();
 		debug if (TaskFiber.ms_taskEventCallback) () @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.resume, task); } ();
+		assert(!task.m_fiber.m_queue, "Task is still scheduled after resumption.");
 	}
 }
 
