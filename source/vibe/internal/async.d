@@ -116,8 +116,6 @@ void asyncAwaitAny(bool interruptible, Waitables...)(string func = __FUNCTION__)
 
 	debug(VibeAsyncLog) logDebugV("Performing %s async operations in %s", Waitables.length, func);
 
-	() @trusted { logDebugV("si %x", &still_inside); } ();
-
 	static string waitableCode()
 	{
 		string ret;
