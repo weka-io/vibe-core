@@ -586,29 +586,39 @@ mixin(tracer);
 		return m_context.readBuffer.length > 0;
 	}
 
-	void waitForDataAsync(void delegate(bool) @safe read_callback, Duration timeout = Duration.max)
+	enum WaitForDataAsyncStatus {
+		noMoreData,
+		dataAvailable,
+		waiting
+	}
+
+	WaitForDataAsyncStatus waitForDataAsync(void delegate(bool) @safe read_callback, Duration timeout = Duration.max)
 	{
 mixin(tracer);
-		import vibe.core.core : runTask;
+		import vibe.core.core : runTask, setTimer, createTimer;
 
 		if (!m_context) {
 			runTask(read_callback, false);
-			return;
+			return WaitForDataAsyncStatus.noMoreData;
 		}
 		if (m_context.readBuffer.length > 0) {
 			runTask(read_callback, true);
-			return;
+			return WaitForDataAsyncStatus.dataAvailable;
 		}
 
+		if (timeout <= 0.seconds) {
+			auto rs = waitForData(0.seconds);
+			auto mode = rs ? WaitForDataAsyncStatus.dataAvailable : WaitForDataAsyncStatus.noMoreData;
+			return mode;
+		}
 
-		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
-		bool cancelled;
-		IOStatus status;
-		size_t nbytes;
-		eventDriver.sockets.waitForData(m_socket,
-				(sock, st, nb) { if(st != IOStatus.ok) runTask(read_callback, false);
+		auto tm = setTimer(timeout, { eventDriver.sockets.cancelRead(m_socket);
+				runTask(read_callback, false); });
+		eventDriver.sockets.read(m_socket, m_context.readBuffer.peekDst(), IOMode.once,
+				(sock, st, nb) { tm.stop(); if(st != IOStatus.ok) runTask(read_callback, false);
 					else runTask(read_callback, true);
 				});
+		return WaitForDataAsyncStatus.waiting;
 	}
 
 	const(ubyte)[] peek() { return m_context ? m_context.readBuffer.peek() : null; }
