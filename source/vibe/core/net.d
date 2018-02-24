@@ -586,12 +586,6 @@ mixin(tracer);
 		return m_context.readBuffer.length > 0;
 	}
 
-	enum WaitForDataAsyncStatus {
-		noMoreData,
-		dataAvailable,
-		waiting
-	}
-
 	WaitForDataAsyncStatus waitForDataAsync(void delegate(bool) @safe read_callback, Duration timeout = Duration.max)
 	{
 mixin(tracer);
@@ -615,8 +609,9 @@ mixin(tracer);
 		auto tm = setTimer(timeout, { eventDriver.sockets.cancelRead(m_socket);
 				runTask(read_callback, false); });
 		eventDriver.sockets.read(m_socket, m_context.readBuffer.peekDst(), IOMode.once,
-				(sock, st, nb) { tm.stop(); if(st != IOStatus.ok) runTask(read_callback, false);
-					else runTask(read_callback, true);
+				(sock, st, nb) { tm.stop(); assert(m_context.readBuffer.length == 0);
+					m_context.readBuffer.putN(nb);
+					runTask(read_callback, m_context.readBuffer.length > 0);
 				});
 		return WaitForDataAsyncStatus.waiting;
 	}
@@ -718,6 +713,16 @@ mixin(tracer);
 		}
 	}
 }
+
+/** Represents possible return values for
+    TCPConnection.waitForDataAsync.
+*/
+enum WaitForDataAsyncStatus {
+	noMoreData,
+	dataAvailable,
+	waiting,
+}
+
 
 mixin validateConnectionStream!TCPConnection;
 
