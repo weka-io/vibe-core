@@ -586,33 +586,58 @@ mixin(tracer);
 		return m_context.readBuffer.length > 0;
 	}
 
-	WaitForDataAsyncStatus waitForDataAsync(void delegate(bool) @safe read_callback, Duration timeout = Duration.max)
+	/** Waits asynchronously for new data to arrive.
+
+		This function can be used to detach the `TCPConnection` from a
+		running task while waiting for data, so that the associated memory
+		resources are available for other operations.
+
+		Note that `read_ready_callback` may be called from outside of a
+		task, so no blocking operations may be performed. Instead, an existing
+		task should be notified, or a new one started with `runTask`.
+
+		Params:
+			read_ready_callback = A callback taking a `bool` parameter that
+				signals the read-readiness of the connection
+			timeout = Optional timeout to limit the maximum wait time
+
+		Returns:
+			If the read readiness can be determined immediately, it will be
+			returned as  WaitForDataAsyncStatus.sataAvailable` or
+			`WaitForDataAsyncStatus.noModeData` and the callback will not be
+			invoked. Otherwise `WaitForDataAsyncStatus.waiting` is returned
+			and the callback will be invoked once the status can be
+			determined or the specified timeout is reached.
+	*/
+	WaitForDataAsyncStatus waitForDataAsync(CALLABLE)(CALLABLE read_ready_callback, Duration timeout = Duration.max)
+		if (is(typeof(CALLABLE(true)))
 	{
 mixin(tracer);
-		import vibe.core.core : runTask, setTimer, createTimer;
+		import vibe.core.core : setTimer;
 
-		if (!m_context) {
-			runTask(read_callback, false);
+		if (!m_context)
 			return WaitForDataAsyncStatus.noMoreData;
-		}
-		if (m_context.readBuffer.length > 0) {
-			runTask(read_callback, true);
+
+		if (m_context.readBuffer.length > 0)
 			return WaitForDataAsyncStatus.dataAvailable;
-		}
 
 		if (timeout <= 0.seconds) {
 			auto rs = waitForData(0.seconds);
-			auto mode = rs ? WaitForDataAsyncStatus.dataAvailable : WaitForDataAsyncStatus.noMoreData;
-			return mode;
+			return rs ? WaitForDataAsyncStatus.dataAvailable : WaitForDataAsyncStatus.noMoreData;
 		}
 
-		auto tm = setTimer(timeout, { eventDriver.sockets.cancelRead(m_socket);
-				runTask(read_callback, false); });
+		auto tm = setTimer(timeout, {
+			eventDriver.sockets.cancelRead(m_socket);
+			read_ready_callback(false);
+		});
 		eventDriver.sockets.read(m_socket, m_context.readBuffer.peekDst(), IOMode.once,
-				(sock, st, nb) { tm.stop(); assert(m_context.readBuffer.length == 0);
-					m_context.readBuffer.putN(nb);
-					runTask(read_callback, m_context.readBuffer.length > 0);
-				});
+			(sock, st, nb) {
+				tm.stop();
+				assert(m_context.readBuffer.length == 0);
+				m_context.readBuffer.putN(nb);
+				read_ready_callback(m_context.readBuffer.length > 0);
+			});
+
 		return WaitForDataAsyncStatus.waiting;
 	}
 
