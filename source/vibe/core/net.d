@@ -610,7 +610,7 @@ mixin(tracer);
 			determined or the specified timeout is reached.
 	*/
 	WaitForDataAsyncStatus waitForDataAsync(CALLABLE)(CALLABLE read_ready_callback, Duration timeout = Duration.max)
-		if (is(typeof(CALLABLE(true)))
+		if (is(typeof(read_ready_callback(true))))
 	{
 mixin(tracer);
 		import vibe.core.core : setTimer;
