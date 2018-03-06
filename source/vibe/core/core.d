@@ -1140,8 +1140,8 @@ package(vibe) void performIdleProcessing()
 
 		if (again) {
 			auto er = eventDriver.core.processEvents(0.seconds);
-			if (er.among!(ExitReason.exited, ExitReason.outOfWaiters)) {
-				logDebug("Setting exit flag due to driver signalling exit");
+			if (er.among!(ExitReason.exited, ExitReason.outOfWaiters) && s_scheduler.scheduledTaskCount == 0) {
+				logDebug("Setting exit flag due to driver signalling exit: %s", er);
 				s_exitEventLoop = true;
 				return;
 			}
