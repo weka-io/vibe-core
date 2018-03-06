@@ -304,7 +304,7 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 	static if( N == 0 ){
 		bool m_freeOnDestruct;
 		this(size_t capacity) { m_buffer = new T[capacity]; }
-		~this() { if (m_freeOnDestruct && m_buffer.length > 0) delete m_buffer; }
+		~this() { if (m_freeOnDestruct && m_buffer.length > 0) deleteCompat(m_buffer); }
 	}
 
 	@property bool empty() const { return m_fill == 0; }
@@ -323,7 +323,7 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 		/// Resets the capacity to zero and explicitly frees the memory for the buffer.
 		void dispose()
 		{
-			delete m_buffer;
+			deleteCompat(m_buffer);
 			m_buffer = null;
 			m_start = m_fill = 0;
 		}
@@ -336,14 +336,14 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 				auto newfill = min(m_fill, new_size);
 				read(dst[0 .. newfill]);
 				if (m_freeOnDestruct && m_buffer.length > 0) () @trusted {
-					delete m_buffer;
+					deleteCompat(m_buffer);
 				} ();
 				m_buffer = newbuffer;
 				m_start = 0;
 				m_fill = newfill;
 			} else {
 				if (m_freeOnDestruct && m_buffer.length > 0) () @trusted {
-					delete m_buffer;
+					deleteCompat(m_buffer);
 				} ();
 				m_buffer = new T[new_size];
 			}
@@ -648,4 +648,12 @@ struct ArraySet(Key)
 		foreach (ref k; m_staticEntries) if (k == key) { k = Key.init; return; }
 		foreach (ref k; m_entries) if (k == key) { k = Key.init; return; }
 	}
+}
+
+private void deleteCompat(T)(ref T v)
+{
+	static if (__VERSION__ >= 2079) {
+		import core.memory : __delete;
+		__delete(v);
+	} else mixin("delete v;");
 }
