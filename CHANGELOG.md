@@ -1,16 +1,21 @@
-1.4.0 - 2017-02-
+1.4.0 - 2017-03-08
 ==================
 
-- Compiles on DMD 2.072.2 up to 2.078.3
+- Compiles on DMD 2.072.2 up to 2.079.0
 - Uses the stdx-allocator package instead of `std.experimental.allocator` - note that this change requires version 0.8.3 of vibe-d to be used
 - Added `TCPConnection.waitForDataAsync` to enable temporary detachment of a TCP connection from a fiber (by Francesco Mecca) - [pull #62][issue62]
 - Fixed `TCPConnection.leastSize` to return numbers greater than one (by Pavel Chebotarev aka nexor) - [pull #52][issue52]
 - Fixed a task scheduling assertion happening when worker tasks and timers were involved - [issue #58][issue58], [pull #60][issue60]
+- Fixed a race condition in `TaskPool` leading to random assertion failures - [7703cc6][commit7703cc6]
+- Fixed an issue where the event loop would exit prematurely when calling `yield` - [issue #66][issue66], [pull #67][issue67]
 
 [issue52]: https://github.com/vibe-d/vibe-core/issues/52
 [issue58]: https://github.com/vibe-d/vibe-core/issues/58
 [issue60]: https://github.com/vibe-d/vibe-core/issues/60
 [issue62]: https://github.com/vibe-d/vibe-core/issues/62
+[issue66]: https://github.com/vibe-d/vibe-core/issues/66
+[issue67]: https://github.com/vibe-d/vibe-core/issues/67
+[commit7703cc6]: https://github.com/vibe-d/vibe-core/commit/7703cc675f5ce56c1c8b4948e3f040453fd09791
 
 
 1.3.0 - 2017-12-03
