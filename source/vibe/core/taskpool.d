@@ -220,9 +220,12 @@ shared final class TaskPool {
 		static assert(areConvertibleTo!(Group!ARGS, Group!FARGS),
 			"Cannot convert arguments '"~ARGS.stringof~"' to function arguments '"~FARGS.stringof~"'.");
 
-		foreach (thr; m_state.lock.threads) {
-			// create one TFI per thread to properly account for elaborate assignment operators/postblit
-			thr.m_queue.put(callable, args);
+		{
+			auto st = m_state.lock;
+			foreach (thr; st.threads) {
+				// create one TFI per thread to properly account for elaborate assignment operators/postblit
+				thr.m_queue.put(callable, args);
+			}
 		}
 		m_signal.emit();
 	}
