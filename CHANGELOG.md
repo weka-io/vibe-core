@@ -8,13 +8,16 @@
 - Fixed a task scheduling assertion happening when worker tasks and timers were involved - [issue #58][issue58], [pull #60][issue60]
 - Fixed a race condition in `TaskPool` leading to random assertion failures - [7703cc6][commit7703cc6]
 - Fixed an issue where the event loop would exit prematurely when calling `yield` - [issue #66][issue66], [pull #67][issue67]
+- Fixed/worked around a linker error on LDC/macOS - [issue #65][issue65], [pull #68][issue68]
 
 [issue52]: https://github.com/vibe-d/vibe-core/issues/52
 [issue58]: https://github.com/vibe-d/vibe-core/issues/58
 [issue60]: https://github.com/vibe-d/vibe-core/issues/60
 [issue62]: https://github.com/vibe-d/vibe-core/issues/62
+[issue65]: https://github.com/vibe-d/vibe-core/issues/65
 [issue66]: https://github.com/vibe-d/vibe-core/issues/66
 [issue67]: https://github.com/vibe-d/vibe-core/issues/67
+[issue68]: https://github.com/vibe-d/vibe-core/issues/68
 [commit7703cc6]: https://github.com/vibe-d/vibe-core/commit/7703cc675f5ce56c1c8b4948e3f040453fd09791
 
 
