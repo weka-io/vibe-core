@@ -201,7 +201,7 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 
 		alias waiter = Waitable!(ConnectCallback,
 			cb => eventDriver.sockets.connectStream(uaddr, baddr, cb),
-			(ConnectCallback cb, StreamSocketFD sock_fd) {
+			(cb, sock_fd) {
 				cancelled = true;
 				eventDriver.sockets.cancelConnectStream(sock_fd);
 			},
@@ -610,7 +610,7 @@ mixin(tracer);
 			determined or the specified timeout is reached.
 	*/
 	WaitForDataAsyncStatus waitForDataAsync(CALLABLE)(CALLABLE read_ready_callback, Duration timeout = Duration.max)
-		if (is(typeof(read_ready_callback(true))))
+		if (is(typeof(() @safe { read_ready_callback(true); } ())))
 	{
 mixin(tracer);
 		import vibe.core.core : setTimer;

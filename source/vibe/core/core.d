@@ -991,7 +991,7 @@ struct FileDescriptorEvent {
 		alias readwaiter = Waitable!(IOCallback,
 			cb => eventDriver.sockets.waitForData(m_socket, cb),
 			cb => eventDriver.sockets.cancelRead(m_socket),
-			(StreamSocketFD fd, IOStatus st, size_t nb) { got_data = st == IOStatus.ok; }
+			(fd, st, nb) { got_data = st == IOStatus.ok; }
 		);
 
 		asyncAwaitAny!(true, readwaiter)(timeout);
