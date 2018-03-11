@@ -90,7 +90,8 @@ final class ConnectionPool(Connection)
 		} else {
 			logDebug("creating new %s connection, all %d are in use", Connection.stringof, m_connections.length);
 			conn = m_connectionFactory(); // NOTE: may block
-			logDebug(" ... %s", () @trusted { return cast(void*)conn; } ());
+			static if (is(typeof(cast(void*)conn)))
+				logDebug(" ... %s", () @trusted { return cast(void*)conn; } ());
 		}
 		m_lockCount[conn] = 1;
 		if( cidx == size_t.max ){
@@ -131,6 +132,12 @@ unittest {
 	c3.write();
 }
 
+unittest { // issue vibe-d#2109
+	import vibe.core.net : TCPConnection, connectTCP;
+	new ConnectionPool!TCPConnection({ return connectTCP("127.0.0.1", 8080); });
+}
+
+
 struct LockedConnection(Connection) {
 	import vibe.core.task : Task;
 
@@ -145,7 +152,7 @@ struct LockedConnection(Connection) {
 
 	private this(ConnectionPool!Connection pool, Connection conn)
 	{
-		assert(conn !is null);
+		assert(!!conn);
 		m_pool = pool;
 		m_conn = conn;
 		m_task = Task.getThis();
@@ -154,18 +161,19 @@ struct LockedConnection(Connection) {
 	this(this)
 	{
 		debug assert(m_magic == 0xB1345AC2, "LockedConnection value corrupted.");
-		if( m_conn ){
+		if (!!m_conn) {
 			auto fthis = Task.getThis();
 			assert(fthis is m_task);
 			m_pool.m_lockCount[m_conn]++;
-			logTrace("conn %s copy %d", () @trusted { return cast(void*)m_conn; } (), m_pool.m_lockCount[m_conn]);
+			static if (is(typeof(cast(void*)conn)))
+				logTrace("conn %s copy %d", () @trusted { return cast(void*)m_conn; } (), m_pool.m_lockCount[m_conn]);
 		}
 	}
 
 	~this()
 	{
 		debug assert(m_magic == 0xB1345AC2, "LockedConnection value corrupted.");
-		if( m_conn ){
+		if (!!m_conn) {
 			auto fthis = Task.getThis();
 			assert(fthis is m_task, "Locked connection destroyed in foreign task.");
 			auto plc = m_conn in m_pool.m_lockCount;
@@ -176,7 +184,7 @@ struct LockedConnection(Connection) {
 				() @trusted { m_pool.m_sem.unlock(); } ();
 				//logTrace("conn %s release", cast(void*)m_conn);
 			}
-			m_conn = null;
+			m_conn = Connection.init;
 		}
 	}
 
