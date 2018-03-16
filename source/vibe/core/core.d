@@ -12,6 +12,7 @@ public import vibe.core.task;
 import eventcore.core;
 import vibe.core.args;
 import vibe.core.concurrency;
+import vibe.core.internal.release;
 import vibe.core.log;
 import vibe.core.sync : ManualEvent, createSharedManualEvent;
 import vibe.core.taskpool : TaskPool;
@@ -940,8 +941,13 @@ struct FileDescriptorEvent {
 	}
 
 	private {
+		static struct Context {
+			Trigger trigger;
+			shared(NativeEventDriver) driver;
+		}
+
 		StreamSocketFD m_socket;
-		Trigger m_trigger;
+		Context* m_context;
 	}
 
 	@safe:
@@ -949,7 +955,9 @@ struct FileDescriptorEvent {
 	private this(int fd, Trigger event_mask)
 	nothrow {
 		m_socket = eventDriver.sockets.adoptStream(fd);
-		m_trigger = event_mask;
+		m_context = () @trusted { return &eventDriver.sockets.userData!Context(m_socket); } ();
+		m_context.trigger = event_mask;
+		m_context.driver = () @trusted { return cast(shared)eventDriver; } ();
 	}
 
 	this(this)
@@ -961,7 +969,7 @@ struct FileDescriptorEvent {
 	~this()
 	nothrow {
 		if (m_socket != StreamSocketFD.invalid)
-			eventDriver.sockets.releaseRef(m_socket);
+			releaseHandle!"sockets"(m_socket, m_context.driver);
 	}
 
 
@@ -982,9 +990,9 @@ struct FileDescriptorEvent {
 	/// ditto
 	bool wait(Duration timeout, Trigger which = Trigger.any)
 	{
-		if ((which & m_trigger) == Trigger.none) return true;
+		if ((which & m_context.trigger) == Trigger.none) return true;
 
-		assert((which & m_trigger) == Trigger.read, "Waiting for write event not yet supported.");
+		assert((which & m_context.trigger) == Trigger.read, "Waiting for write event not yet supported.");
 
 		bool got_data;
 
@@ -1006,7 +1014,7 @@ struct FileDescriptorEvent {
 */
 struct Timer {
 	private {
-		typeof(eventDriver.timers) m_driver;
+		NativeEventDriver m_driver;
 		TimerID m_id;
 		debug uint m_magicNumber = 0x4d34f916;
 	}
@@ -1016,24 +1024,25 @@ struct Timer {
 	private this(TimerID id)
 	nothrow {
 		assert(id != TimerID.init, "Invalid timer ID.");
-		m_driver = eventDriver.timers;
+		m_driver = eventDriver;
 		m_id = id;
 	}
 
 	this(this)
 	nothrow {
 		debug assert(m_magicNumber == 0x4d34f916, "Timer corrupted.");
-		if (m_driver) m_driver.addRef(m_id);
+		if (m_driver) m_driver.timers.addRef(m_id);
 	}
 
 	~this()
 	nothrow {
 		debug assert(m_magicNumber == 0x4d34f916, "Timer corrupted.");
-		if (m_driver) m_driver.releaseRef(m_id);
+		if (m_driver)
+			releaseHandle!"timers"(m_id, () @trusted { return cast(shared)m_driver; } ());
 	}
 
 	/// True if the timer is yet to fire.
-	@property bool pending() nothrow { return m_driver.isPending(m_id); }
+	@property bool pending() nothrow { return m_driver.timers.isPending(m_id); }
 
 	/// The internal ID of the timer.
 	@property size_t id() const nothrow { return m_id; }
@@ -1041,25 +1050,25 @@ struct Timer {
 	bool opCast() const nothrow { return m_driver !is null; }
 
 	/// Determines if this reference is the only one
-	@property bool unique() const nothrow { return m_driver ? m_driver.isUnique(m_id) : false; }
+	@property bool unique() const nothrow { return m_driver ? m_driver.timers.isUnique(m_id) : false; }
 
 	/** Resets the timer to the specified timeout
 	*/
 	void rearm(Duration dur, bool periodic = false) nothrow
 		in { assert(dur > 0.seconds, "Negative timer duration specified."); }
-		body { m_driver.set(m_id, dur, periodic ? dur : 0.seconds); }
+		body { m_driver.timers.set(m_id, dur, periodic ? dur : 0.seconds); }
 
 	/** Resets the timer and avoids any firing.
 	*/
-	void stop() nothrow { if (m_driver) m_driver.stop(m_id); }
+	void stop() nothrow { if (m_driver) m_driver.timers.stop(m_id); }
 
 	/** Waits until the timer fires.
 	*/
 	void wait()
 	{
 		asyncAwait!(TimerCallback,
-			cb => m_driver.wait(m_id, cb),
-			cb => m_driver.cancelWait(m_id)
+			cb => m_driver.timers.wait(m_id, cb),
+			cb => m_driver.timers.cancelWait(m_id)
 		);
 	}
 }
