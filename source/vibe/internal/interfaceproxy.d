@@ -336,3 +336,53 @@ private string parameterNames(alias F)()
 }
 
 private alias ProxyOf(I) = InterfaceProxy!I.Proxy;
+
+
+unittest {
+	static interface I {
+		@property int count() const;
+	}
+
+	static struct S {
+		int* cnt;
+		this(bool) { cnt = new int; *cnt = 1; }
+		this(this) { if (cnt) (*cnt)++; }
+		~this() { if (cnt) (*cnt)--; }
+		@property int count() const { return cnt ? *cnt : 0; }
+	}
+
+	auto s = S(true);
+	assert(s.count == 1);
+
+	auto t = interfaceProxy!I(s);
+	assert(s.count == 2);
+
+	t = interfaceProxy!I(s);
+	assert(s.count == 2);
+
+	t = s;
+	assert(s.count == 2);
+
+	s = S.init;
+	assert(t.count == 1);
+
+	s = t.extract!S;
+	assert(s.count == 2);
+
+	t = InterfaceProxy!I.init;
+	assert(s.count == 1);
+
+	t = s;
+	assert(s.count == 2);
+
+	s = S(true);
+	assert(s.count == 1);
+	assert(t.count == 1);
+
+	{
+		InterfaceProxy!I u;
+		u = s;
+		assert(u.count == 2);
+	}
+	assert(s.count == 1);
+}
