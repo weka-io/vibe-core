@@ -7,8 +7,9 @@
 */
 module vibe.core.file;
 
-import eventcore.core : eventDriver;
+import eventcore.core : NativeEventDriver, eventDriver;
 import eventcore.driver;
+import vibe.core.internal.release;
 import vibe.core.log;
 import vibe.core.path;
 import vibe.core.stream;
@@ -395,6 +396,7 @@ struct FileStream {
 		ulong size;
 		FileMode mode;
 		ulong ptr;
+		shared(NativeEventDriver) driver;
 	}
 
 	private {
@@ -410,6 +412,7 @@ struct FileStream {
 		m_ctx.path = path;
 		m_ctx.mode = mode;
 		m_ctx.size = eventDriver.files.getSize(fd);
+		m_ctx.driver = () @trusted { return cast(shared)eventDriver; } ();
 	}
 
 	this(this)
@@ -421,7 +424,7 @@ struct FileStream {
 	~this()
 	{
 		if (m_fd != FileFD.invalid)
-			eventDriver.files.releaseRef(m_fd);
+			releaseHandle!"files"(m_fd, m_ctx.driver);
 	}
 
 	@property int fd() { return cast(int)m_fd; }
@@ -453,9 +456,10 @@ struct FileStream {
 	void close()
 	{
 		if (m_fd != FileFD.init) {
-			eventDriver.files.close(m_fd);
-			eventDriver.files.releaseRef(m_fd);
+			eventDriver.files.close(m_fd); // FIXME: may leave dangling references!
+			releaseHandle!"files"(m_fd, m_ctx.driver);
 			m_fd = FileFD.init;
+			m_ctx = null;
 		}
 	}
 
@@ -578,6 +582,7 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 		bool recursive;
 		Appender!(DirectoryChange[]) changes;
 		LocalManualEvent changeEvent;
+		shared(NativeEventDriver) driver;
 
 		void onChange(WatcherID, in ref FileChange change)
 		nothrow {
@@ -611,10 +616,15 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 		m_context.path = path;
 		m_context.recursive = recursive;
 		m_context.changes = appender!(DirectoryChange[]);
+		m_context.driver = () @trusted { return cast(shared)eventDriver; } ();
 	}
 
 	this(this) nothrow { if (m_watcher != WatcherID.invalid) eventDriver.watchers.addRef(m_watcher); }
-	~this() nothrow { if (m_watcher != WatcherID.invalid) eventDriver.watchers.releaseRef(m_watcher); }
+	~this()
+	nothrow {
+		if (m_watcher != WatcherID.invalid)
+			releaseHandle!"watchers"(m_watcher, m_context.driver);
+	}
 
 	/// The path of the watched directory
 	@property NativePath path() const nothrow { return m_context.path; }

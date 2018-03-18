@@ -1267,8 +1267,10 @@ private final class ThreadLocalWaiter(bool EVENT_TRIGGERED) {
 	static if (EVENT_TRIGGERED) {
 		~this()
 		{
+			import vibe.core.internal.release : releaseHandle;
+
 			if (m_event != EventID.invalid)
-				eventDriver.events.releaseRef(m_event);
+				releaseHandle!"events"(m_event, () @trusted { return cast(shared)m_driver; } ());
 		}
 	}
 

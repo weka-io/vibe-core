@@ -12,6 +12,7 @@ import std.exception : enforce;
 import std.format : format;
 import std.functional : toDelegate;
 import std.socket : AddressFamily, UnknownAddress;
+import vibe.core.internal.release;
 import vibe.core.log;
 import vibe.core.stream;
 import vibe.internal.async;
@@ -477,6 +478,7 @@ struct TCPConnection {
 		bool keepAlive = false;
 		Duration readTimeout = Duration.max;
 		string remoteAddressString;
+		shared(NativeEventDriver) driver;
 	}
 
 	private {
@@ -491,6 +493,7 @@ struct TCPConnection {
 		m_socket = socket;
 		m_context = () @trusted { return &eventDriver.sockets.userData!Context(socket); } ();
 		m_context.readBuffer.capacity = 4096;
+		m_context.driver = () @trusted { return cast(shared)eventDriver; } ();
 	}
 
 	this(this)
@@ -502,7 +505,7 @@ struct TCPConnection {
 	~this()
 	nothrow {
 		if (m_socket != StreamSocketFD.invalid)
-			eventDriver.sockets.releaseRef(m_socket);
+			releaseHandle!"sockets"(m_socket, m_context.driver);
 	}
 
 	bool opCast(T)() const nothrow if (is(T == bool)) { return m_socket != StreamSocketFD.invalid; }
@@ -543,7 +546,7 @@ struct TCPConnection {
 		//logInfo("close %s", cast(int)m_fd);
 		if (m_socket != StreamSocketFD.invalid) {
 			eventDriver.sockets.shutdown(m_socket, true, true);
-			eventDriver.sockets.releaseRef(m_socket);
+			releaseHandle!"sockets"(m_socket, m_context.driver);
 			m_socket = StreamSocketFD.invalid;
 			m_context = null;
 		}
@@ -783,12 +786,19 @@ struct TCPListener {
 	//        the previous behavior of keeping the socket alive when the listener isn't stored. At the same time,
 	//        stopListening() needs to keep working.
 	private {
+		static struct Context {
+			shared(NativeEventDriver) driver;
+		}
+
 		StreamListenSocketFD m_socket;
+		Context* m_context;
 	}
 
 	this(StreamListenSocketFD socket)
 	{
 		m_socket = socket;
+		m_context = () @trusted { return &eventDriver.sockets.userData!Context(m_socket); } ();
+		m_context.driver = () @trusted { return cast(shared)eventDriver; } ();
 	}
 
 	bool opCast(T)() const nothrow if (is(T == bool)) { return m_socket != StreamListenSocketFD.invalid; }
@@ -807,7 +817,7 @@ struct TCPListener {
 	void stopListening()
 	{
 		if (m_socket != StreamListenSocketFD.invalid) {
-			eventDriver.sockets.releaseRef(m_socket);
+			releaseHandle!"sockets"(m_socket, m_context.driver);
 			m_socket = StreamListenSocketFD.invalid;
 		}
 	}
@@ -820,6 +830,7 @@ struct TCPListener {
 struct UDPConnection {
 	static struct Context {
 		bool canBroadcast;
+		shared(NativeEventDriver) driver;
 	}
 
 	private {
@@ -833,19 +844,20 @@ struct UDPConnection {
 		m_socket = eventDriver.sockets.createDatagramSocket(baddr, null);
 		enforce(m_socket != DatagramSocketFD.invalid, "Failed to create datagram socket.");
 		m_context = () @trusted { return &eventDriver.sockets.userData!Context(m_socket); } ();
+		m_context.driver = () @trusted { return cast(shared)eventDriver; } ();
 	}
 
 
 	this(this)
 	nothrow {
-		if (m_socket != StreamSocketFD.invalid)
+		if (m_socket != DatagramSocketFD.invalid)
 			eventDriver.sockets.addRef(m_socket);
 	}
 
 	~this()
 	nothrow {
-		if (m_socket != StreamSocketFD.invalid)
-			eventDriver.sockets.releaseRef(m_socket);
+		if (m_socket != DatagramSocketFD.invalid)
+			releaseHandle!"sockets"(m_socket, m_context.driver);
 	}
 
 	bool opCast(T)() const nothrow if (is(T == bool)) { return m_socket != DatagramSocketFD.invalid; }
@@ -896,7 +908,14 @@ struct UDPConnection {
 
 	/** Stops listening for datagrams and frees all resources.
 	*/
-	void close() { eventDriver.sockets.releaseRef(m_socket); m_socket = DatagramSocketFD.init; }
+	void close()
+	{
+		if (m_socket != DatagramSocketFD.invalid) {
+			releaseHandle!"sockets"(m_socket, m_context.driver);
+			m_socket = DatagramSocketFD.init;
+			m_context = null;
+		}
+	}
 
 	/** Locks the UDP connection to a certain peer.
 
