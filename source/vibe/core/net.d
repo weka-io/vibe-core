@@ -39,6 +39,7 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 	else import core.sys.posix.netinet.in_ : sockaddr_in, sockaddr_in6;
 
 	enforce(host.length > 0, "Host name must not be empty.");
+	// FIXME: this check needs to be more specific to not disallow valid DNS names
 	if (host[0] == ':' || host[0] >= '0' && host[0] <= '9') {
 		auto addr = parseAddress(host);
 		enforce(address_family == AddressFamily.UNSPEC || addr.addressFamily == address_family);
@@ -135,6 +136,7 @@ TCPListener listenTCP(ushort port, void delegate(TCPConnection) connection_callb
 		catch (Exception e) {
 			logError("Handling of connection failed: %s", e.msg);
 			conn.close();
+			logDebug("Full error: %s", e);
 		}
 	}, address, options);
 }
@@ -204,7 +206,8 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 			cb => eventDriver.sockets.connectStream(uaddr, baddr, cb),
 			(cb, sock_fd) {
 				cancelled = true;
-				eventDriver.sockets.cancelConnectStream(sock_fd);
+				if (sock_fd != SocketFD.invalid)
+					eventDriver.sockets.cancelConnectStream(sock_fd);
 			},
 			(fd, st) { sock = fd; status = st; }
 		);
