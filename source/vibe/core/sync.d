@@ -1027,8 +1027,8 @@ struct ManualEvent {
 		int ec = this.emitCount;
 
 		acquireThreadWaiter((scope ThreadWaiter w) {
-			while (ec <= emit_count) {
-				w.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max, ms_threadEvent, () => this.emitCount > emit_count);
+			while (ec - emit_count <= 0) {
+				w.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max, ms_threadEvent, () => (this.emitCount - emit_count) > 0);
 				ec = this.emitCount;
 
 				if (timeout != Duration.max) {
