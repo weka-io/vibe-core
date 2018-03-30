@@ -778,7 +778,7 @@ struct LocalManualEvent {
 			target_timeout = now + timeout;
 		}
 
-		while (m_waiter.m_emitCount - emit_count > 0) {
+		while (m_waiter.m_emitCount - emit_count >= 0) {
 			m_waiter.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max);
 			try now = Clock.currTime(UTC());
 			catch (Exception e) { assert(false, e.msg); }
