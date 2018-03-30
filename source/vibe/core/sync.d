@@ -743,8 +743,8 @@ struct LocalManualEvent {
 	*/
 	int wait() { return wait(this.emitCount); }
 
-	/** Acquires ownership and waits until the emit count differs from the
-		given one or until a timeout is reached.
+	/** Acquires ownership and waits until the signal is emitted and the emit
+		count is larger than a given one.
 
 		Throws:
 			May throw an $(D InterruptException) if the task gets interrupted
@@ -778,7 +778,7 @@ struct LocalManualEvent {
 			target_timeout = now + timeout;
 		}
 
-		while (m_waiter.m_emitCount - emit_count >= 0) {
+		while (m_waiter.m_emitCount - emit_count <= 0) {
 			m_waiter.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max);
 			try now = Clock.currTime(UTC());
 			catch (Exception e) { assert(false, e.msg); }
