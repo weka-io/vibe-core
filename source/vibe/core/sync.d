@@ -778,7 +778,7 @@ struct LocalManualEvent {
 			target_timeout = now + timeout;
 		}
 
-		while (m_waiter.m_emitCount <= emit_count) {
+		while (m_waiter.m_emitCount - emit_count > 0) {
 			m_waiter.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max);
 			try now = Clock.currTime(UTC());
 			catch (Exception e) { assert(false, e.msg); }
@@ -800,6 +800,22 @@ unittest {
 		e.emit();
 		sleep(50.msecs);
 		assert(!w1.running && !w2.running);
+		exitEventLoop();
+	});
+	runEventLoop();
+}
+
+unittest {
+	import vibe.core.core : exitEventLoop, runEventLoop, runTask, sleep;
+	auto e = createManualEvent();
+	// integer overflow test
+	e.m_waiter.m_emitCount = int.max;
+	auto w1 = runTask({ e.wait(50.msecs, e.emitCount); });
+	runTask({
+		sleep(5.msecs);
+		e.emit();
+		sleep(50.msecs);
+		assert(!w1.running);
 		exitEventLoop();
 	});
 	runEventLoop();
