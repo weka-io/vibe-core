@@ -395,6 +395,21 @@ package Task runTask_internal(alias TFI_SETUP)()
 	return handle;
 }
 
+unittest { // ensure task.running is true directly after runTask
+	Task t;
+	bool hit = false;
+	{
+		auto l = yieldLock();
+		t = runTask({ hit = true; });
+		assert(!hit);
+		assert(t.running);
+	}
+	t.join();
+	assert(!t.running);
+	assert(hit);
+}
+
+
 /**
 	Runs a new asynchronous task in a worker thread.
 
