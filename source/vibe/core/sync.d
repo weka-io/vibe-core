@@ -743,8 +743,8 @@ struct LocalManualEvent {
 	*/
 	int wait() { return wait(this.emitCount); }
 
-	/** Acquires ownership and waits until the emit count differs from the
-		given one or until a timeout is reached.
+	/** Acquires ownership and waits until the signal is emitted and the emit
+		count is larger than a given one.
 
 		Throws:
 			May throw an $(D InterruptException) if the task gets interrupted
@@ -778,7 +778,7 @@ struct LocalManualEvent {
 			target_timeout = now + timeout;
 		}
 
-		while (m_waiter.m_emitCount <= emit_count) {
+		while (m_waiter.m_emitCount - emit_count <= 0) {
 			m_waiter.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max);
 			try now = Clock.currTime(UTC());
 			catch (Exception e) { assert(false, e.msg); }
@@ -800,6 +800,22 @@ unittest {
 		e.emit();
 		sleep(50.msecs);
 		assert(!w1.running && !w2.running);
+		exitEventLoop();
+	});
+	runEventLoop();
+}
+
+unittest {
+	import vibe.core.core : exitEventLoop, runEventLoop, runTask, sleep;
+	auto e = createManualEvent();
+	// integer overflow test
+	e.m_waiter.m_emitCount = int.max;
+	auto w1 = runTask({ e.wait(50.msecs, e.emitCount); });
+	runTask({
+		sleep(5.msecs);
+		e.emit();
+		sleep(50.msecs);
+		assert(!w1.running);
 		exitEventLoop();
 	});
 	runEventLoop();
@@ -1011,8 +1027,8 @@ struct ManualEvent {
 		int ec = this.emitCount;
 
 		acquireThreadWaiter((scope ThreadWaiter w) {
-			while (ec <= emit_count) {
-				w.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max, ms_threadEvent, () => this.emitCount > emit_count);
+			while (ec - emit_count <= 0) {
+				w.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max, ms_threadEvent, () => (this.emitCount - emit_count) > 0);
 				ec = this.emitCount;
 
 				if (timeout != Duration.max) {
