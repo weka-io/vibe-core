@@ -67,13 +67,15 @@ struct Task {
 		@property size_t taskCounter() const @safe { return m_taskCounter; }
 		@property inout(Thread) thread() inout @trusted { if (m_fiber) return this.taskFiber.thread; return null; }
 
-		/** Determines if the task is still running.
+		/** Determines if the task is still running or scheduled to be run.
 		*/
 		@property bool running() // FIXME: this is NOT thread safe
 		const @trusted {
 			assert(m_fiber !is null, "Invalid task handle");
 			try if (this.taskFiber.state == Fiber.State.TERM) return false; catch (Throwable) {}
-			return this.taskFiber.m_running && this.taskFiber.m_taskCounter == m_taskCounter;
+			if (this.taskFiber.m_taskCounter != m_taskCounter)
+				return false;
+			return this.taskFiber.m_running || this.taskFiber.m_taskFunc.func !is null;
 		}
 
 		package @property ref ThreadInfo tidInfo() @system { return m_fiber ? taskFiber.tidInfo : s_tidInfo; } // FIXME: this is not thread safe!
@@ -465,7 +467,7 @@ final package class TaskFiber : Fiber {
 	void join(bool interruptiple)(size_t task_counter)
 	@trusted {
 		auto cnt = m_onExit.emitCount;
-		while (m_running && m_taskCounter == task_counter) {
+		while ((m_running || m_taskFunc.func !is null) && m_taskCounter == task_counter) {
 			static if (interruptiple)
 				cnt = m_onExit.wait(cnt);
 			else
