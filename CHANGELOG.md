@@ -1,16 +1,27 @@
-1.4.1 - 2018-03-
+
+1.4.1 - 2018-06-
 ==================
 
 - Fixed compilation errors for `ConnectionPool!TCPConnection` - [issue vibe.d#2109][vibe.d-issue2109], [pull #70][issue70]
 - Fixed destruction behavior when destructors are run in foreign threads by the GC - [issue #69][issue69], [pull #74][issue74]
 - Fixed a possible assertion failure for failed `connectTCP` calls - [pull #75][issue75]
 - Added missing `setCommandLineArgs` API (by Thomas Weyn) - [pull #72][issue72]
+- Using `MonoTime` for `TCPConnection` timeouts (by Boris Barboris) - [pull #76][issue76]
+- Fixed the `Task.running` state of tasks that are scheduled to be run after an active `yieldLock` - [pull #79][issue79]
+- Fixed an integer overflow bug in `(Local)ManualEvent.wait` (by Boris Barboris) - [pull #77][issue77]
+- Disabled handling of `SIGABRT` on Windows to keep the default process termination behavior - [commit 463f4e4][commit463f4e4]
+- Fixed event processing for `yield()` calls outside of a running event loop - [pull #81][issue81]
 
 [issue69]: https://github.com/vibe-d/vibe-core/issues/69
 [issue70]: https://github.com/vibe-d/vibe-core/issues/70
 [issue72]: https://github.com/vibe-d/vibe-core/issues/72
 [issue74]: https://github.com/vibe-d/vibe-core/issues/74
 [issue75]: https://github.com/vibe-d/vibe-core/issues/75
+[issue76]: https://github.com/vibe-d/vibe-core/issues/76
+[issue77]: https://github.com/vibe-d/vibe-core/issues/77
+[issue79]: https://github.com/vibe-d/vibe-core/issues/79
+[issue81]: https://github.com/vibe-d/vibe-core/issues/81
+[commit463f4e4]: https://github.com/vibe-d/vibe-core/commit/463f4e4efbd7ab919aaed55e07cd7c8012bf3e2c
 [vibe.d-issue2109]: https://github.com/vibe-d/vibe.d/issues/2109
 
 
