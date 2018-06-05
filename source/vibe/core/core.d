@@ -1271,7 +1271,6 @@ private void setupSignalHandlers()
 		version(Windows){
 			// WORKAROUND: we don't care about viral @nogc attribute here!
 			import std.traits;
-			signal(SIGABRT, cast(ParameterTypeTuple!signal[1])&onSignal);
 			signal(SIGTERM, cast(ParameterTypeTuple!signal[1])&onSignal);
 			signal(SIGINT, cast(ParameterTypeTuple!signal[1])&onSignal);
 		}
