@@ -192,8 +192,10 @@ int runEventLoop()
 	logDebug("Starting event loop.");
 	s_eventLoopRunning = true;
 	scope (exit) {
+		eventDriver.core.clearExitFlag();
 		s_eventLoopRunning = false;
 		s_exitEventLoop = false;
+		if (s_isMainThread) atomicStore(st_term, false);
 		() @trusted nothrow {
 			scope (failure) assert(false); // notifyAll is not marked nothrow
 			st_threadShutdownCondition.notifyAll();
@@ -231,8 +233,6 @@ int runEventLoop()
 
 	logDebug("Event loop done (scheduled tasks=%s, waiters=%s, thread exit=%s).",
 		s_scheduler.scheduledTaskCount, eventDriver.core.waiterCount, s_exitEventLoop);
-	eventDriver.core.clearExitFlag();
-	s_exitEventLoop = false;
 	return 0;
 }
 
@@ -647,7 +647,7 @@ void yield()
 	} else {
 		// Let yielded tasks execute
 		assert(TaskFiber.getThis().m_yieldLockCount == 0, "May not yield within an active yieldLock()!");
-		() @safe nothrow { performIdleProcessing(); } ();
+		() @safe nothrow { performIdleProcessing(true); } ();
 	}
 }
 
@@ -1152,24 +1152,26 @@ private void setupGcTimer()
 	s_gcCollectTimeout = dur!"seconds"(2);
 }
 
-package(vibe) void performIdleProcessing()
+package(vibe) void performIdleProcessing(bool force_process_events = false)
 @safe nothrow {
 	bool again = !getExitFlag();
 	while (again) {
+		if (force_process_events) {
+			auto er = eventDriver.core.processEvents(0.seconds);
+			if (er.among!(ExitReason.exited, ExitReason.outOfWaiters) && s_scheduler.scheduledTaskCount == 0) {
+				if (s_eventLoopRunning) {
+					logDebug("Setting exit flag due to driver signalling exit: %s", er);
+					s_exitEventLoop = true;
+				}
+				return;
+			}
+		} else force_process_events = true;
+
 		if (s_idleHandler)
 			again = s_idleHandler();
 		else again = false;
 
 		again = (s_scheduler.schedule() == ScheduleStatus.busy || again) && !getExitFlag();
-
-		if (again) {
-			auto er = eventDriver.core.processEvents(0.seconds);
-			if (er.among!(ExitReason.exited, ExitReason.outOfWaiters) && s_scheduler.scheduledTaskCount == 0) {
-				logDebug("Setting exit flag due to driver signalling exit: %s", er);
-				s_exitEventLoop = true;
-				return;
-			}
-		}
 	}
 
 	if (s_scheduler.scheduledTaskCount) logDebug("Exiting from idle processing although there are still yielded tasks");
