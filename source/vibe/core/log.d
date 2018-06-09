@@ -295,9 +295,9 @@ final class FileLogger : Logger {
 				final switch (msg.level) {
 					case LogLevel.trace: dst.put("\x1b[49;38;5;243m"); break;
 					case LogLevel.debugV: dst.put("\x1b[49;38;5;245m"); break;
-					case LogLevel.debug_: dst.put("\x1b[49;38;5;248m"); break;
-					case LogLevel.diagnostic: dst.put("\x1b[49;38;5;253m"); break;
-					case LogLevel.info: dst.put("\x1b[49;38;5;15m"); break;
+					case LogLevel.debug_: dst.put("\x1b[49;38;5;180m"); break;
+					case LogLevel.diagnostic: dst.put("\x1b[49;38;5;143m"); break;
+					case LogLevel.info: dst.put("\x1b[49;38;5;29m"); break;
 					case LogLevel.warn: dst.put("\x1b[49;38;5;220m"); break;
 					case LogLevel.error: dst.put("\x1b[49;38;5;9m"); break;
 					case LogLevel.critical: dst.put("\x1b[41;38;5;15m"); break;
