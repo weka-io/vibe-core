@@ -227,7 +227,7 @@ int runEventLoop()
 	}
 
 	// make sure the exit flag watch task finishes together with this loop
-	// TODO: would be niced to do this without exceptions
+	// TODO: would be nice to do this without exceptions
 	if (exit_task && exit_task.running)
 		exit_task.interrupt();
 
