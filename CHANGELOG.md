@@ -1,5 +1,5 @@
 
-1.4.1 - 2018-06-
+1.4.1 - 2018-07-09
 ==================
 
 - Fixed compilation errors for `ConnectionPool!TCPConnection` - [issue vibe.d#2109][vibe.d-issue2109], [pull #70][issue70]
