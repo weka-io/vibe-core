@@ -962,7 +962,27 @@ private struct TaskFiberQueue {
 		task.m_queue = null;
 		task.m_prev = null;
 		task.m_next = null;
+		length--;
 	}
+}
+
+unittest {
+	auto f1 = new TaskFiber;
+	auto f2 = new TaskFiber;
+
+	TaskFiberQueue q;
+	assert(q.empty && q.length == 0);
+	q.insertFront(f1);
+	assert(!q.empty && q.length == 1);
+	q.insertFront(f2);
+	assert(!q.empty && q.length == 2);
+	q.popFront();
+	assert(!q.empty && q.length == 1);
+	q.popFront();
+	assert(q.empty && q.length == 0);
+	q.insertFront(f1);
+	q.remove(f1);
+	assert(q.empty && q.length == 0);
 }
 
 private struct FLSInfo {
