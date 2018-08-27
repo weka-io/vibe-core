@@ -834,6 +834,12 @@ package struct TaskScheduler {
 		scope (exit) assert(!m_markerTask.m_queue, "Marker task still in queue!?");
 
 		assert(Task.getThis() == Task.init, "TaskScheduler.schedule() may not be called from a task!");
+		if (m_markerTask.m_queue) () @trusted {
+			logFatal("Marker task queue: %s m_taskQueue=%s", cast(void*)m_markerTask.m_queue, cast(void*)&m_taskQueue);
+			logFatal("m_prev=%s m_next=%s", m_markerTask.m_prev, m_markerTask.m_next);
+			logFatal("m_thread=%s thisThread=%s", cast(void*)m_markerTask.m_thread, cast(void*)Thread.getThis());
+			logFatal("m_thread=%s thisThread=%s", m_markerTask.m_thread.name, Thread.getThis().name);
+		} ();
 		assert(!m_markerTask.m_queue || m_markerTask.m_queue is &m_taskQueue, "TaskScheduler.schedule() called recursively, with a differing task queue!?");
 		assert(!m_markerTask.m_queue, "TaskScheduler.schedule() was called recursively!");
 
