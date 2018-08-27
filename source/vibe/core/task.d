@@ -355,6 +355,8 @@ final package class TaskFiber : Fiber {
 		import std.encoding : sanitize;
 		import vibe.core.core : isEventLoopRunning, recycleFiber, taskScheduler, yield;
 
+		assert(this !is taskScheduler.m_markerTask, "Running marker task!?");
+
 		version (VibeDebugCatchAll) alias UncaughtException = Throwable;
 		else alias UncaughtException = Exception;
 		try {
