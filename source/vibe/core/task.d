@@ -763,6 +763,8 @@ package struct TaskScheduler {
 		auto thist = Task.getThis();
 		if (thist == Task.init) {
 			assert(!isEventLoopRunning, "Event processing outside of a fiber should only happen before the event loop is running!?");
+			assert(TaskFiber.getThis().m_yieldLockCount == 0,
+				"Cannot hibernate within an active yieldLock()!");
 			static import vibe.core.core;
 			vibe.core.core.runEventLoopOnce();
 		} else {
@@ -792,8 +794,10 @@ package struct TaskScheduler {
 			assert(!tf.m_queue, "Task removed from queue, but still has one set!?");
 		}
 
+		assert(defer == Yes.defer || TaskFiber.getThis().m_yieldLockCount == 0,
+			"Cannot yield within an active yieldLock()!");
+
 		if (thist == Task.init && defer == No.defer) {
-			assert(TaskFiber.getThis().m_yieldLockCount == 0, "Cannot yield within an active yieldLock()!");
 			debug (VibeTaskLog) logTrace("switch to task from global context");
 			resumeTask(t);
 			debug (VibeTaskLog) logTrace("task yielded control back to global context");
@@ -825,12 +829,12 @@ package struct TaskScheduler {
 		if (m_taskQueue.empty)
 			return ScheduleStatus.idle;
 
-
 		if (!m_markerTask) m_markerTask = new TaskFiber; // TODO: avoid allocating an actual task here!
 
 		scope (exit) assert(!m_markerTask.m_queue, "Marker task still in queue!?");
 
 		assert(Task.getThis() == Task.init, "TaskScheduler.schedule() may not be called from a task!");
+		assert(!m_markerTask.m_queue || m_markerTask.m_queue is &m_taskQueue, "TaskScheduler.schedule() called recursively, with a differing task queue!?");
 		assert(!m_markerTask.m_queue, "TaskScheduler.schedule() was called recursively!");
 
 		// keep track of the end of the queue, so that we don't process tasks
@@ -860,6 +864,10 @@ package struct TaskScheduler {
 	private void resumeTask(Task t)
 	nothrow {
 		import std.encoding : sanitize;
+
+		assert(Task.getThis() == Task.init, "TaskScheduler.resumeTask() may not be called from a task!");
+		assert(TaskFiber.getThis().m_yieldLockCount == 0,
+			"Cannot resume task within an active yieldLock()!");
 
 		debug (VibeTaskLog) logTrace("task fiber resume");
 		auto uncaught_exception = () @trusted nothrow { return t.fiber.call!(Fiber.Rethrow.no)(); } ();
@@ -944,6 +952,7 @@ private struct TaskFiberQueue {
 	{
 		if (first is last) last = null;
 		assert(first && first.m_queue == &this, "Popping from empty or mismatching queue");
+		assert(first.m_prev is null, "First element has m_prev != null!?");
 		auto next = first.m_next;
 		if (next) next.m_prev = null;
 		first.m_next = null;
@@ -973,15 +982,26 @@ unittest {
 	TaskFiberQueue q;
 	assert(q.empty && q.length == 0);
 	q.insertFront(f1);
+	assert(f1.m_queue is &q && f1.m_prev is null && f1.m_next is null);
 	assert(!q.empty && q.length == 1);
+
 	q.insertFront(f2);
+	assert(f2.m_queue is &q && f2.m_prev is null && f2.m_next is f1);
+	assert(f1.m_prev is f2 && f1.m_next is null);
 	assert(!q.empty && q.length == 2);
+
 	q.popFront();
+	assert(!f2.m_queue && !f2.m_prev && !f2.m_next);
+	assert(f1.m_prev is null && f1.m_next is null);
 	assert(!q.empty && q.length == 1);
+
 	q.popFront();
+	assert(!f1.m_queue && !f1.m_prev && !f1.m_next);
 	assert(q.empty && q.length == 0);
+
 	q.insertFront(f1);
 	q.remove(f1);
+	assert(!f1.m_queue && !f1.m_prev && !f1.m_next);
 	assert(q.empty && q.length == 0);
 }
 
