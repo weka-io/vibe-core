@@ -633,6 +633,8 @@ mixin(tracer);
 		}
 
 		static final class WaitContext {
+			import std.algorithm.mutation : move;
+
 			CALLABLE callback;
 			TCPConnection connection;
 			Timer timer;
@@ -648,7 +650,7 @@ mixin(tracer);
 			void onTimeout()
 			{
 				eventDriver.sockets.cancelRead(connection.m_socket);
-				callback(false);
+				invoke(false);
 			}
 
 			void onData(StreamSocketFD, IOStatus st, size_t nb)
@@ -656,7 +658,15 @@ mixin(tracer);
 				if (timer) timer.stop();
 				assert(connection.m_context.readBuffer.length == 0);
 				connection.m_context.readBuffer.putN(nb);
-				callback(connection.m_context.readBuffer.length > 0);
+				invoke(connection.m_context.readBuffer.length > 0);
+			}
+
+			void invoke(bool status)
+			{
+				auto cb = move(callback);
+				connection = TCPConnection.init;
+				timer = Timer.init;
+				cb(status);
 			}
 		}
 
