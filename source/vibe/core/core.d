@@ -689,7 +689,8 @@ void hibernate(scope void delegate() @safe nothrow on_interrupt = null)
 */
 void switchToTask(Task t)
 @safe nothrow {
-	s_scheduler.switchTo(t);
+	auto defer = TaskFiber.getThis().m_yieldLockCount > 0 ? Yes.defer : No.defer;
+	s_scheduler.switchTo(t, defer);
 }
 
 
