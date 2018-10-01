@@ -332,7 +332,7 @@ struct GenericPath(F) {
 					m_path = m_path[ap.length .. $];
 					assert(!m_fronts.empty);
 				} else readFront();
-			}
+			} else assert(m_fronts.empty);
 		}
 
 		@property bool empty() const nothrow @nogc { return m_path.length == 0 && m_fronts.empty; }
@@ -897,7 +897,7 @@ struct WindowsPathFormat {
 	{
 		static struct R {
 			S[2] items;
-			size_t i;
+			size_t i = items.length;
 			this(S s) { i = 1; items[i] = s; }
 			this(S a, S b) { i = 0; items[0] = a; items[1] = b; }
 			@property ref S front() { return items[i]; }
@@ -1319,4 +1319,8 @@ struct InetPathFormat {
 		assert(decodeSegment!Segment("fo%20o\\").equal([Segment("fo o\\")]));
 		assert(decodeSegment!Segment("foo%20").equal([Segment("foo ")]));
 	}
+}
+
+unittest { // regression tests
+	assert(NativePath("").bySegment.empty);
 }
