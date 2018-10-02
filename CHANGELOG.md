@@ -1,3 +1,27 @@
+1.4.4 - 2018-09-03
+==================
+
+- Compiler support updated to DMD 2.076.1 up to DMD 2.082.0 and LDC 1.6.0 up to 1.11.0 - [pull #92][issue92]
+- Fixed an issue in `WindowsPath`, where an empty path was converted to "/" when cast to another path type - [pull #91][issue91]
+
+[issue91]: https://github.com/vibe-d/vibe-core/issues/91
+[issue92]: https://github.com/vibe-d/vibe-core/issues/92
+
+
+1.4.3 - 2018-09-03
+==================
+
+- Allows `switchToTask` to be called within a yield lock (deferred until the lock is elided)
+
+1.4.2 - 2018-09-03
+==================
+
+- Fixed a potential infinite loop in the task scheduler causing 100% CPU use - [pull #88][issue88]
+- Fixed `waitForDataAsync` when using in conjunction with callbacks that have scoped destruction - [pull #89][issue89]
+
+[issue88]: https://github.com/vibe-d/vibe-core/issues/88
+[issue89]: https://github.com/vibe-d/vibe-core/issues/89
+
 
 1.4.1 - 2018-07-09
 ==================
