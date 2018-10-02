@@ -253,14 +253,8 @@ private final class WorkerThread : Thread {
 		try {
 			if (m_pool.m_state.lock.term) return;
 			logDebug("entering worker thread");
-			runTask(&handleWorkerTasks);
-			logDebug("running event loop");
-			if (!m_pool.m_state.lock.term) runEventLoop();
+			handleWorkerTasks();
 			logDebug("Worker thread exit.");
-		} catch (Exception e) {
-			scope (failure) abort();
-			logFatal("Worker thread terminated due to uncaught exception: %s", e.msg);
-			logDebug("Full error: %s", e.toString().sanitize());
 		} catch (Throwable th) {
 			logFatal("Worker thread terminated due to uncaught error: %s", th.msg);
 			logDebug("Full error: %s", th.toString().sanitize());
@@ -307,8 +301,6 @@ private final class WorkerThread : Thread {
 			if (threads.length > 0 && !queue.empty)
 				logWarn("Worker threads shut down with worker tasks still left in the queue.");
 		}
-
-		exitEventLoop();
 	}
 }
 
