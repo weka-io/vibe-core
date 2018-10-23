@@ -689,6 +689,7 @@ void hibernate(scope void delegate() @safe nothrow on_interrupt = null)
 */
 void switchToTask(Task t)
 @safe nothrow {
+	import std.typecons : Yes, No;
 	auto defer = TaskFiber.getThis().m_yieldLockCount > 0 ? Yes.defer : No.defer;
 	s_scheduler.switchTo(t, defer);
 }
