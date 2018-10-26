@@ -71,7 +71,6 @@ shared final class TaskPool {
 		m_state.lock.term = true;
 		m_signal.emit();
 
-		auto ec = m_signal.emitCount;
 		while (true) {
 			WorkerThread th;
 			with (m_state.lock)
@@ -80,6 +79,9 @@ shared final class TaskPool {
 					threads = threads[1 .. $];
 				}
 			if (!th) break;
+
+			if (th is Thread.getThis())
+				continue;
 
 			() @trusted {
 				try th.join();
@@ -271,9 +273,8 @@ private final class WorkerThread : Thread {
 
 		logDebug("worker thread enter");
 		TaskFuncInfo taskfunc;
-		while(true){
-			auto emit_count = m_pool.m_signal.emitCount;
-
+		auto emit_count = m_pool.m_signal.emitCount;
+		while(true) {
 			with (m_pool.m_state.lock) {
 				logDebug("worker thread check");
 
@@ -282,7 +283,7 @@ private final class WorkerThread : Thread {
 				if (m_queue.consume(taskfunc)) {
 					logDebug("worker thread got specific task");
 				} else if (queue.consume(taskfunc)) {
-					logDebug("worker thread got specific task");
+					logDebug("worker thread got unspecific task");
 				}
 			}
 
