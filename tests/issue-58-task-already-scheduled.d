@@ -38,7 +38,7 @@ void main()
 
 void worker()
 {
-	ev.wait();
+	ev.wait(0);
 	ev.emit();
 	setTimer(dur!"seconds"(1), {
 		auto c = atomicOp!"+="(counter, 1);
