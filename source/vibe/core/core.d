@@ -1039,7 +1039,7 @@ struct Timer {
 
 		if (callback) {
 			m_driver.timers.userData!Callback(m_id) = callback;
-			m_driver.timers.wait(m_id, timerCallbackHandler);
+			m_driver.timers.wait(m_id, &TimerCallbackHandler.instance.handle);
 		}
 	}
 
@@ -1094,15 +1094,19 @@ struct Timer {
 	}
 }
 
-private immutable TimerCallback2 timerCallbackHandler = (TimerID timer, bool fired) {
-	if (fired) {
-		auto cb = eventDriver.timers.userData!(Timer.Callback)(timer);
-		cb();
-	}
+struct TimerCallbackHandler {
+	static TimerCallbackHandler instance;
+	void handle(TimerID timer, bool fired)
+	@safe nothrow {
+		if (fired) {
+			auto cb = eventDriver.timers.userData!(Timer.Callback)(timer);
+			cb();
+		}
 
-	if (!eventDriver.timers.isUnique(timer))
-		eventDriver.timers.wait(timer, timerCallbackHandler);
-};
+		if (!eventDriver.timers.isUnique(timer))
+			eventDriver.timers.wait(timer, &handle);
+	}
+}
 
 
 /** Returns an object that ensures that no task switches happen during its life time.
