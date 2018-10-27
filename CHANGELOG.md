@@ -5,12 +5,14 @@
 - Simplified worker task logic by avoiding an explicit event loop - [pull #95][issue95]
 - Fixed an issue in `WindowsPath`, where an empty path was converted to "/" when cast to another path type - [pull #91][issue91]
 - Fixed two hang issues in `TaskPool` causing the worker task processing to possibly hang at shutdown or to temporarily hang during run time - [pull #96][issue96]
+- Fixed internal timer callback tasks leaking memory - [issue #86][issue86], [pull #98][issue98]
 
 [issue91]: https://github.com/vibe-d/vibe-core/issues/91
 [issue92]: https://github.com/vibe-d/vibe-core/issues/92
 [issue95]: https://github.com/vibe-d/vibe-core/issues/95
 [issue96]: https://github.com/vibe-d/vibe-core/issues/96
 [issue97]: https://github.com/vibe-d/vibe-core/issues/97
+[issue98]: https://github.com/vibe-d/vibe-core/issues/98
 
 
 1.4.3 - 2018-09-03

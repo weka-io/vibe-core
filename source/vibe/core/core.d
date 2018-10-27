@@ -742,7 +742,7 @@ unittest {
 
 	See_also: createTimer
 */
-Timer setTimer(Duration timeout, void delegate() nothrow @safe callback, bool periodic = false)
+Timer setTimer(Duration timeout, Timer.Callback callback, bool periodic = false)
 @safe nothrow {
 	auto tm = createTimer(callback);
 	tm.rearm(timeout, periodic);
@@ -784,16 +784,7 @@ Timer setTimer(Duration timeout, void delegate() callback, bool periodic = false
 */
 Timer createTimer(void delegate() nothrow @safe callback)
 @safe nothrow {
-	auto ret = Timer(eventDriver.timers.create());
-	if (callback !is null) {
-		runTask((void delegate() nothrow @safe cb, Timer tm) {
-			while (!tm.unique || tm.pending) {
-				tm.wait();
-				cb();
-			}
-		}, callback, ret);
-	}
-	return ret;
+	return Timer(eventDriver.timers.create, callback);
 }
 
 
@@ -1036,13 +1027,20 @@ struct Timer {
 		debug uint m_magicNumber = 0x4d34f916;
 	}
 
+	alias Callback = void delegate() @safe nothrow;
+
 	@safe:
 
-	private this(TimerID id)
+	private this(TimerID id, Callback callback)
 	nothrow {
 		assert(id != TimerID.init, "Invalid timer ID.");
 		m_driver = eventDriver;
 		m_id = id;
+
+		if (callback) {
+			m_driver.timers.userData!Callback(m_id) = callback;
+			m_driver.timers.wait(m_id, &TimerCallbackHandler.instance.handle);
+		}
 	}
 
 	this(this)
@@ -1054,8 +1052,7 @@ struct Timer {
 	~this()
 	nothrow {
 		debug assert(m_magicNumber == 0x4d34f916, "Timer corrupted.");
-		if (m_driver)
-			releaseHandle!"timers"(m_id, () @trusted { return cast(shared)m_driver; } ());
+		if (m_driver) releaseHandle!"timers"(m_id, () @trusted { return cast(shared)m_driver; } ());
 	}
 
 	/// True if the timer is yet to fire.
@@ -1080,13 +1077,34 @@ struct Timer {
 	void stop() nothrow { if (m_driver) m_driver.timers.stop(m_id); }
 
 	/** Waits until the timer fires.
+
+		Returns:
+			`true` is returned $(I iff) the timer was fired.
 	*/
-	void wait()
+	bool wait()
 	{
-		asyncAwait!(TimerCallback,
+		auto cb = m_driver.timers.userData!Callback(m_id);
+		assert(cb is null, "Cannot wait on a timer that was created with a callback.");
+
+		auto res = asyncAwait!(TimerCallback2,
 			cb => m_driver.timers.wait(m_id, cb),
 			cb => m_driver.timers.cancelWait(m_id)
 		);
+		return res[1];
+	}
+}
+
+struct TimerCallbackHandler {
+	static TimerCallbackHandler instance;
+	void handle(TimerID timer, bool fired)
+	@safe nothrow {
+		if (fired) {
+			auto cb = eventDriver.timers.userData!(Timer.Callback)(timer);
+			cb();
+		}
+
+		if (!eventDriver.timers.isUnique(timer))
+			eventDriver.timers.wait(timer, &handle);
 	}
 }
 
