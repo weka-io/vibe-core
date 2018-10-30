@@ -1217,21 +1217,20 @@ package shared(Monitor!(T, M)) createMonitor(T, M)(M mutex)
 
 package struct SpinLock {
 	private shared int locked;
-	static int threadID = 0;
-
-	static void setup()
-	{
-		import core.thread : Thread;
-		threadID = cast(int)cast(void*)Thread.getThis();
-	}
+	debug static int threadID;
 
 	@safe nothrow @nogc shared:
 
 	bool tryLock()
 	@trusted {
-		assert(threadID != 0, "SpinLock.setup() was not called.");
-		assert(atomicLoad(locked) != threadID, "Recursive lock attempt.");
-		return cas(&locked, 0, threadID);
+		debug {
+			import core.thread : Thread;
+			if (threadID == 0) threadID = cast(int)cast(void*)Thread.getThis();
+			if (threadID == 0) threadID = -1; // workaround for non-D threads
+			assert(atomicLoad(locked) != threadID, "Recursive lock attempt.");
+			int tid = threadID;
+		} else int tid = 1;
+		return cas(&locked, 0, tid);
 	}
 
 	void lock()
@@ -1241,7 +1240,7 @@ package struct SpinLock {
 
 	void unlock()
 	@trusted {
-		assert(atomicLoad(locked) == threadID, "Unlocking spin lock that is not owned by the current thread.");
+		debug assert(atomicLoad(locked) == threadID, "Unlocking spin lock that is not owned by the current thread.");
 		atomicStore(locked, 0);
 	}
 }

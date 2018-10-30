@@ -1350,9 +1350,6 @@ shared static this()
 
 	import std.concurrency;
 	scheduler = new VibedScheduler;
-
-	import vibe.core.sync : SpinLock;
-	SpinLock.setup();
 }
 
 shared static ~this()
@@ -1377,10 +1374,6 @@ static this()
 	synchronized (st_threadsMutex)
 		if (!st_threads.any!(c => c.thread is thisthr))
 			st_threads ~= ThreadContext(thisthr);
-
-
-	import vibe.core.sync : SpinLock;
-	SpinLock.setup();
 }
 
 static ~this()
@@ -1463,7 +1456,10 @@ private extern(C) void onSignal(int signal)
 nothrow {
 	logInfo("Received signal %d. Shutting down.", signal);
 	atomicStore(st_term, true);
-	try st_threadsSignal.emit(); catch (Throwable) {}
+	try st_threadsSignal.emit();
+	catch (Throwable th) {
+		logDebug("Failed to notify for event loop exit: %s", th.msg);
+	}
 }
 
 private extern(C) void onBrokenPipe(int signal)
