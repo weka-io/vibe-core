@@ -298,7 +298,7 @@ private void init()
 	readOption("h|help", &g_help, "Prints this help screen.");
 }
 
-private T fromValue(T)(JSONValue val)
+private T fromValue(T)(in JSONValue val)
 {
 	import std.conv : to;
 	static if (is(T == bool)) return val.type == JSON_TYPE.TRUE;
