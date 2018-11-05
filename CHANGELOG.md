@@ -1,3 +1,13 @@
+1.4.5 - 2018-
+==================
+
+- Fixed as assertion error in the internal spin lock implementation when pressing Ctrl+C on Windows - [pull #99][issue99]
+- Compile fix for an upcoming Phobos version - [pull #100][issue100]
+
+[issue99]: https://github.com/vibe-d/vibe-core/issues/99
+[issue100]: https://github.com/vibe-d/vibe-core/issues/100
+
+
 1.4.4 - 2018-10-27
 ==================
 
