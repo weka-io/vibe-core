@@ -733,10 +733,10 @@ private string hostName()
 	string hostName;
 
 	version (Posix) {
-		import core.sys.posix.sys.utsname;
+		import core.sys.posix.sys.utsname : uname, utsname;
 		utsname name;
 		if (uname(&name)) return hostName;
-		hostName = name.nodename.to!string();
+		hostName = name.nodename.ptr.to!string;
 
 		import std.socket;
 		auto ih = new InternetHost;
