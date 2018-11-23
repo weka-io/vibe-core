@@ -1,11 +1,17 @@
-1.4.5 - 2018-
+1.4.5 - 2018-11-23
 ==================
 
-- Fixed as assertion error in the internal spin lock implementation when pressing Ctrl+C on Windows - [pull #99][issue99]
 - Compile fix for an upcoming Phobos version - [pull #100][issue100]
+- Fixed as assertion error in the internal spin lock implementation when pressing Ctrl+C on Windows - [pull #99][issue99]
+- Fixed host name string conversion for `SyslogLogger` - [issue vibe-d/vibe.d#2220][vibe.d-issue2220], [pull #102][issue102]
+- Fixed callback invocation for unreferenced periodic timers - [issue #104][issue104], [pull #106][issue106]
 
 [issue99]: https://github.com/vibe-d/vibe-core/issues/99
 [issue100]: https://github.com/vibe-d/vibe-core/issues/100
+[issue102]: https://github.com/vibe-d/vibe-core/issues/102
+[issue104]: https://github.com/vibe-d/vibe-core/issues/104
+[issue106]: https://github.com/vibe-d/vibe-core/issues/106
+[vibe-issue2220]: https://github.com/vibe-d/vibe.d/issues/2220
 
 
 1.4.4 - 2018-10-27
