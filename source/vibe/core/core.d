@@ -1103,7 +1103,7 @@ struct TimerCallbackHandler {
 			cb();
 		}
 
-		if (!eventDriver.timers.isUnique(timer))
+		if (!eventDriver.timers.isUnique(timer) || eventDriver.timers.isPending(timer))
 			eventDriver.timers.wait(timer, &handle);
 	}
 }
