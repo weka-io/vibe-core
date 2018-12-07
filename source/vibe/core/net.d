@@ -975,7 +975,12 @@ struct UDPConnection {
 		Once connected, the UDPConnection can only communicate with the specified peer.
 		Otherwise communication with any reachable peer is possible.
 	*/
-	void connect(string host, ushort port) { connect(resolveHost(host, port)); }
+	void connect(string host, ushort port)
+	{
+		auto address = resolveHost(host);
+		address.port = port;
+		connect(address);
+	}
 	/// ditto
 	void connect(NetworkAddress address)
 	{
