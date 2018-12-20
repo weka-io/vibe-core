@@ -569,7 +569,13 @@ mixin(tracer);
 		alias waiter = Waitable!(IOCallback,
 			cb => eventDriver.sockets.read(m_socket, m_context.readBuffer.peekDst(), mode, cb),
 			(cb) { cancelled = true; eventDriver.sockets.cancelRead(m_socket); },
-			(sock, st, nb) { assert(sock == m_socket); status = st; nbytes = nb; }
+			(sock, st, nb) {
+				if (m_socket == StreamSocketFD.invalid) {
+					cancelled = true;
+					return;
+				}
+				assert(sock == m_socket); status = st; nbytes = nb;
+			}
 		);
 
 		asyncAwaitAny!(true, waiter)(timeout);
