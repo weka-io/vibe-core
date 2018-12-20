@@ -580,7 +580,7 @@ mixin(tracer);
 
 		asyncAwaitAny!(true, waiter)(timeout);
 
-		if (cancelled) return false;
+		if (cancelled || !m_context) return false;
 
 		logTrace("Socket %s, read %s bytes: %s", m_socket, nbytes, status);
 
