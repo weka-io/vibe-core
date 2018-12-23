@@ -19,6 +19,7 @@ import core.stdc.stdio;
 import core.sys.posix.unistd;
 import core.sys.posix.fcntl;
 import core.sys.posix.sys.stat;
+import core.time;
 import std.conv : octal;
 import std.datetime;
 import std.exception;
@@ -652,11 +653,11 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 			while (!m_context.changes.data.length)
 				m_context.changeEvent.wait(Duration.max, m_context.changeEvent.emitCount);
 		} else {
-			SysTime now = Clock.currTime(UTC());
-			SysTime final_time = now + timeout;
+			MonoTime now = MonoTime.currTime();
+			MonoTime final_time = now + timeout;
 			while (!m_context.changes.data.length) {
 				m_context.changeEvent.wait(final_time - now, m_context.changeEvent.emitCount);
-				now = Clock.currTime(UTC());
+				now = MonoTime.currTime();
 				if (now >= final_time) break;
 			}
 			if (!m_context.changes.data.length) return false;
