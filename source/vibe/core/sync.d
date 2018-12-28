@@ -767,20 +767,20 @@ struct LocalManualEvent {
 
 	private int doWait(bool interruptible)(Duration timeout, int emit_count)
 	{
-		import std.datetime : Clock, SysTime, UTC;
+		import core.time : MonoTime;
 
 		assert(m_waiter !is null, "LocalManualEvent is not initialized - use createManualEvent()");
 
-		SysTime target_timeout, now;
+		MonoTime target_timeout, now;
 		if (timeout != Duration.max) {
-			try now = Clock.currTime(UTC());
+			try now = MonoTime.currTime();
 			catch (Exception e) { assert(false, e.msg); }
 			target_timeout = now + timeout;
 		}
 
 		while (m_waiter.m_emitCount - emit_count <= 0) {
 			m_waiter.wait!interruptible(timeout != Duration.max ? target_timeout - now : Duration.max);
-			try now = Clock.currTime(UTC());
+			try now = MonoTime.currTime();
 			catch (Exception e) { assert(false, e.msg); }
 			if (now >= target_timeout) break;
 		}
@@ -1008,7 +1008,7 @@ struct ManualEvent {
 
 	private int doWaitShared(bool interruptible)(Duration timeout, int emit_count)
 	shared {
-		import std.datetime : SysTime, Clock, UTC;
+		import core.time : MonoTime;
 
 		() @trusted { logTrace("wait shared %s", cast(void*)&this); } ();
 
@@ -1017,9 +1017,9 @@ struct ManualEvent {
 			assert(ms_threadEvent != EventID.invalid, "Failed to create event!");
 		}
 
-		SysTime target_timeout, now;
+		MonoTime target_timeout, now;
 		if (timeout != Duration.max) {
-			try now = Clock.currTime(UTC());
+			try now = MonoTime.currTime();
 			catch (Exception e) { assert(false, e.msg); }
 			target_timeout = now + timeout;
 		}
@@ -1032,7 +1032,7 @@ struct ManualEvent {
 				ec = this.emitCount;
 
 				if (timeout != Duration.max) {
-					try now = Clock.currTime(UTC());
+					try now = MonoTime.currTime();
 					catch (Exception e) { assert(false, e.msg); }
 					if (now >= target_timeout) break;
 				}
@@ -1296,7 +1296,7 @@ private final class ThreadLocalWaiter(bool EVENT_TRIGGERED) {
 
 	bool wait(bool interruptible)(Duration timeout, EventID evt = EventID.invalid, scope bool delegate() @safe nothrow exit_condition = null)
 	@safe {
-		import std.datetime : SysTime, Clock, UTC;
+		import core.time : MonoTime;
 		import vibe.internal.async : Waitable, asyncAwaitAny;
 
 		TaskWaiter waiter_store;
@@ -1310,9 +1310,9 @@ private final class ThreadLocalWaiter(bool EVENT_TRIGGERED) {
 				assert(!waiter.next);
 			}
 
-		SysTime target_timeout, now;
+		MonoTime target_timeout, now;
 		if (timeout != Duration.max) {
-			try now = Clock.currTime(UTC());
+			try now = MonoTime.currTime();
 			catch (Exception e) { assert(false, e.msg); }
 			target_timeout = now + timeout;
 		}

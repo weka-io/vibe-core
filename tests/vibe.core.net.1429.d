@@ -8,8 +8,7 @@ module test;
 import vibe.core.core;
 import vibe.core.log : logInfo;
 import vibe.core.net;
-import core.time : msecs;
-import std.datetime : Clock, UTC;
+import core.time : MonoTime, msecs;
 
 void main()
 {
@@ -21,12 +20,12 @@ void main()
 	});
 
 	runTask({
-		auto start = Clock.currTime(UTC());
+		auto start = MonoTime.currTime();
 		try {
 			udp.recv(100.msecs);
 			assert(false, "Timeout did not occur.");
 		} catch (Exception e) {
-			auto duration = Clock.currTime(UTC()) - start;
+			auto duration = MonoTime.currTime() - start;
 			assert(duration >= 99.msecs, "Timeout occurred too early");
 			assert(duration >= 99.msecs && duration < 150.msecs, "Timeout occurred too late.");
 			logInfo("UDP receive timeout test was successful.");
