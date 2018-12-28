@@ -1,7 +1,7 @@
 /**
 	File handling functions and types.
 
-	Copyright: © 2012-2016 RejectedSoftware e.K.
+	Copyright: © 2012-2018 RejectedSoftware e.K.
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 	Authors: Sönke Ludwig
 */
@@ -13,7 +13,7 @@ import vibe.core.internal.release;
 import vibe.core.log;
 import vibe.core.path;
 import vibe.core.stream;
-import vibe.internal.async : asyncAwait;
+import vibe.internal.async : asyncAwait, asyncAwaitUninterruptible;
 
 import core.stdc.stdio;
 import core.sys.posix.unistd;
@@ -452,6 +452,15 @@ struct FileStream {
 	}
 
 	ulong tell() nothrow { return ctx.ptr; }
+
+	void truncate(ulong size)
+	{
+		auto res = asyncAwaitUninterruptible!(FileIOCallback,
+			cb => eventDriver.files.truncate(m_fd, size, cb)
+		);
+		enforce(res[1] == IOStatus.ok, "Failed to resize file.");
+		m_ctx.size = size;
+	}
 
 	/// Closes the file handle.
 	void close()
