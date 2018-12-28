@@ -1,3 +1,17 @@
+1.4.6 - 2018-12-28
+==================
+
+- Added `FileStream.truncate` - [pull #113][issue113]
+- Using `MonoTime` instead of `Clock` for timeout functionality (by Hiroki Noda aka kubo39) - [pull #112][issue112]
+- Fixed `UDPConnection.connect` to handle the port argument properly (by Mathias L. Baumann aka Marenz) - [pull #108][issue108]
+- Fixed a bogus assertion failure in `TCPConnection.waitForData` when the connection gets closed concurrently (by Jan Jurzitza aka WebFreak001) - [pull #111][issue111]
+
+[issue108]: https://github.com/vibe-d/vibe-core/issues/108
+[issue111]: https://github.com/vibe-d/vibe-core/issues/111
+[issue112]: https://github.com/vibe-d/vibe-core/issues/112
+[issue113]: https://github.com/vibe-d/vibe-core/issues/113
+
+
 1.4.5 - 2018-11-23
 ==================
 
