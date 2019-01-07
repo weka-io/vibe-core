@@ -507,7 +507,7 @@ struct FileStream {
 		);
 		ctx.ptr += res[2];
 		if (ctx.ptr > ctx.size) ctx.size = ctx.ptr;
-		enforce(res[1] == IOStatus.ok, "Failed to read data from disk.");
+		enforce(res[1] == IOStatus.ok, "Failed to write data to disk.");
 		return res[2];
 	}
 
