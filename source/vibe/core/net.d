@@ -216,7 +216,14 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 
 		enforce(!cancelled, "Failed to connect to " ~ addr.toString() ~
 			": timeout");
-		enforce(status == ConnectStatus.connected, "Failed to connect to "~addr.toString()~": "~status.to!string);
+
+		if (status != ConnectStatus.connected) {
+			if (sock != SocketFD.invalid)
+				assert(!eventDriver.sockets.releaseRef(sock));
+
+			enforce(false, "Failed to connect to "~addr.toString()~": "~status.to!string);
+			assert(false);
+		}
 
 		return TCPConnection(sock, uaddr);
 	} ();
