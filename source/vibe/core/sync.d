@@ -33,10 +33,40 @@ shared(ManualEvent) createSharedManualEvent()
 	return shared(ManualEvent).init;
 }
 
+
+/** Performs RAII based locking/unlocking of a mutex.
+
+	Note that while `TaskMutex` can be used with D's built-in `synchronized`
+	statement, `InterruptibleTaskMutex` cannot. This function provides a
+	library based alternative that is suitable for use with all mutex types.
+*/
 ScopedMutexLock!M scopedMutexLock(M)(M mutex, LockMode mode = LockMode.lock)
 	if (is(M : Mutex) || is(M : Lockable))
 {
 	return ScopedMutexLock!M(mutex, mode);
+}
+
+///
+unittest {
+	import vibe.core.core : runWorkerTaskH;
+
+	__gshared int counter;
+	__gshared InterruptibleTaskMutex mutex;
+
+	mutex = new InterruptibleTaskMutex;
+
+	Task[] tasks;
+
+	foreach (i; 0 .. 100) {
+		tasks ~= runWorkerTaskH({
+			auto l = scopedMutexLock(mutex);
+			counter++;
+		});
+	}
+
+	foreach (t; tasks) t.join();
+
+	assert(counter == 100);
 }
 
 unittest {
