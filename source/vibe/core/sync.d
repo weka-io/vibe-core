@@ -699,14 +699,26 @@ final class InterruptibleTaskCondition {
 
 	private TaskConditionImpl!(true, Lockable) m_impl;
 
-	this(core.sync.mutex.Mutex mtx) { m_impl.setup(mtx); }
-	this(Lockable mtx) { m_impl.setup(mtx); }
+	this(M)(M mutex)
+		if (is(M : Mutex) || is (M : Lockable))
+	{
+		static if (is(M : Lockable))
+			m_impl.setup(mutex);
+		else
+			m_impl.setupForMutex(mutex);
+	}
 
 	@property Lockable mutex() { return m_impl.mutex; }
 	void wait() { m_impl.wait(); }
 	bool wait(Duration timeout) { return m_impl.wait(timeout); }
 	void notify() { m_impl.notify(); }
 	void notifyAll() { m_impl.notifyAll(); }
+}
+
+unittest {
+	new InterruptibleTaskCondition(new Mutex);
+	new InterruptibleTaskCondition(new TaskMutex);
+	new InterruptibleTaskCondition(new InterruptibleTaskMutex);
 }
 
 
@@ -1584,7 +1596,7 @@ private struct TaskConditionImpl(bool INTERRUPTIBLE, LOCKABLE) {
 			@trusted bool tryLock() { return m_mutex.tryLock(); }
 		}
 
-		void setup(core.sync.mutex.Mutex mtx)
+		void setupForMutex(core.sync.mutex.Mutex mtx)
 		{
 			setup(new MutexWrapper(mtx));
 		}
