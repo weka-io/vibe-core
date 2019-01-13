@@ -33,9 +33,16 @@ shared(ManualEvent) createSharedManualEvent()
 	return shared(ManualEvent).init;
 }
 
-ScopedMutexLock!M scopedMutexLock(M : Mutex)(M mutex, LockMode mode = LockMode.lock)
+ScopedMutexLock!M scopedMutexLock(M)(M mutex, LockMode mode = LockMode.lock)
+	if (is(M : Mutex) || is(M : Lockable))
 {
 	return ScopedMutexLock!M(mutex, mode);
+}
+
+unittest {
+	scopedMutexLock(new Mutex);
+	scopedMutexLock(new TaskMutex);
+	scopedMutexLock(new InterruptibleTaskMutex);
 }
 
 enum LockMode {
@@ -53,7 +60,8 @@ interface Lockable {
 
 /** RAII lock for the Mutex class.
 */
-struct ScopedMutexLock(M : Mutex = core.sync.mutex.Mutex)
+struct ScopedMutexLock(M)
+	if (is(M : Mutex) || is(M : Lockable))
 {
 	@disable this(this);
 	private {
