@@ -644,6 +644,8 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 		m_context = new Context; // FIME: avoid GC allocation (use FD user data slot)
 		m_context.changeEvent = createManualEvent();
 		m_watcher = eventDriver.watchers.watchDirectory(path.toNativeString, recursive, &m_context.onChange);
+		if (m_watcher == WatcherID.invalid)
+			throw new Exception("Failed to watch directory.");
 		m_context.path = path;
 		m_context.recursive = recursive;
 		m_context.changes = appender!(DirectoryChange[]);
