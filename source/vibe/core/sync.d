@@ -1,7 +1,17 @@
 /**
-	Interruptible Task synchronization facilities
+	Event loop compatible task synchronization facilities.
 
-	Copyright: © 2012-2016 RejectedSoftware e.K.
+	This module provides replacement primitives for the modules in `core.sync`
+	that do not block vibe.d's event loop in their wait states. These should
+	always be preferred over the ones in Druntime under usual circumstances.
+
+	Using a standard `Mutex` is possible as long as it is ensured that no event
+	loop based functionality (I/O, task interaction or anything that implicitly
+	calls `vibe.core.core.yield`) is executed within a section of code that is
+	protected by the mutex. $(B Failure to do so may result in dead-locks and
+	high-level race-conditions!)
+
+	Copyright: © 2012-2019 Sönke Ludwig
 	Authors: Leonid Kramer, Sönke Ludwig, Manuel Frischknecht
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 */
@@ -436,11 +446,11 @@ unittest {
 /**
 	Recursive mutex implementation for tasks.
 
-	This mutex type can be used in exchange for a core.sync.mutex.Mutex, but
+	This mutex type can be used in exchange for a `core.sync.mutex.Mutex`, but
 	does not block the event loop when contention happens.
 
 	Notice:
-		Because this class is annotated nothrow, it cannot be interrupted
+		Because this class is annotated `nothrow`, it cannot be interrupted
 		using $(D vibe.core.task.Task.interrupt()). The corresponding
 		$(D InterruptException) will be deferred until the next blocking
 		operation yields the event loop.
@@ -448,7 +458,7 @@ unittest {
 		Use $(D InterruptibleRecursiveTaskMutex) as an alternative that can be
 		interrupted.
 
-	See_Also: TaskMutex, core.sync.mutex.Mutex
+	See_Also: `TaskMutex`, `core.sync.mutex.Mutex`
 */
 final class RecursiveTaskMutex : core.sync.mutex.Mutex, Lockable {
 @safe:
