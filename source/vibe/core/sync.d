@@ -274,7 +274,6 @@ final class LocalTaskSemaphore
 */
 final class TaskMutex : core.sync.mutex.Mutex, Lockable {
 @safe:
-
 	private TaskMutexImpl!false m_impl;
 
 	this(Object o) { m_impl.setup(); super(o); }
@@ -376,7 +375,13 @@ final class InterruptibleTaskMutex : Lockable {
 
 	private TaskMutexImpl!true m_impl;
 
-	this() { m_impl.setup(); }
+	this()
+	{
+		m_impl.setup();
+
+		// detects invalid usage within synchronized(...)
+		() @trusted { this.__monitor = cast(void*)&NoUseMonitor.instance(); } ();
+	}
 
 	bool tryLock() nothrow { return m_impl.tryLock(); }
 	void lock() { m_impl.lock(); }
@@ -437,10 +442,15 @@ unittest {
 */
 final class InterruptibleRecursiveTaskMutex : Lockable {
 @safe:
-
 	private RecursiveTaskMutexImpl!true m_impl;
 
-	this() { m_impl.setup(); }
+	this()
+	{
+		m_impl.setup();
+
+		// detects invalid usage within synchronized(...)
+		() @trusted { this.__monitor = cast(void*)&NoUseMonitor.instance(); } ();
+	}
 
 	bool tryLock() { return m_impl.tryLock(); }
 	void lock() { m_impl.lock(); }
@@ -450,6 +460,39 @@ final class InterruptibleRecursiveTaskMutex : Lockable {
 version (VibeLibevDriver) {} else // timers are not implemented for libev, yet
 unittest {
 	runMutexUnitTests!InterruptibleRecursiveTaskMutex();
+}
+
+
+// Helper class to ensure that the non Object.Monitor compatible interruptible
+// mutex classes are not accidentally used with the `synchronized` statement
+private final class NoUseMonitor : Object.Monitor {
+	private static shared Proxy st_instance;
+
+    static struct Proxy {
+        Object.Monitor monitor;
+    }
+
+	static @property ref shared(Proxy) instance()
+	@safe nothrow {
+		static shared(Proxy)* inst = null;
+		if (inst) return *inst;
+
+		() @trusted { // synchronized {} not @safe for DMD <= 2.078.3
+			synchronized {
+				if (!st_instance.monitor)
+					st_instance.monitor = new shared NoUseMonitor;
+				inst = &st_instance;
+			}
+		} ();
+
+		return *inst;
+	}
+
+	override void lock() @safe @nogc nothrow {
+		assert(false, "Interruptible task mutexes cannot be used with synchronized(), use scopedMutexLock instead.");
+	}
+
+	override void unlock() @safe @nogc nothrow {}
 }
 
 
