@@ -191,7 +191,7 @@ void moveFile(string from, string to, bool copy_fallback = false)
 		try {
 			std.file.rename(from, to);
 		} catch (FileException e) {
-			std.file.copy(from, to);
+			copyFile(from, to);
 			std.file.remove(from);
 		}
 	}
