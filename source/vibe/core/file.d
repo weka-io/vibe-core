@@ -214,6 +214,17 @@ void moveFile(string from, string to, bool copy_fallback = false)
 */
 void copyFile(NativePath from, NativePath to, bool overwrite = false)
 {
+	DirEntry info;
+	static if (__VERSION__ < 2078) {
+		() @trusted {
+			info = DirEntry(from.toString);
+			enforce(info.isFile, "The source path is not a file and cannot be copied.");
+		} ();
+	} else {
+		info = DirEntry(from.toString);
+		enforce(info.isFile, "The source path is not a file and cannot be copied.");
+	}
+
 	{
 		auto src = openFile(from, FileMode.read);
 		scope(exit) src.close();
@@ -223,7 +234,17 @@ void copyFile(NativePath from, NativePath to, bool overwrite = false)
 		dst.write(src);
 	}
 
-	// TODO: retain attributes and time stamps
+	// TODO: also retain creation time on windows
+
+	static if (__VERSION__ < 2078) {
+		() @trusted {
+			setAttributes(to.toString, info.attributes);
+			setTimes(to.toString, info.timeLastAccessed, info.timeLastModified);
+		} ();
+	} else {
+		setAttributes(to.toString, info.attributes);
+		setTimes(to.toString, info.timeLastAccessed, info.timeLastModified);
+	}
 }
 /// ditto
 void copyFile(string from, string to)
