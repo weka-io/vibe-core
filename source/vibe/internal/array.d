@@ -361,7 +361,7 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 		m_start = 0;
 	}
 
-	void put()(T itm) { assert(m_fill < m_buffer.length); m_buffer[mod(m_start + m_fill++)] = itm; }
+	void put()(T itm) { assert(m_fill < m_buffer.length); move(itm, m_buffer[mod(m_start + m_fill++)]); }
 	void put(TC : T)(scope TC[] itms)
 	{
 		if( !itms.length ) return;
@@ -391,18 +391,18 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 			assert(r.m_start >= m_start && r.m_start < m_buffer.length || r.m_start < mod(m_start+m_fill));
 			if( r.m_start > m_start ){
 				foreach(i; r.m_start .. m_buffer.length-1)
-					m_buffer[i] = m_buffer[i+1];
-				m_buffer[$-1] = m_buffer[0];
+					move(m_buffer[i+1], m_buffer[i]);
+				move(m_buffer[0], m_buffer[$-1]);
 				foreach(i; 0 .. mod(m_start + m_fill - 1))
-					m_buffer[i] = m_buffer[i+1];
+					move(m_buffer[i+1], m_buffer[i]);
 			} else {
 				foreach(i; r.m_start .. mod(m_start + m_fill - 1))
-					m_buffer[i] = m_buffer[i+1];
+					move(m_buffer[i+1], m_buffer[i]);
 			}
 		} else {
 			assert(r.m_start >= m_start && r.m_start < m_start+m_fill);
 			foreach(i; r.m_start .. m_start+m_fill-1)
-				m_buffer[i] = m_buffer[i+1];
+				move(m_buffer[i+1], m_buffer[i]);
 		}
 		m_fill--;
 		destroy(m_buffer[mod(m_start+m_fill)]); // TODO: only call destroy for non-POD T
@@ -422,10 +422,20 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 		if( mod(m_start) >= mod(m_start+dst.length) ){
 			size_t chunk1 = m_buffer.length - m_start;
 			size_t chunk2 = dst.length - chunk1;
-			dst[0 .. chunk1] = m_buffer[m_start .. $];
-			dst[chunk1 .. $] = m_buffer[0 .. chunk2];
+			static if (isCopyable!T) {
+				dst[0 .. chunk1] = m_buffer[m_start .. $];
+				dst[chunk1 .. $] = m_buffer[0 .. chunk2];
+			} else {
+				foreach (i; 0 .. chunk1) move(m_buffer[m_start+i], dst[i]);
+				foreach (i; chunk1 .. this.length) move(m_buffer[i-chunk1], dst[i]);
+			}
 		} else {
-			dst[] = m_buffer[m_start .. m_start+dst.length];
+			static if (isCopyable!T) {
+				dst[] = m_buffer[m_start .. m_start+dst.length];
+			} else {
+				foreach (i; 0 .. dst.length)
+					move(m_buffer[m_start + i], dst[i]);
+			}
 		}
 		popFrontN(dst.length);
 	}
@@ -507,7 +517,7 @@ struct FixedRingBuffer(T, size_t N = 0, bool INITIALIZE = true) {
 
 		@property bool empty() const { return m_length == 0; }
 
-		@property inout(T) front() inout { assert(!empty); return m_buffer[m_start]; }
+		@property ref inout(T) front() inout { assert(!empty); return m_buffer[m_start]; }
 
 		void popFront()
 		{
