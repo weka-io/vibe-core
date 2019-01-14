@@ -35,7 +35,7 @@ shared final class TaskPool {
 	/** Creates a new task pool with the specified number of threads.
 
 		Params:
-			thread_count: The number of worker threads to create
+			thread_count = The number of worker threads to create
 	*/
 	this(size_t thread_count = logicalProcessorCount())
 	@safe {

@@ -1123,9 +1123,9 @@ struct Future(T) {
 	used and the result is computed within a separate task within the calling thread.
 
 	Params:
-		callable: A callable value, can be either a function, a delegate, or a
+		callable = A callable value, can be either a function, a delegate, or a
 			user defined type that defines an $(D opCall).
-		args: Arguments to pass to the callable.
+		args = Arguments to pass to the callable.
 
 	Returns:
 		Returns a $(D Future) object that can be used to access the result.
