@@ -191,7 +191,7 @@ void moveFile(string from, string to, bool copy_fallback = false)
 		try {
 			std.file.rename(from, to);
 		} catch (FileException e) {
-			std.file.copy(from, to);
+			copyFile(from, to);
 			std.file.remove(from);
 		}
 	}
@@ -214,6 +214,17 @@ void moveFile(string from, string to, bool copy_fallback = false)
 */
 void copyFile(NativePath from, NativePath to, bool overwrite = false)
 {
+	DirEntry info;
+	static if (__VERSION__ < 2078) {
+		() @trusted {
+			info = DirEntry(from.toString);
+			enforce(info.isFile, "The source path is not a file and cannot be copied.");
+		} ();
+	} else {
+		info = DirEntry(from.toString);
+		enforce(info.isFile, "The source path is not a file and cannot be copied.");
+	}
+
 	{
 		auto src = openFile(from, FileMode.read);
 		scope(exit) src.close();
@@ -223,7 +234,17 @@ void copyFile(NativePath from, NativePath to, bool overwrite = false)
 		dst.write(src);
 	}
 
-	// TODO: retain attributes and time stamps
+	// TODO: also retain creation time on windows
+
+	static if (__VERSION__ < 2078) {
+		() @trusted {
+			setAttributes(to.toString, info.attributes);
+			setTimes(to.toString, info.timeLastAccessed, info.timeLastModified);
+		} ();
+	} else {
+		setAttributes(to.toString, info.attributes);
+		setTimes(to.toString, info.timeLastAccessed, info.timeLastModified);
+	}
 }
 /// ditto
 void copyFile(string from, string to)
@@ -623,6 +644,8 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 		m_context = new Context; // FIME: avoid GC allocation (use FD user data slot)
 		m_context.changeEvent = createManualEvent();
 		m_watcher = eventDriver.watchers.watchDirectory(path.toNativeString, recursive, &m_context.onChange);
+		if (m_watcher == WatcherID.invalid)
+			throw new Exception("Failed to watch directory.");
 		m_context.path = path;
 		m_context.recursive = recursive;
 		m_context.changes = appender!(DirectoryChange[]);
