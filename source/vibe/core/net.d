@@ -39,8 +39,7 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 	else import core.sys.posix.netinet.in_ : sockaddr_in, sockaddr_in6;
 
 	enforce(host.length > 0, "Host name must not be empty.");
-	// FIXME: this check needs to be more specific to not disallow valid DNS names
-	if (host[0] == ':' || host[0] >= '0' && host[0] <= '9') {
+	if (isMaybeIPAddress(host)) {
 		auto addr = parseAddress(host);
 		enforce(address_family == AddressFamily.UNSPEC || addr.addressFamily == address_family);
 		NetworkAddress ret;
@@ -1123,4 +1122,32 @@ class ReadTimeoutException: Exception
 	{
 		super(message, file, line, next);
 	}
+}
+
+
+// check whether the given name is not a valid host name, but may instead
+// be a valid IP address. This is used as a quick check to avoid
+// unnecessary address parsing or DNS queries
+private bool isMaybeIPAddress(in char[] name)
+{
+	import std.algorithm.searching : all, canFind;
+	import std.ascii : isDigit;
+
+	// could be an IPv6 address, but ':' is invalid in host names
+	if (name.canFind(':')) return true;
+
+	// an IPv4 address is at least 7 characters (0.0.0.0)
+	if (name.length < 7) return false;
+
+	// no valid TLD consists of only digits
+	return name.canFind('.') && name.all!(ch => ch.isDigit || ch == '.');
+}
+
+unittest {
+	assert(isMaybeIPAddress("0.0.0.0"));
+	assert(isMaybeIPAddress("::1"));
+	assert(isMaybeIPAddress("aabb::1f"));
+	assert(!isMaybeIPAddress("example.com"));
+	assert(!isMaybeIPAddress("12.com"));
+	assert(!isMaybeIPAddress("1.1.1.t12"));
 }
