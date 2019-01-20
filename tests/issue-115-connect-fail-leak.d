@@ -8,8 +8,15 @@ import vibe.core.core;
 import vibe.core.log;
 import vibe.core.net;
 
+import core.time;
+
+
 void main()
 {
+	// make sure that the internal driver is initialized, so that
+	// base resources are all allocated
+	sleep(1.msecs);
+
 	auto initial = determineSocketCount();
 
 	TCPConnection conn;
@@ -26,6 +33,7 @@ void main()
 size_t determineSocketCount()
 {
 	import std.algorithm.searching : count;
+	import std.exception : enforce;
 	import std.range : iota;
 
 	version (Posix) {
@@ -34,7 +42,7 @@ size_t determineSocketCount()
 
 		rlimit rl;
 		enforce(getrlimit(RLIMIT_NOFILE, &rl) == 0);
-		return iota(rl.rlim_cur).count(fd => fcntl(fd, F_GETFD) != -1);
+		return iota(rl.rlim_cur).count!((fd) => fcntl(cast(int)fd, F_GETFD) != -1);
 	} else {
 		import core.sys.windows.winsock2 : getsockopt, SOL_SOCKET, SO_TYPE;
 
