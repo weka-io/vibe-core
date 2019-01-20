@@ -1,6 +1,7 @@
 1.5.0 - 2019-01-20
 ==================
 
+- Supports DMD 2.078.3 up to DMD 2.084.0 and LDC up to 1.13.0
 - Added statically typed CSP style cross-task channels - [pull #25][issue25]
 	- The current implementation is buffered and supports multiple senders and multiple readers
 
