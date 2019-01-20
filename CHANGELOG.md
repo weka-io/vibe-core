@@ -1,3 +1,30 @@
+1.4.7 - 2019-01-20
+==================
+
+- Improved API robustness and documentation for `InterruptibleTaskMutex` - [issue #118][issue118], [pull #119][issue119]
+	- `syncronized(iterriptible_mutex)` now results in a runtime error instead of silently using the automatically created object monitor
+	- resolved an overload conflict when passing a `TaskMutex` to `InterruptibleTaskCondition`
+	- `scopedMutexLock` now accepts `InterruptibleTaskMutex`
+- Fixed a socket file descriptor leak in `connectTCP` when the connection fails (by Jan Jurzitza aka WebFreak001) - [issue #115][issue115], [pull #116][issue116], [pull #123][issue123]
+- Fixed `resolveHost` to not treat qualified host names starting with a digit as an IP address - [issue #117][issue117], [pull #121][issue121]
+- Fixed `copyFile` to retain attributes and modification time - [pull #120][issue120]
+- Fixed the copy+delete path of `moveFile` to use `copyFile` instead of the blocking `std.file.copy` - [pull #120][issue120]
+- Fixed `createDirectoryWatcher` to properly throw an exception in case of failure - [pull #120][issue120]
+- Fixed ddoc warnings - [issue #103][issue103], [pull #119][issue119]
+- Fixed the exception error message issued by `FileStream.write` (by Benjamin Schaaf) - [pull #114][issue114]
+
+[issue103]: https://github.com/vibe-d/vibe-core/issues/103
+[issue114]: https://github.com/vibe-d/vibe-core/issues/114
+[issue115]: https://github.com/vibe-d/vibe-core/issues/115
+[issue116]: https://github.com/vibe-d/vibe-core/issues/116
+[issue117]: https://github.com/vibe-d/vibe-core/issues/117
+[issue118]: https://github.com/vibe-d/vibe-core/issues/118
+[issue119]: https://github.com/vibe-d/vibe-core/issues/119
+[issue120]: https://github.com/vibe-d/vibe-core/issues/120
+[issue121]: https://github.com/vibe-d/vibe-core/issues/121
+[issue123]: https://github.com/vibe-d/vibe-core/issues/123
+
+
 1.4.6 - 2018-12-28
 ==================
 
