@@ -1,3 +1,12 @@
+1.5.0 - 2019-01-20
+==================
+
+- Added statically typed CSP style cross-task channels - [pull #25][issue25]
+	- The current implementation is buffered and supports multiple senders and multiple readers
+
+[issue25]: https://github.com/vibe-d/vibe-core/issues/25
+
+
 1.4.7 - 2019-01-20
 ==================
 
