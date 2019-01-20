@@ -26,18 +26,24 @@ Supported compilers
 
 The following compilers are tested and supported:
 
+- DMD 2.084.0
+- DMD 2.083.1
 - DMD 2.082.1
 - DMD 2.081.2
 - DMD 2.080.1
 - DMD 2.079.0
 - DMD 2.078.3
-- DMD 2.077.1
-- DMD 2.076.1
+- LDC 1.13.0
 - LDC 1.12.0
 - LDC 1.11.0
 - LDC 1.10.0
 - LDC 1.9.0
 - LDC 1.8.0
+
+Supported up to 1.4.7:
+
+- DMD 2.077.1
+- DMD 2.076.1
 - LDC 1.7.0
 - LDC 1.6.0
 
