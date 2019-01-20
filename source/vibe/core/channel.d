@@ -84,7 +84,8 @@ struct Channel(T, size_t buffer_size) {
 		avaiable, `dst` will be left untouched and `false` is returned.
 	*/
 	bool consumeAll(ref FixedRingBuffer!(T, buffer_size) dst)
-	{ return m_impl.consumeAll(dst); }
+		in { assert(dst.empty); }
+		body { return m_impl.consumeAll(dst); }
 
 	/** Enqueues an element.
 
