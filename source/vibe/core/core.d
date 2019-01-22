@@ -1142,9 +1142,10 @@ struct Timer {
 	}
 }
 
-/// private
-struct TimerCallbackHandler(CALLABLE) {
-	static TimerCallbackHandler instance;
+private struct TimerCallbackHandler(CALLABLE) {
+	static __gshared TimerCallbackHandler ms_instance;
+	static @property ref TimerCallbackHandler instance() @trusted nothrow { return ms_instance; }
+
 	void handle(TimerID timer, bool fired)
 	@safe nothrow {
 		if (fired) {
