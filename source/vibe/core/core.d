@@ -1118,8 +1118,10 @@ struct TimerCallbackHandler {
 	Multiple yield locks can appear in nested scopes.
 */
 auto yieldLock()
-{
+@safe nothrow {
 	static struct YieldLock {
+		@safe nothrow:
+
 		private this(bool) { inc(); }
 		@disable this();
 		@disable this(this);
