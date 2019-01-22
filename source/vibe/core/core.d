@@ -730,17 +730,18 @@ unittest {
 /**
 	Returns a new armed timer.
 
-	Note that timers can only work if an event loop is running.
+	Note that timers can only work if an event loop is running, explicitly or
+	implicitly by running a blocking operation, such as `sleep` or `File.read`.
 
 	Params:
 		timeout = Determines the minimum amount of time that elapses before the timer fires.
-		callback = This delegate will be called when the timer fires
+		callback = If non-`null`, this delegate will be called when the timer fires
 		periodic = Speficies if the timer fires repeatedly or only once
 
 	Returns:
 		Returns a Timer object that can be used to identify and modify the timer.
 
-	See_also: createTimer
+	See_also: `createTimer`
 */
 Timer setTimer(Duration timeout, Timer.Callback callback, bool periodic = false)
 @safe nothrow {
@@ -777,14 +778,53 @@ Timer setTimer(Duration timeout, void delegate() callback, bool periodic = false
 	}, periodic);
 }
 
-/**
-	Creates a new timer without arming it.
 
-	See_also: setTimer
+/** Creates a new timer without arming it.
+
+	Each time `callback` gets invoked, it will be run inside of a newly started
+	task.
+
+	Params:
+		callback = If non-`null`, this delegate will be called when the timer
+			fires
+
+	See_also: `createLeanTimer`, `setTimer`
 */
-Timer createTimer(void delegate() nothrow @safe callback)
+Timer createTimer(void delegate() nothrow @safe callback = null)
 @safe nothrow {
-	return Timer(eventDriver.timers.create, callback);
+	static struct C {
+		void delegate() nothrow @safe callback;
+		void opCall() nothrow @safe { runTask(callback); }
+	}
+
+	if (callback) {
+		C c = {callback};
+		return createLeanTimer(c);
+	}
+
+	return createLeanTimer!(Timer.Callback)(null);
+}
+
+
+/** Creates a new timer with a lean callback mechanism.
+
+	In contrast to the standard `createTimer`, `callback` will not be called
+	in a new task, but is instead called directly in the context of the event
+	loop.
+
+	For this reason, the supplied callback is not allowed to perform any
+	operation that needs to block/yield execution. In this case, `runTask`
+	needs to be used explicitly to perform the operation asynchronously.
+
+	Additionally, `callback` can carry arbitrary state without requiring a heap
+	allocation.
+
+	See_also: `createTimer`
+*/
+Timer createLeanTimer(CALLABLE)(CALLABLE callback)
+	if (is(typeof(() @safe nothrow { callback(); } ())))
+{
+	return Timer.create(eventDriver.timers.create(), callback);
 }
 
 
@@ -1031,16 +1071,22 @@ struct Timer {
 
 	@safe:
 
-	private this(TimerID id, Callback callback)
+	private static Timer create(CALLABLE)(TimerID id, CALLABLE callback)
 	nothrow {
 		assert(id != TimerID.init, "Invalid timer ID.");
-		m_driver = eventDriver;
-		m_id = id;
 
-		if (callback) {
-			m_driver.timers.userData!Callback(m_id) = callback;
-			m_driver.timers.wait(m_id, &TimerCallbackHandler.instance.handle);
-		}
+		Timer ret;
+		ret.m_driver = eventDriver;
+		ret.m_id = id;
+
+		static if (is(typeof(!callback)))
+			if (!callback)
+				return ret;
+
+		ret.m_driver.timers.userData!CALLABLE(id) = callback;
+		ret.m_driver.timers.wait(id, &TimerCallbackHandler!CALLABLE.instance.handle);
+
+		return ret;
 	}
 
 	this(this)
@@ -1078,6 +1124,8 @@ struct Timer {
 
 	/** Waits until the timer fires.
 
+		This method may only be used if no timer callback has been specified.
+
 		Returns:
 			`true` is returned $(I iff) the timer was fired.
 	*/
@@ -1094,12 +1142,15 @@ struct Timer {
 	}
 }
 
-struct TimerCallbackHandler {
-	static TimerCallbackHandler instance;
+private struct TimerCallbackHandler(CALLABLE) {
+	static __gshared TimerCallbackHandler ms_instance;
+	static @property ref TimerCallbackHandler instance() @trusted nothrow { return ms_instance; }
+
 	void handle(TimerID timer, bool fired)
 	@safe nothrow {
 		if (fired) {
-			auto cb = eventDriver.timers.userData!(Timer.Callback)(timer);
+			auto cb = eventDriver.timers.userData!CALLABLE(timer);
+			auto l = yieldLock();
 			cb();
 		}
 
@@ -1118,8 +1169,10 @@ struct TimerCallbackHandler {
 	Multiple yield locks can appear in nested scopes.
 */
 auto yieldLock()
-{
+@safe nothrow {
 	static struct YieldLock {
+		@safe nothrow:
+
 		private this(bool) { inc(); }
 		@disable this();
 		@disable this(this);

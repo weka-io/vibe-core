@@ -491,7 +491,9 @@ final package class TaskFiber : Fiber {
 		} else assert(() @trusted { return Thread.getThis(); } () is this.thread, "Interrupting tasks in different threads is not yet supported.");
 		debug (VibeTaskLog) logTrace("Resuming task with interrupt flag.");
 		m_interrupt = true;
-		taskScheduler.switchTo(this.task);
+
+		auto defer = TaskFiber.getThis().m_yieldLockCount > 0 ? Yes.defer : No.defer;
+		taskScheduler.switchTo(this.task, defer);
 	}
 
 	void bumpTaskCounter()
