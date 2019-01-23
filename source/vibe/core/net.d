@@ -217,10 +217,8 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 			": timeout");
 
 		if (status != ConnectStatus.connected) {
-			if (sock != SocketFD.invalid) {
-				bool refsLeft = eventDriver.sockets.releaseRef(sock);
-				assert(!refsLeft);
-			}
+			if (sock != SocketFD.invalid)
+				eventDriver.sockets.releaseRef(sock);
 
 			enforce(false, "Failed to connect to "~addr.toString()~": "~status.to!string);
 			assert(false);
