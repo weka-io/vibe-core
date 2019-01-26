@@ -586,6 +586,21 @@ void runWorkerTaskDist(alias method, T, ARGS...)(shared(T) object, ARGS args)
 }
 
 
+/** Runs a new asynchronous task in all worker threads and returns the handles.
+
+	`on_handle` is a callble that takes a `Task` as its only argument and is
+	called for every task instance that gets created.
+
+	See_also: `runWorkerTaskDist`
+*/
+void runWorkerTaskDistH(HCB, FT, ARGS...)(scope HCB on_handle, FT func, auto ref ARGS args)
+	if (is(typeof(*func) == function))
+{
+	setupWorkerThreads();
+	st_workerPool.runTaskDistH(on_handle, func, args);
+}
+
+
 /**
 	Sets up num worker threads.
 
