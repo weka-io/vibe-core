@@ -664,23 +664,33 @@ private void runMutexUnitTests(M)()
 		Note that it is generally not safe to use a `TaskCondition` together with an
 		interruptible mutex type.
 
-	See_Also: InterruptibleTaskCondition
+	See_Also: `InterruptibleTaskCondition`
 */
 final class TaskCondition : core.sync.condition.Condition {
 @safe:
 
 	private TaskConditionImpl!(false, Mutex) m_impl;
 
-	this(core.sync.mutex.Mutex mtx) {
+	this(core.sync.mutex.Mutex mtx)
+	{
+		assert(mtx.classinfo is Mutex.classinfo || mtx.classinfo is TaskMutex.classinfo,
+			"TaskCondition can only be used with Mutex or TaskMutex");
+
 		m_impl.setup(mtx);
 		super(mtx);
 	}
-	override @property Mutex mutex() { return m_impl.mutex; }
-	override void wait() { m_impl.wait(); }
-	override bool wait(Duration timeout) { return m_impl.wait(timeout); }
-	override void notify() { m_impl.notify(); }
-	override void notifyAll() { m_impl.notifyAll(); }
+	override @property Mutex mutex() nothrow { return m_impl.mutex; }
+	override void wait() nothrow { m_impl.wait(); }
+	override bool wait(Duration timeout) nothrow { return m_impl.wait(timeout); }
+	override void notify() nothrow { m_impl.notify(); }
+	override void notifyAll() nothrow  { m_impl.notifyAll(); }
 }
+
+unittest {
+	new TaskCondition(new Mutex);
+	new TaskCondition(new TaskMutex);
+}
+
 
 /** This example shows the typical usage pattern using a `while` loop to make
 	sure that the final condition is reached.
@@ -1631,7 +1641,8 @@ private struct RecursiveTaskMutexImpl(bool INTERRUPTIBLE) {
 private struct TaskConditionImpl(bool INTERRUPTIBLE, LOCKABLE) {
 	private {
 		LOCKABLE m_mutex;
-
+		static if (is(LOCKABLE == Mutex))
+			TaskMutex m_taskMutex;
 		shared(ManualEvent) m_signal;
 	}
 
@@ -1653,6 +1664,8 @@ private struct TaskConditionImpl(bool INTERRUPTIBLE, LOCKABLE) {
 	void setup(LOCKABLE mtx)
 	{
 		m_mutex = mtx;
+		static if (is(typeof(m_taskMutex)))
+			m_taskMutex = cast(TaskMutex)mtx;
 	}
 
 	@property LOCKABLE mutex() { return m_mutex; }
@@ -1665,8 +1678,18 @@ private struct TaskConditionImpl(bool INTERRUPTIBLE, LOCKABLE) {
 		}
 
 		auto refcount = m_signal.emitCount;
-		m_mutex.unlock();
-		scope(exit) m_mutex.lock();
+
+		static if (is(LOCKABLE == Mutex)) {
+			if (m_taskMutex) m_taskMutex.unlock();
+			else m_mutex.unlock_nothrow();
+		} else m_mutex.unlock();
+
+		scope(exit) {
+			static if (is(LOCKABLE == Mutex)) {
+				if (m_taskMutex) m_taskMutex.lock();
+				else m_mutex.lock_nothrow();
+			} else m_mutex.lock();
+		}
 		static if (INTERRUPTIBLE) m_signal.wait(refcount);
 		else m_signal.waitUninterruptible(refcount);
 	}
@@ -1680,8 +1703,18 @@ private struct TaskConditionImpl(bool INTERRUPTIBLE, LOCKABLE) {
 		}
 
 		auto refcount = m_signal.emitCount;
-		m_mutex.unlock();
-		scope(exit) m_mutex.lock();
+
+		static if (is(LOCKABLE == Mutex)) {
+			if (m_taskMutex) m_taskMutex.unlock();
+			else m_mutex.unlock_nothrow();
+		} else m_mutex.unlock();
+
+		scope(exit) {
+			static if (is(LOCKABLE == Mutex)) {
+				if (m_taskMutex) m_taskMutex.lock();
+				else m_mutex.lock_nothrow();
+			} else m_mutex.lock();
+		}
 
 		static if (INTERRUPTIBLE) return m_signal.wait(timeout, refcount) != refcount;
 		else return m_signal.waitUninterruptible(timeout, refcount) != refcount;
