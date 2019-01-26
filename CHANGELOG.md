@@ -1,3 +1,23 @@
+1.6.0 - 2019-01-26
+==================
+
+- Improved the Channel!T API - [pull #127][issue127], [pull #130][issue130]
+	- Usable as a `shared(Channel!T)`
+	- Most of the API is now `nothrow`
+	- `createChannel` is now `@safe`
+- `yieldLock` is now `@safe nothrow` - [pull #127][issue127]
+- `Task.interrupt` can now be called from within a `yieldLock` section - [pull #127][issue127]
+- Added `createLeanTimer` and reverted the task behavior back to pre-1.4.4 - []
+- Fixed a bogus assertion failure in `connectTCP` on Posix systems - [pull #128][issue128]
+- Added `runWorkerTaskDistH`, a variant of `runWorkerTaskDist` that returns all task handles - [pull #129][issue129]
+- `TaskCondition.wait`, `notify` and `notifyAll` are now `nothrow` - [pull #130][issue130]
+
+[issue127]: https://github.com/vibe-d/vibe-core/issues/127
+[issue128]: https://github.com/vibe-d/vibe-core/issues/128
+[issue129]: https://github.com/vibe-d/vibe-core/issues/129
+[issue130]: https://github.com/vibe-d/vibe-core/issues/130
+
+
 1.5.0 - 2019-01-20
 ==================
 
@@ -12,7 +32,7 @@
 ==================
 
 - Improved API robustness and documentation for `InterruptibleTaskMutex` - [issue #118][issue118], [pull #119][issue119]
-	- `syncronized(iterriptible_mutex)` now results in a runtime error instead of silently using the automatically created object monitor
+	- `synchronized(iterriptible_mutex)` now results in a runtime error instead of silently using the automatically created object monitor
 	- resolved an overload conflict when passing a `TaskMutex` to `InterruptibleTaskCondition`
 	- `scopedMutexLock` now accepts `InterruptibleTaskMutex`
 - Fixed a socket file descriptor leak in `connectTCP` when the connection fails (by Jan Jurzitza aka WebFreak001) - [issue #115][issue115], [pull #116][issue116], [pull #123][issue123]
