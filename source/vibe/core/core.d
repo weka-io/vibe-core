@@ -90,7 +90,7 @@ version (Windows)
 */
 int runApplication(string[]* args_out = null)
 @safe {
-	try if (!() @trusted { return finalizeCommandLineOptions(); } () ) return 0;
+	try if (!() @trusted { return finalizeCommandLineOptions(args_out); } () ) return 0;
 	catch (Exception e) {
 		logDiagnostic("Error processing command line: %s", e.msg);
 		return 1;
