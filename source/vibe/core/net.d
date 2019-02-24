@@ -145,12 +145,12 @@ TCPListener listenTCP(ushort port, void delegate(TCPConnection) connection_callb
 
 	This function is the same as listenTCP but takes a function callback instead of a delegate.
 */
-TCPListener[] listenTCP_s(ushort port, TCPConnectionFunction connection_callback, TCPListenOptions options = TCPListenOptions.defaults)
+TCPListener[] listenTCP_s(ushort port, TCPConnectionFunction connection_callback, TCPListenOptions options = TCPListenOptions.defaults) @trusted
 {
 	return listenTCP(port, toDelegate(connection_callback), options);
 }
 /// ditto
-TCPListener listenTCP_s(ushort port, TCPConnectionFunction connection_callback, string address, TCPListenOptions options = TCPListenOptions.defaults)
+TCPListener listenTCP_s(ushort port, TCPConnectionFunction connection_callback, string address, TCPListenOptions options = TCPListenOptions.defaults) @trusted
 {
 	return listenTCP(port, toDelegate(connection_callback), address, options);
 }
@@ -255,7 +255,7 @@ NetworkAddress anyAddress()
 /// Callback invoked for incoming TCP connections.
 @safe nothrow alias TCPConnectionDelegate = void delegate(TCPConnection stream);
 /// ditto
-@safe nothrow alias TCPConnectionFunction = void delegate(TCPConnection stream);
+@safe nothrow alias TCPConnectionFunction = void function(TCPConnection stream);
 
 
 /**
