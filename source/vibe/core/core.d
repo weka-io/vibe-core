@@ -662,8 +662,22 @@ void yield()
 	} else {
 		// Let yielded tasks execute
 		assert(TaskFiber.getThis().m_yieldLockCount == 0, "May not yield within an active yieldLock()!");
-		() @safe nothrow { performIdleProcessing(true); } ();
+		() @safe nothrow { performIdleProcessingOnce(true); } ();
 	}
+}
+
+unittest {
+	size_t ti;
+	auto t = runTask({
+		for (ti = 0; ti < 10; ti++)
+			yield();
+	});
+
+	foreach (i; 0 .. 5) yield();
+	assert(ti > 0 && ti < 10, "Task did not interleave with yield loop outside of task");
+
+	t.join();
+	assert(ti == 10);
 }
 
 
@@ -1244,29 +1258,37 @@ package(vibe) void performIdleProcessing(bool force_process_events = false)
 @safe nothrow {
 	bool again = !getExitFlag();
 	while (again) {
-		if (force_process_events) {
-			auto er = eventDriver.core.processEvents(0.seconds);
-			if (er.among!(ExitReason.exited, ExitReason.outOfWaiters) && s_scheduler.scheduledTaskCount == 0) {
-				if (s_eventLoopRunning) {
-					logDebug("Setting exit flag due to driver signalling exit: %s", er);
-					s_exitEventLoop = true;
-				}
-				return;
-			}
-		} else force_process_events = true;
-
-		if (s_idleHandler)
-			again = s_idleHandler();
-		else again = false;
-
-		again = (s_scheduler.schedule() == ScheduleStatus.busy || again) && !getExitFlag();
+		again = performIdleProcessingOnce(force_process_events);
+		force_process_events = true;
 	}
 
 	if (s_scheduler.scheduledTaskCount) logDebug("Exiting from idle processing although there are still yielded tasks");
 
+	if (s_exitEventLoop) return;
+
 	if (!s_ignoreIdleForGC && s_gcTimer) {
 		s_gcTimer.rearm(s_gcCollectTimeout);
 	} else s_ignoreIdleForGC = false;
+}
+
+private bool performIdleProcessingOnce(bool process_events)
+@safe nothrow {
+	if (process_events) {
+		auto er = eventDriver.core.processEvents(0.seconds);
+		if (er.among!(ExitReason.exited, ExitReason.outOfWaiters) && s_scheduler.scheduledTaskCount == 0) {
+			if (s_eventLoopRunning) {
+				logDebug("Setting exit flag due to driver signalling exit: %s", er);
+				s_exitEventLoop = true;
+			}
+			return false;
+		}
+	}
+
+	bool again;
+	if (s_idleHandler)
+		again = s_idleHandler();
+
+	return (s_scheduler.schedule() == ScheduleStatus.busy || again) && !getExitFlag();
 }
 
 
