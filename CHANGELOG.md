@@ -1,3 +1,16 @@
+1.6.1 - 2019-03-10
+==================
+
+- Fixed handling of the `args_out` parameter of `runApplication` (by Joseph Rushton Wakeling) - [pull #134][issue134]
+- Fixed `TCPConnectionFunction` to be actually defined as a function pointer (by Steven Dwy) - [pull #136][issue136], [issue #109][issue109]
+- Fixed execution interleaving of busy `yield` loops inside and outside of a task - [pull #139][issue139]
+
+[issue109]: https://github.com/vibe-d/vibe-core/issues/109
+[issue134]: https://github.com/vibe-d/vibe-core/issues/134
+[issue136]: https://github.com/vibe-d/vibe-core/issues/136
+[issue139]: https://github.com/vibe-d/vibe-core/issues/139
+
+
 1.6.0 - 2019-01-26
 ==================
 
