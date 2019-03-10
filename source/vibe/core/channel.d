@@ -188,7 +188,7 @@ private final class ChannelImpl(T, size_t buffer_size) {
 			thisus.m_items.popFront();
 		}
 
-		if (was_full) thisus.m_condition.notifyAll();
+		if (was_full) thisus.m_condition.notify();
 
 		return true;
 	}
@@ -212,7 +212,7 @@ private final class ChannelImpl(T, size_t buffer_size) {
 			thisus.m_items.popFront();
 		}
 
-		if (was_full) thisus.m_condition.notifyAll();
+		if (was_full) thisus.m_condition.notify();
 
 		return ret.move;
 	}
@@ -235,7 +235,7 @@ private final class ChannelImpl(T, size_t buffer_size) {
 			swap(thisus.m_items, dst);
 		}
 
-		if (was_full) thisus.m_condition.notifyAll();
+		if (was_full) thisus.m_condition.notify();
 
 		return true;
 	}
@@ -256,7 +256,7 @@ private final class ChannelImpl(T, size_t buffer_size) {
 			thisus.m_items.put(item.move);
 		}
 
-		if (need_notify) thisus.m_condition.notifyAll();
+		if (need_notify) thisus.m_condition.notify();
 	}
 }
 
