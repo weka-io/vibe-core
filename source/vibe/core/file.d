@@ -729,22 +729,33 @@ struct DirectoryChange {
 
 
 private FileInfo makeFileInfo(DirEntry ent)
-@trusted {
+@trusted nothrow {
+	import std.algorithm.comparison : among;
+
 	FileInfo ret;
-	auto fullname = ent.name.endsWith('/') || ent.name.endsWith('\\') ? ent.name[0 .. $-1] : ent.name;
+	if (!ent.name.length) return ret;
+
+	auto fullname = ent.name[$-1].among('/', '\\') ? ent.name[0 .. $-1] : ent.name;
 	ret.name = baseName(fullname);
 	if (ret.name.length == 0) ret.name = fullname;
-	ret.size = ent.size;
-	ret.timeModified = ent.timeLastModified;
-	version(Windows) ret.timeCreated = ent.timeCreated;
-	else ret.timeCreated = ent.timeLastModified;
-	ret.isSymlink = ent.isSymlink;
-	ret.isDirectory = ent.isDir;
-	ret.isFile = ent.isFile;
+
+	try {
+		ret.isFile = ent.isFile;
+		ret.isDirectory = ent.isDir;
+		ret.isSymlink = ent.isSymlink;
+		ret.timeModified = ent.timeLastModified;
+		version(Windows) ret.timeCreated = ent.timeCreated;
+		else ret.timeCreated = ent.timeLastModified;
+		ret.size = ent.size;
+	} catch (Exception e) {
+		logDebug("Failed to get information for file '%s': %s", fullname, e.msg);
+	}
+
 	version (Windows) {
 		import core.sys.windows.windows : FILE_ATTRIBUTE_HIDDEN;
 		ret.hidden = (ent.attributes & FILE_ATTRIBUTE_HIDDEN) != 0;
 	}
-	else ret.hidden = ret.name.startsWith('.');
+	else ret.hidden = ret.name[0] == '.' && ret.name != "." && ret.name != "..";
+
 	return ret;
 }
