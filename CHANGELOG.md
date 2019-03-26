@@ -1,3 +1,13 @@
+1.6.2 - 2019-03-26
+==================
+
+- Fixed `listDirectory`/`iterateDirectory` to not throw when encountering inaccessible files - [pull #142][issue142]
+- Added `FileInfo.isFile` to be able to distinguish between regular and special files (by Francesco Mecca) - [pull #141][issue141]
+
+[issue141]: https://github.com/vibe-d/vibe-core/issues/141
+[issue142]: https://github.com/vibe-d/vibe-core/issues/142
+
+
 1.6.1 - 2019-03-10
 ==================
 
