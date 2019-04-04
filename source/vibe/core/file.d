@@ -733,11 +733,13 @@ private FileInfo makeFileInfo(DirEntry ent)
 	import std.algorithm.comparison : among;
 
 	FileInfo ret;
-	if (!ent.name.length) return ret;
-
-	auto fullname = ent.name[$-1].among('/', '\\') ? ent.name[0 .. $-1] : ent.name;
-	ret.name = baseName(fullname);
-	if (ret.name.length == 0) ret.name = fullname;
+	string fullname = ent.name;
+	if (ent.name.length) {
+		if (ent.name[$-1].among('/', '\\'))
+			fullname = ent.name[0 .. $-1];
+		ret.name = baseName(fullname);
+		if (ret.name.length == 0) ret.name = fullname;
+	}
 
 	try {
 		ret.isFile = ent.isFile;
@@ -755,7 +757,31 @@ private FileInfo makeFileInfo(DirEntry ent)
 		import core.sys.windows.windows : FILE_ATTRIBUTE_HIDDEN;
 		ret.hidden = (ent.attributes & FILE_ATTRIBUTE_HIDDEN) != 0;
 	}
-	else ret.hidden = ret.name[0] == '.' && ret.name != "." && ret.name != "..";
+	else ret.hidden = ret.name.length > 1 && ret.name[0] == '.' && ret.name != "..";
 
 	return ret;
+}
+
+version (Windows) {} else unittest {
+	void test(string name_in, string name_out, bool hidden) {
+		auto de = DirEntry(name_in);
+		assert(makeFileInfo(de).hidden == hidden);
+		assert(makeFileInfo(de).name == name_out);
+	}
+
+	void testCreate(string name_in, string name_out, bool hidden)
+	{
+		if (name_in.endsWith("/"))
+			createDirectory(name_in);
+		else writeFileUTF8(NativePath(name_in), name_in);
+		scope (exit) removeFile(name_in);
+		test(name_in, name_out, hidden);
+	}
+
+	test(".", ".", false);
+	test("..", "..", false);
+	testCreate(".test_foo", ".test_foo", true);
+	test("./", ".", false);
+	testCreate(".test_foo/", ".test_foo", true);
+	test("/", "", false);
 }
