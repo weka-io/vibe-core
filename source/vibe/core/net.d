@@ -621,7 +621,7 @@ mixin(tracer);
 
 		Returns:
 			If the read readiness can be determined immediately, it will be
-			returned as  WaitForDataAsyncStatus.sataAvailable` or
+			returned as `WaitForDataAsyncStatus.dataAvailable` or
 			`WaitForDataAsyncStatus.noModeData` and the callback will not be
 			invoked. Otherwise `WaitForDataAsyncStatus.waiting` is returned
 			and the callback will be invoked once the status can be
