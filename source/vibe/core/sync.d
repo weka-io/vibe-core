@@ -1063,8 +1063,8 @@ struct ManualEvent {
 		auto drv = eventDriver;
 		m_waiters.lock.active.iterate((ThreadWaiter w) {
 			() @trusted { logTrace("waiter %s", cast(void*)w); } ();
-			if (w.unused) return true;
 			if (w.m_driver is drv) {
+				if (w.unused) return true;
 				lw = w;
 				lw.addRef();
 			} else {
