@@ -1,3 +1,15 @@
+1.6.3 - 2019
+==================
+
+- Added `ConnectionPool.removeUnused` to enable closing all unused connections - [pull #143][issue143]
+- Fixes a potential range violation in `iterateDirectory`/`getFileInfo` - [pull #144][issue144]
+- Fixes thread-safetly of `Task.join` and `Task.interrupt` when operating cross-thread - [pull #145][issue145]
+
+[issue143]: https://github.com/vibe-d/vibe-core/issues/143
+[issue144]: https://github.com/vibe-d/vibe-core/issues/144
+[issue145]: https://github.com/vibe-d/vibe-core/issues/145
+
+
 1.6.2 - 2019-03-26
 ==================
 
