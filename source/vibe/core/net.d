@@ -101,8 +101,14 @@ TCPListener listenTCP(ushort port, TCPConnectionDelegate connection_callback, st
 	auto addr = resolveHost(address);
 	addr.port = port;
 	StreamListenOptions sopts = StreamListenOptions.defaults;
+	if (options & TCPListenOptions.reuseAddress)
+		sopts |= StreamListenOptions.reuseAddress;
+	else
+		sopts &= ~StreamListenOptions.reuseAddress;
 	if (options & TCPListenOptions.reusePort)
 		sopts |= StreamListenOptions.reusePort;
+	else
+		sopts &= ~StreamListenOptions.reusePort;
 	scope addrc = new RefAddress(addr.sockAddr, addr.sockAddrLen);
 	auto sock = eventDriver.sockets.listenStream(addrc, sopts,
 		(StreamListenSocketFD ls, StreamSocketFD s, scope RefAddress addr) @safe nothrow {
@@ -1079,7 +1085,7 @@ struct UDPConnection {
 */
 enum TCPListenOptions {
 	/// Don't enable any particular option
-	defaults = 0,
+	none = 0,
 	/// Deprecated: causes incoming connections to be distributed across the thread pool
 	distribute = 1<<0,
 	/// Disables automatic closing of the connection when the connection callback exits
@@ -1088,6 +1094,10 @@ enum TCPListenOptions {
 		Does not affect libasync driver because it is always enabled by libasync.
 	*/
 	reusePort = 1<<2,
+	/// Enable address reuse
+	reuseAddress = 1<<3,
+	///
+	defaults = reuseAddress
 }
 
 private pure nothrow {
