@@ -804,13 +804,17 @@ package void initializeLogModule()
 private nothrow void doLog(S, T...)(LogLevel level, string mod, string func, string file, int line, S fmt, lazy T args)
 {
 	try {
-		auto args_copy = args;
+		static if(T.length != 0)
+			auto args_copy = args;
 
 		foreach (l; getLoggers())
 			if (l.minLevel <= level) { // WARNING: TYPE SYSTEM HOLE: accessing field of shared class!
 				auto ll = l.lock();
 				auto rng = LogOutputRange(ll, file, line, level);
-				/*() @trusted {*/ rng.formattedWrite(fmt, args_copy); //} (); // formattedWrite is not @safe at least up to 2.068.0
+				static if(T.length != 0)
+					/*() @trusted {*/ rng.formattedWrite(fmt, args_copy); //} (); // formattedWrite is not @safe at least up to 2.068.0
+				else
+					rng.put(fmt);
 				rng.finalize();
 			}
 	} catch(Exception e) debug assert(false, e.msg);
