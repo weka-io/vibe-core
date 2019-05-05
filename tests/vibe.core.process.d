@@ -61,6 +61,9 @@ void testStderr()
     };
     auto procPipes = pipeProcess(["rdmd", "--eval", program], Redirect.stdin | Redirect.stderr);
 
+    // Wait for rdmd to compile
+    sleep(1.seconds);
+
     string output;
     auto outputTask = runTask({
         output = procPipes.stderr.collectOutput();
@@ -83,12 +86,15 @@ void testStderr()
 
 void testRandomDeath()
 {
+    auto program = q{
+        import core.thread;
+        import std.random;
+        Thread.sleep(dur!"msecs"(uniform(0, 1000)));
+    };
+    // Prime rdmd
+    execute(["rdmd", "--eval", program]);
+
     foreach (i; 0..20) {
-        auto program = q{
-            import core.thread;
-            import std.random;
-            Thread.sleep(dur!"msecs"(uniform(0, 1000)));
-        };
         auto process = spawnProcess(["rdmd", "--eval", program]);
 
         assert(!process.exited);
@@ -131,8 +137,8 @@ void testIgnoreSigterm()
 
     assert(!procPipes.process.exited);
 
-    // Give the program some time to install the signal handler
-    sleep(1.seconds);
+    // Give the program some time to compile and install the signal handler
+    sleep(2.seconds);
 
     procPipes.process.kill();
     procPipes.stdin.write("foo\n");
