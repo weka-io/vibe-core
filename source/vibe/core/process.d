@@ -34,7 +34,7 @@ import vibe.core.internal.release;
 */
 Process registerProcess(Pid pid)
 @trusted {
-    return registerProcess(pid.osHandle);
+    return registerProcess(pid.processID);
 }
 
 /// ditto
