@@ -258,7 +258,10 @@ struct Process {
             import core.sys.posix.signal : SIGTERM;
             eventDriver.processes.kill(m_pid, SIGTERM);
         }
-        else static assert(0);
+        else
+        {
+            eventDriver.processes.kill(m_pid, 1);
+        }
     }
 
     /// ditto
@@ -279,7 +282,10 @@ struct Process {
             import core.sys.posix.signal : SIGKILL;
             eventDriver.processes.kill(m_pid, SIGKILL);
         }
-        else static assert(0);
+        else
+        {
+            eventDriver.processes.kill(m_pid, 1);
+        }
     }
 
     /**
