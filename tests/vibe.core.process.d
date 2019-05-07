@@ -62,7 +62,7 @@ void testStderr()
     auto procPipes = pipeProcess(["rdmd", "--eval", program], Redirect.stdin | Redirect.stderr);
 
     // Wait for rdmd to compile
-    sleep(1.seconds);
+    sleep(3.seconds);
 
     string output;
     auto outputTask = runTask({
@@ -138,7 +138,7 @@ void testIgnoreSigterm()
     assert(!procPipes.process.exited);
 
     // Give the program some time to compile and install the signal handler
-    sleep(2.seconds);
+    sleep(4.seconds);
 
     procPipes.process.kill();
     procPipes.stdin.write("foo\n");
