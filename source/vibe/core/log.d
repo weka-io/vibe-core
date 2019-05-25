@@ -148,6 +148,30 @@ void logFatal(string file = __FILE__, int line = __LINE__, S, T...)(S fmt, lazy 
 	}
 }
 
+
+/** Logs an exception, including a debug stack trace.
+*/
+void logException(LogLevel level = LogLevel.error, string file = __FILE__,
+	int line = __LINE__)(Throwable exception, string error_description)
+@safe nothrow {
+	log!(level, file, line)("%s: %s", error_description, exception.msg);
+	try logDebug!(file, line)("Full exception: %s", () @trusted { return exception.toString(); } ());
+	catch (Exception e) logDebug("Failed to print full exception: %s", e.msg);
+}
+
+///
+unittest {
+	void test() nothrow
+	{
+		try {
+			throw new Exception("Something failed!");
+		} catch (Exception e) {
+			logException(e, "Failed to carry out some operation");
+		}
+	}
+}
+
+
 /// Specifies the log level for a particular log message.
 enum LogLevel {
 	trace,      /// Developer information for locating events when no useful stack traces are available
