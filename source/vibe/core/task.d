@@ -15,7 +15,6 @@ import core.thread;
 import std.exception;
 import std.traits;
 import std.typecons;
-import std.variant;
 
 
 /** Represents a single task as started using vibe.core.runTask.

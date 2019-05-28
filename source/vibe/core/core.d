@@ -29,7 +29,6 @@ import std.range : empty, front, popFront;
 import std.string;
 import std.traits : isFunctionPointer;
 import std.typecons : Flag, Yes, Typedef, Tuple, tuple;
-import std.variant;
 import core.atomic;
 import core.sync.condition;
 import core.sync.mutex;

@@ -16,7 +16,6 @@ import core.time;
 import std.traits;
 import std.typecons;
 import std.typetuple;
-import std.variant;
 import std.string;
 import vibe.core.task;
 
