@@ -195,7 +195,7 @@ struct Process {
     /**
         An operating system handle to the process.
     */
-    @property int osHandle() const nothrow @nogc { return cast(int)m_pid; }
+    @property int pid() const nothrow @nogc { return cast(int)m_pid; }
 
     /**
         Whether the process has exited.
@@ -724,7 +724,7 @@ private auto executeImpl(alias spawn, Cmd, Args...)(
     return Tuple!(int, "status", string, "output")(processPipes.process.wait(), stringOutput);
 }
 
-/**
+/*
     Collect the string output of a stream in a blocking fashion.
 
     Params:
@@ -734,6 +734,7 @@ private auto executeImpl(alias spawn, Cmd, Args...)(
     Returns:
         The collected data from the stream as a string.
 */
+/// private
 string collectOutput(InputStream)(InputStream stream, size_t nbytes = size_t.max)
 @blocking @trusted if (isInputStream!InputStream) {
     auto output = appender!string();

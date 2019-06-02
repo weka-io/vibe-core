@@ -5,6 +5,8 @@ dependency "vibe-core" path="../"
 +/
 module test;
 
+static if (__VERSION__ >= 2080) {
+
 import core.thread;
 import vibe.core.log;
 import vibe.core.core;
@@ -203,4 +205,6 @@ void main()
     });
 
     runEventLoop();
+}
+
 }
