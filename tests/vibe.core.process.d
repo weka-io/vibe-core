@@ -5,8 +5,6 @@ dependency "vibe-core" path="../"
 +/
 module test;
 
-static if (__VERSION__ >= 2080) {
-
 import core.thread;
 import vibe.core.log;
 import vibe.core.core;
@@ -179,32 +177,32 @@ void testLineEndings()
 
 void main()
 {
-    runTask({
-        auto tasks = [
-            &testEcho,
-            &testCat,
-            &testStderr,
-            &testRandomDeath,
-            &testIgnoreSigterm,
-            &testSimpleShell,
-            &testLineEndings,
-        ].map!(fn => runTask({
-            try {
-                fn();
-            } catch (Exception e) {
-                logError("%s", e);
-                throw e;
+    static if (__VERSION__ >= 2080) {
+        runTask({
+            auto tasks = [
+                &testEcho,
+                &testCat,
+                &testStderr,
+                &testRandomDeath,
+                &testIgnoreSigterm,
+                &testSimpleShell,
+                &testLineEndings,
+            ].map!(fn => runTask({
+                try {
+                    fn();
+                } catch (Exception e) {
+                    logError("%s", e);
+                    throw e;
+                }
+            }));
+
+            foreach (task; tasks) {
+                task.join();
             }
-        }));
 
-        foreach (task; tasks) {
-            task.join();
-        }
+            exitEventLoop();
+        });
 
-        exitEventLoop();
-    });
-
-    runEventLoop();
-}
-
+        runEventLoop();
+    }
 }
