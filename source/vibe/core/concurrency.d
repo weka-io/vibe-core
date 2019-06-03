@@ -1235,7 +1235,13 @@ package final class VibedScheduler : Scheduler {
 		import core.thread : Thread;
 
 		final switch (st_concurrencyPrimitive) with (ConcurrencyPrimitive) {
-			case task: runTask(op); break;
+			case task:
+				static void nothrow_wrapper(void delegate() op) {
+					try op();
+					catch (Exception e) assert(false, e.msg);
+				}
+				runTask(&nothrow_wrapper, op);
+				break;
 			case workerTask:
 				static void wrapper(shared(void delegate()) op) {
 					(cast(void delegate())op)();

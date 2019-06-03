@@ -315,18 +315,37 @@ void setIdleHandler(bool delegate() @safe nothrow del)
 
 	Note that the maximum size of all args must not exceed `maxTaskParameterSize`.
 */
-Task runTask(ARGS...)(void delegate(ARGS) @safe task, auto ref ARGS args)
+Task runTask(ARGS...)(void delegate(ARGS) @safe nothrow task, auto ref ARGS args)
 {
 	return runTask_internal!((ref tfi) { tfi.set(task, args); });
 }
 ///
-Task runTask(ARGS...)(void delegate(ARGS) @system task, auto ref ARGS args)
+Task runTask(ARGS...)(void delegate(ARGS) @system nothrow task, auto ref ARGS args)
 @system {
 	return runTask_internal!((ref tfi) { tfi.set(task, args); });
 }
 /// ditto
 Task runTask(CALLABLE, ARGS...)(CALLABLE task, auto ref ARGS args)
-	if (!is(CALLABLE : void delegate(ARGS)) && is(typeof(CALLABLE.init(ARGS.init))))
+	if (!is(CALLABLE : void delegate(ARGS)) && is(typeof(() nothrow { CALLABLE.init(ARGS.init); })))
+{
+	return runTask_internal!((ref tfi) { tfi.set(task, args); });
+}
+/// ditto
+deprecated("The 'task' argument should be marked nothrow")
+Task runTask(ARGS...)(void delegate(ARGS) @safe task, auto ref ARGS args)
+{
+	return runTask_internal!((ref tfi) { tfi.set(task, args); });
+}
+///
+deprecated("The 'task' argument should be marked nothrow")
+Task runTask(ARGS...)(void delegate(ARGS) @system task, auto ref ARGS args)
+@system {
+	return runTask_internal!((ref tfi) { tfi.set(task, args); });
+}
+/// ditto
+deprecated("The 'task' argument should be marked nothrow")
+Task runTask(CALLABLE, ARGS...)(CALLABLE task, auto ref ARGS args)
+	if (!is(CALLABLE : void delegate(ARGS)) && is(typeof(CALLABLE.init(ARGS.init))) && !is(typeof(() nothrow { CALLABLE.init(ARGS.init); })))
 {
 	return runTask_internal!((ref tfi) { tfi.set(task, args); });
 }
@@ -1521,15 +1540,18 @@ private void shutdownDriver()
 
 
 private void watchExitFlag()
-{
+nothrow {
 	auto emit_count = st_threadsSignal.emitCount;
 	while (true) {
-		synchronized (st_threadsMutex) {
+		{
+			st_threadsMutex.lock_nothrow();
+			scope (exit) st_threadsMutex.unlock_nothrow();
 			if (getExitFlag()) break;
 		}
 
 		try emit_count = st_threadsSignal.wait(emit_count);
 		catch (InterruptException e) return;
+		catch (Exception e) assert(false, e.msg);
 	}
 
 	logDebug("main thread exit");
