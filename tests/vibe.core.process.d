@@ -177,6 +177,7 @@ void testLineEndings()
 
 void main()
 {
+    // rdmd --eval is only supported in versions >= 2.080
     static if (__VERSION__ >= 2080) {
         runTask({
             auto tasks = [
