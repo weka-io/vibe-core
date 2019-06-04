@@ -5,6 +5,7 @@
 - Added `ConnectionPool.removeUnused` to enable closing all unused connections - [pull #143][issue143]
 - Added `logException` to log exceptions in a standard and `nothrow` way - [pull #155][issue155]
 - Added `TCPListenOptions.reuseAddress` for explicitly control of `SO_REUSEADDR` for listening sockets (by Radu Racariu) - [pull #150][issue150]
+- Updated compiler support to DMD 2.086.0 and LDC 1.5.0
 - The logging functions now log verbatim if no additional argument is passed (by Denis Feklushkin aka dennizzzka) - [pull #152][issue152]
 - Fixes a potential range violation in `iterateDirectory`/`getFileInfo` - [pull #144][issue144]
 - Fixes thread-safetly of `Task.join` and `Task.interrupt` when operating cross-thread - [pull #145][issue145]
