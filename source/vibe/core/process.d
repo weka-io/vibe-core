@@ -30,15 +30,15 @@ import vibe.core.internal.release;
     started from anywhere including external libraries or std.process.
 
     Params:
-        pid = A Pid or OS process handle
+        pid = A Pid or OS process id
 */
-Process registerProcess(Pid pid)
+Process adoptProcessID(Pid pid)
 @trusted {
-    return registerProcess(pid.processID);
+    return adoptProcessID(pid.processID);
 }
 
 /// ditto
-Process registerProcess(int pid)
+Process adoptProcessID(int pid)
 {
     return Process(eventDriver.processes.adopt(pid));
 }
