@@ -569,9 +569,14 @@ struct TCPConnection {
 
 	bool waitForData(Duration timeout = Duration.max)
 	{
+		return waitForDataEx(timeout) == WaitForDataStatus.dataAvailable;
+	}
+
+	WaitForDataStatus waitForDataEx(Duration timeout = Duration.max)
+	{
 mixin(tracer);
-		if (!m_context) return false;
-		if (m_context.readBuffer.length > 0) return true;
+		if (!m_context) return WaitForDataStatus.noMoreData;
+		if (m_context.readBuffer.length > 0) return WaitForDataStatus.dataAvailable;
 		auto mode = timeout <= 0.seconds ? IOMode.immediate : IOMode.once;
 
 		bool cancelled;
@@ -592,7 +597,8 @@ mixin(tracer);
 
 		asyncAwaitAny!(true, waiter)(timeout);
 
-		if (cancelled || !m_context) return false;
+		if (!m_context) return WaitForDataStatus.noMoreData;
+		if (cancelled) return WaitForDataStatus.timeout;
 
 		logTrace("Socket %s, read %s bytes: %s", m_socket, nbytes, status);
 
@@ -607,8 +613,9 @@ mixin(tracer);
 			case IOStatus.disconnected: break;
 		}
 
-		return m_context.readBuffer.length > 0;
+		return m_context.readBuffer.length > 0 ? WaitForDataStatus.dataAvailable : WaitForDataStatus.noMoreData;
 	}
+
 
 	/** Waits asynchronously for new data to arrive.
 
@@ -806,6 +813,12 @@ enum WaitForDataAsyncStatus {
 	noMoreData,
 	dataAvailable,
 	waiting,
+}
+
+enum WaitForDataStatus {
+	dataAvailable,
+	noMoreData,
+	timeout
 }
 
 unittest { // test compilation of callback with scoped destruction
