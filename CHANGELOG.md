@@ -5,17 +5,23 @@
 - Added `ConnectionPool.removeUnused` to enable closing all unused connections - [pull #143][issue143]
 - Added `logException` to log exceptions in a standard and `nothrow` way - [pull #155][issue155]
 - Added `TCPListenOptions.reuseAddress` for explicitly control of `SO_REUSEADDR` for listening sockets (by Radu Racariu) - [pull #150][issue150]
+- Added `TCPConnection.waitForDataEx` - [pull #159][issue159], [pull #153][issue153]
+- Fixed `TCPConnection.leastSize` to adhere to the `readTimeout` set - [pull #160][issue160]
 - Updated compiler support to DMD 2.086.0 and LDC 1.5.0
 - The logging functions now log verbatim if no additional argument is passed (by Denis Feklushkin aka dennizzzka) - [pull #152][issue152]
-- Fixes a potential range violation in `iterateDirectory`/`getFileInfo` - [pull #144][issue144]
-- Fixes thread-safetly of `Task.join` and `Task.interrupt` when operating cross-thread - [pull #145][issue145]
+- Fixed a potential range violation in `iterateDirectory`/`getFileInfo` - [pull #144][issue144]
+- Fixed thread-safetly of `Task.join` and `Task.interrupt` when operating cross-thread - [pull #145][issue145]
+- Fixed `copyFile` for write protected files - failed to set file times
 
 [issue143]: https://github.com/vibe-d/vibe-core/issues/143
 [issue144]: https://github.com/vibe-d/vibe-core/issues/144
 [issue145]: https://github.com/vibe-d/vibe-core/issues/145
 [issue152]: https://github.com/vibe-d/vibe-core/issues/152
+[issue153]: https://github.com/vibe-d/vibe-core/issues/153
 [issue154]: https://github.com/vibe-d/vibe-core/issues/154
 [issue155]: https://github.com/vibe-d/vibe-core/issues/155
+[issue159]: https://github.com/vibe-d/vibe-core/issues/159
+[issue160]: https://github.com/vibe-d/vibe-core/issues/160
 
 
 1.6.2 - 2019-03-26
