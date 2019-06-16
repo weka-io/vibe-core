@@ -238,12 +238,12 @@ void copyFile(NativePath from, NativePath to, bool overwrite = false)
 
 	static if (__VERSION__ < 2078) {
 		() @trusted {
-			setAttributes(to.toString, info.attributes);
 			setTimes(to.toString, info.timeLastAccessed, info.timeLastModified);
+			setAttributes(to.toString, info.attributes);
 		} ();
 	} else {
-		setAttributes(to.toString, info.attributes);
 		setTimes(to.toString, info.timeLastAccessed, info.timeLastModified);
+		setAttributes(to.toString, info.attributes);
 	}
 }
 /// ditto
