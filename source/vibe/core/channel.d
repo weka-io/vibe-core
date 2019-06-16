@@ -41,7 +41,7 @@ struct Channel(T, size_t buffer_size = 100) {
 
 	private shared ChannelImpl!(T, buffer_size) m_impl;
 
-	/** Determines whether there is more data to read.
+	/** Determines whether there is more data to read in a single-reader scenario.
 
 		This property is empty $(I iff) no more elements are in the internal
 		buffer and `close()` has been called. Once the channel is empty,
@@ -49,8 +49,8 @@ struct Channel(T, size_t buffer_size = 100) {
 		exception.
 
 		Note that relying on the return value to determine whether another
-		element can be read is only safe in a single-reader scenario. Use
-		`tryConsumeOne` in a multiple-reader scenario instead.
+		element can be read is only safe in a single-reader scenario. It is
+		generally recommended to use `tryConsumeOne` instead.
 	*/
 	@property bool empty() { return m_impl.empty; }
 	/// ditto
@@ -78,6 +78,10 @@ struct Channel(T, size_t buffer_size = 100) {
 
 		This function will block if no elements are available. If the `empty`
 		property is `true`, an exception will be thrown.
+
+		Note that it is recommended to use `tryConsumeOne` instead of a
+		combination of `empty` and `consumeOne` due to being more efficient and
+		also being reliable in a multiple-reader scenario.
 	*/
 	T consumeOne() { return m_impl.consumeOne(); }
 	/// ditto
@@ -143,6 +147,12 @@ private final class ChannelImpl(T, size_t buffer_size) {
 			scope (exit) m_mutex.unlock_nothrow();
 
 			auto thisus = () @trusted { return cast(ChannelImpl)this; } ();
+
+			// ensure that in a single-reader scenario !empty guarantees a
+			// successful call to consumeOne
+			while (!thisus.m_closed && thisus.m_items.empty)
+				thisus.m_condition.wait();
+
 			return thisus.m_closed && thisus.m_items.empty;
 		}
 	}
