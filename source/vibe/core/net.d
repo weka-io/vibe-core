@@ -553,7 +553,18 @@ struct TCPConnection {
 		return s >= ConnectionState.connected && s < ConnectionState.activeClose;
 	}
 	@property bool empty() { return leastSize == 0; }
-	@property ulong leastSize() { waitForData(); return m_context ? m_context.readBuffer.length : 0; }
+
+	@property ulong leastSize()
+	{
+		if (!m_context) return 0;
+
+		auto res = waitForDataEx(m_context.readTimeout);
+		if (res == WaitForDataStatus.timeout)
+			throw new ReadTimeoutException("Read operation timed out");
+
+		return m_context.readBuffer.length;
+	}
+
 	@property bool dataAvailableForRead() { return waitForData(0.seconds); }
 
 	void close()
