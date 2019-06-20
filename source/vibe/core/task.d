@@ -362,7 +362,7 @@ final package class TaskFiber : Fiber {
 		import std.algorithm.mutation : swap;
 		import std.concurrency : Tid, thisTid;
 		import std.encoding : sanitize;
-		import vibe.core.core : isEventLoopRunning, recycleFiber, taskScheduler, yield;
+		import vibe.core.core : isEventLoopRunning, recycleFiber, taskScheduler, yield, yieldLock;
 
 		version (VibeDebugCatchAll) alias UncaughtException = Throwable;
 		else alias UncaughtException = Exception;
@@ -413,6 +413,17 @@ final package class TaskFiber : Fiber {
 				this.tidInfo.ident = Tid.init; // clear message box
 
 				debug (VibeTaskLog) logTrace("Notifying joining tasks.");
+
+				// Issue #161: This fiber won't be resumed before the next task
+				// is assigned, because it is already marked as de-initialized.
+				// Since ManualEvent.emit() will need to switch tasks, this
+				// would mean that only the first waiter is notified before
+				// this fiber gets a new task assigned.
+				// Using a yield lock forces all corresponding tasks to be
+				// enqueued into the schedule queue and resumed in sequence
+				// at the end of the scope.
+				auto l = yieldLock();
+
 				m_onExit.emit();
 
 				// make sure that the task does not get left behind in the yielder queue if terminated during yield()
@@ -723,7 +734,7 @@ package struct TaskScheduler {
 		auto t = Task.getThis();
 		if (t == Task.init) return; // not really a task -> no-op
 		auto tf = () @trusted { return t.taskFiber; } ();
-		debug (VibeTaskLog) logTrace("Yielding (interrupt=%s)", tf.m_interrupt);
+		debug (VibeTaskLog) logTrace("Yielding (interrupt=%s)", () @trusted { return (cast(shared)tf).getTaskStatus().interrupt; } ());
 		tf.handleInterrupt();
 		if (tf.m_queue !is null) return; // already scheduled to be resumed
 		m_taskQueue.insertBack(tf);
