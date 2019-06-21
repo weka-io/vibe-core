@@ -8,11 +8,16 @@
 - Added `TCPConnection.waitForDataEx` - [pull #159][issue159], [pull #153][issue153]
 - Fixed `TCPConnection.leastSize` to adhere to the `readTimeout` set - [pull #160][issue160]
 - Updated compiler support to DMD 2.086.0 and LDC 1.5.0
-- The logging functions now log verbatim if no additional argument is passed (by Denis Feklushkin aka dennizzzka) - [pull #152][issue152]
+- The logging functions now log verbatim if no additional argument is passed (by Denis Feklushkin aka dennizzzka) - [issue #87][issue87], [pull #152][issue152]
 - Fixed a potential range violation in `iterateDirectory`/`getFileInfo` - [pull #144][issue144]
-- Fixed thread-safetly of `Task.join` and `Task.interrupt` when operating cross-thread - [pull #145][issue145]
+- Fixed thread-safety of `Task.join` and `Task.interrupt` when operating cross-thread - [pull #145][issue145]
 - Fixed `copyFile` for write protected files - failed to set file times
+- Fixed hanging `Task.yield()` calls in case of multiple waiters - [issue #161][issue161], [pull #162][issue162]
+- Fixed `Channel!T.empty` to guarantee a successful `consumeOne` for `false` in case of a single reader - [issue #157][issue157], [pull #163][issue163]
+- Fixed a crash when deleting a handle from a foreign thread after the original thread has terminated - [issue #135][issue135], [pull #164][issue164]
 
+[issue87]: https://github.com/vibe-d/vibe-core/issues/87
+[issue135]: https://github.com/vibe-d/vibe-core/issues/135
 [issue143]: https://github.com/vibe-d/vibe-core/issues/143
 [issue144]: https://github.com/vibe-d/vibe-core/issues/144
 [issue145]: https://github.com/vibe-d/vibe-core/issues/145
@@ -20,8 +25,13 @@
 [issue153]: https://github.com/vibe-d/vibe-core/issues/153
 [issue154]: https://github.com/vibe-d/vibe-core/issues/154
 [issue155]: https://github.com/vibe-d/vibe-core/issues/155
+[issue157]: https://github.com/vibe-d/vibe-core/issues/157
 [issue159]: https://github.com/vibe-d/vibe-core/issues/159
 [issue160]: https://github.com/vibe-d/vibe-core/issues/160
+[issue161]: https://github.com/vibe-d/vibe-core/issues/161
+[issue162]: https://github.com/vibe-d/vibe-core/issues/162
+[issue163]: https://github.com/vibe-d/vibe-core/issues/163
+[issue164]: https://github.com/vibe-d/vibe-core/issues/164
 
 
 1.6.2 - 2019-03-26
