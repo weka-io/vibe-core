@@ -21,6 +21,7 @@
 [issue143]: https://github.com/vibe-d/vibe-core/issues/143
 [issue144]: https://github.com/vibe-d/vibe-core/issues/144
 [issue145]: https://github.com/vibe-d/vibe-core/issues/145
+[issue150]: https://github.com/vibe-d/vibe-core/issues/150
 [issue152]: https://github.com/vibe-d/vibe-core/issues/152
 [issue153]: https://github.com/vibe-d/vibe-core/issues/153
 [issue154]: https://github.com/vibe-d/vibe-core/issues/154
