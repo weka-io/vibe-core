@@ -478,7 +478,7 @@ struct GenericPath(F) {
 	GenericPath parentPath()
 	const @nogc {
 		auto b = Format.getBackNode(m_path);
-		static const Exception e = new Exception("Path has no parent path");
+		static immutable Exception e = new Exception("Path has no parent path");
 		if (b.length >= m_path.length) throw e;
 		return GenericPath.fromTrustedString(m_path[0 .. $ - b.length]);
 	}
