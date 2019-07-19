@@ -438,6 +438,9 @@ struct FileStream {
 		m_ctx.mode = mode;
 		m_ctx.size = eventDriver.files.getSize(fd);
 		m_ctx.driver = () @trusted { return cast(shared)eventDriver; } ();
+
+		if (mode == FileMode.append)
+			m_ctx.ptr = m_ctx.size;
 	}
 
 	this(this)
@@ -786,4 +789,24 @@ version (Windows) {} else unittest {
 	test("./", ".", false);
 	testCreate(".test_foo/", ".test_foo", true);
 	test("/", "", false);
+}
+
+unittest {
+	auto name = "toAppend.txt";
+	scope(exit) removeFile(name);
+
+	{
+		auto handle = openFile(name, FileMode.createTrunc);
+		handle.write("create,");
+		assert(handle.tell() == "create,".length);
+		handle.close();
+	}
+	{
+		auto handle = openFile(name, FileMode.append);
+		handle.write(" then append");
+		assert(handle.tell() == "create, then append".length);
+		handle.close();
+	}
+
+	assert(readFile(name) == "create, then append");
 }
