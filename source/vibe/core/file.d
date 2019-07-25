@@ -472,6 +472,7 @@ struct FileStream {
 
 	void seek(ulong offset)
 	{
+		enforce(ctx.mode != FileMode.append, "File opened for appending, not random access. Cannot seek.");
 		ctx.ptr = offset;
 	}
 
@@ -479,6 +480,8 @@ struct FileStream {
 
 	void truncate(ulong size)
 	{
+		enforce(ctx.mode != FileMode.append, "File opened for appending, not random access. Cannot truncate.");
+
 		auto res = asyncAwaitUninterruptible!(FileIOCallback,
 			cb => eventDriver.files.truncate(m_fd, size, cb)
 		);
