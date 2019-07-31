@@ -74,6 +74,8 @@ final class ConnectionPool(Connection)
 		debug assert(m_thread is () @trusted { return Thread.getThis(); } (), "ConnectionPool was called from a foreign thread!");
 
 		() @trusted { m_sem.lock(); } ();
+		scope (failure) () @trusted { m_sem.unlock(); } ();
+
 		size_t cidx = size_t.max;
 		foreach( i, c; m_connections ){
 			auto plc = c in m_lockCount;
