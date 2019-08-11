@@ -36,11 +36,20 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 {
 	import std.socket : parseAddress;
 	version (Windows) import core.sys.windows.winsock2 : sockaddr_in, sockaddr_in6;
-	else import core.sys.posix.netinet.in_ : sockaddr_in, sockaddr_in6;
+	else {
+		import std.socket : Address, UnixAddress;
+		import core.sys.posix.netinet.in_ : sockaddr_in, sockaddr_in6;
+		import core.sys.posix.sys.un : sockaddr_un;
+	}
 
 	enforce(host.length > 0, "Host name must not be empty.");
-	if (isMaybeIPAddress(host)) {
-		auto addr = parseAddress(host);
+	if (address_family == AddressFamily.UNIX || isMaybeIPAddress(host)) {
+		Address addr;
+		if (address_family == AddressFamily.UNIX) {
+			addr = new UnixAddress(host);
+		} else {
+			addr = parseAddress(host);
+		}
 		enforce(address_family == AddressFamily.UNSPEC || addr.addressFamily == address_family);
 		NetworkAddress ret;
 		ret.family = addr.addressFamily;
@@ -48,6 +57,7 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 			default: throw new Exception("Unsupported address family");
 			case INET: *ret.sockAddrInet4 = () @trusted { return *cast(sockaddr_in*)addr.name; } (); break;
 			case INET6: *ret.sockAddrInet6 = () @trusted { return *cast(sockaddr_in6*)addr.name; } (); break;
+			case UNIX: *ret.sockAddrUnix = () @trusted { return *cast(sockaddr_un*)addr.name; } (); break;
 		}
 		return ret;
 	} else {
@@ -113,6 +123,15 @@ TCPListener listenTCP(ushort port, TCPConnectionDelegate connection_callback, st
 		sopts |= StreamListenOptions.reusePort;
 	else
 		sopts &= ~StreamListenOptions.reusePort;
+	return doListen(addr, sopts, connection_callback);
+}
+/// The address parameter is a unix socket file path
+TCPListener listenTCP(string address, TCPConnectionDelegate connection_callback, TCPListenOptions options = TCPListenOptions.defaults)
+{
+	return doListen(resolveHost(address, AddressFamily.UNIX, false), StreamListenOptions.defaults, connection_callback);
+}
+
+private TCPListener doListen(NetworkAddress addr, StreamListenOptions sopts, TCPConnectionDelegate connection_callback) {
 	scope addrc = new RefAddress(addr.sockAddr, addr.sockAddrLen);
 	auto sock = eventDriver.sockets.listenStream(addrc, sopts,
 		(StreamListenSocketFD ls, StreamSocketFD s, scope RefAddress addr) @safe nothrow {
@@ -288,7 +307,7 @@ struct NetworkAddress {
 		sockaddr_in6 addr_ip6;
 	}
 
-	enum socklen_t sockAddrMaxLen = max(addr.sizeof, addr_ip6.sizeof);
+	enum socklen_t sockAddrMaxLen = max(addr_unix.sizeof, addr.sizeof, addr_ip6.sizeof);
 
 
 	this(Address addr)
