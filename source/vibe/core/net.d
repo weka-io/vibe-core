@@ -187,13 +187,7 @@ TCPConnection connectTCP(string host, ushort port, string bind_interface = null,
 
 	NetworkAddress bind_address;
 	if (bind_interface.length) bind_address = resolveHost(bind_interface, addr.family);
-	else {
-		bind_address.family = addr.family;
-		if (bind_address.family == AddressFamily.INET) bind_address.sockAddrInet4.sin_addr.s_addr = 0;
-		else if (bind_address.family != AddressFamily.UNIX) bind_address.sockAddrInet6.sin6_addr.s6_addr[] = 0;
-	}
-	if (addr.family != AddressFamily.UNIX)
-		bind_address.port = bind_port;
+	else bind_address = anyAddress();
 
 	return connectTCP(addr, bind_address, timeout);
 }
@@ -203,18 +197,11 @@ TCPConnection connectTCP(NetworkAddress addr, NetworkAddress bind_address = anyA
 {
 	import std.conv : to;
 
-	if (bind_address.family == AddressFamily.UNSPEC) {
-		bind_address.family = addr.family;
-		if (bind_address.family == AddressFamily.INET) bind_address.sockAddrInet4.sin_addr.s_addr = 0;
-		else if (bind_address.family != AddressFamily.UNIX) bind_address.sockAddrInet6.sin6_addr.s6_addr[] = 0;
-		if (bind_address.family != AddressFamily.UNIX)
-			bind_address.port = 0;
-	}
-	enforce(addr.family == bind_address.family, "Destination address and bind address have different address families.");
-
+	bool dontBind = bind_address.family == AddressFamily.UNSPEC;
+	enforce(dontBind || addr.family == bind_address.family, "Destination address and bind address have different address families.");
 	return () @trusted { // scope
 		scope uaddr = new RefAddress(addr.sockAddr, addr.sockAddrLen);
-		scope baddr = new RefAddress(bind_address.sockAddr, bind_address.sockAddrLen);
+		scope baddr = dontBind ? null : new RefAddress(bind_address.sockAddr, bind_address.sockAddrLen);
 
 		bool cancelled;
 		StreamSocketFD sock;
