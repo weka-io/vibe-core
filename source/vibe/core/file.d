@@ -438,6 +438,9 @@ struct FileStream {
 		m_ctx.mode = mode;
 		m_ctx.size = eventDriver.files.getSize(fd);
 		m_ctx.driver = () @trusted { return cast(shared)eventDriver; } ();
+
+		if (mode == FileMode.append)
+			m_ctx.ptr = m_ctx.size;
 	}
 
 	this(this)
@@ -472,6 +475,7 @@ struct FileStream {
 
 	void seek(ulong offset)
 	{
+		enforce(ctx.mode != FileMode.append, "File opened for appending, not random access. Cannot seek.");
 		ctx.ptr = offset;
 	}
 
@@ -479,6 +483,8 @@ struct FileStream {
 
 	void truncate(ulong size)
 	{
+		enforce(ctx.mode != FileMode.append, "File opened for appending, not random access. Cannot truncate.");
+
 		auto res = asyncAwaitUninterruptible!(FileIOCallback,
 			cb => eventDriver.files.truncate(m_fd, size, cb)
 		);
@@ -647,8 +653,7 @@ struct DirectoryWatcher { // TODO: avoid all those heap allocations!
 		m_context = new Context; // FIME: avoid GC allocation (use FD user data slot)
 		m_context.changeEvent = createManualEvent();
 		m_watcher = eventDriver.watchers.watchDirectory(path.toNativeString, recursive, &m_context.onChange);
-		if (m_watcher == WatcherID.invalid)
-			throw new Exception("Failed to watch directory.");
+		enforce(m_watcher != WatcherID.invalid, "Failed to watch directory.");
 		m_context.path = path;
 		m_context.recursive = recursive;
 		m_context.changes = appender!(DirectoryChange[]);
@@ -784,4 +789,24 @@ version (Windows) {} else unittest {
 	test("./", ".", false);
 	testCreate(".test_foo/", ".test_foo", true);
 	test("/", "", false);
+}
+
+unittest {
+	auto name = "toAppend.txt";
+	scope(exit) removeFile(name);
+
+	{
+		auto handle = openFile(name, FileMode.createTrunc);
+		handle.write("create,");
+		assert(handle.tell() == "create,".length);
+		handle.close();
+	}
+	{
+		auto handle = openFile(name, FileMode.append);
+		handle.write(" then append");
+		assert(handle.tell() == "create, then append".length);
+		handle.close();
+	}
+
+	assert(readFile(name) == "create, then append");
 }
