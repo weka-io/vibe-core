@@ -1088,7 +1088,7 @@ struct Future(T) {
 	}
 
 	/// Checks if the values was fully computed.
-	@property bool ready() const { return !m_task.running; }
+	@property bool ready() const @safe { return !m_task.running; }
 
 	/** Returns the computed value.
 
@@ -1098,10 +1098,12 @@ struct Future(T) {
 		instead.
 	*/
 	ref T getResult()
-	{
+	@safe {
 		if (!ready) m_task.join();
 		assert(ready, "Task still running after join()!?");
-		return *cast(T*)&m_result.get(); // casting away shared is safe, because this is a unique reference
+
+		// casting away shared is safe, because this is a unique reference
+		return *() @trusted { return cast(T*)&m_result.get(); } ();
 	}
 
 	alias getResult this;
@@ -1153,7 +1155,7 @@ Future!(ReturnType!CALLABLE) async(CALLABLE, ARGS...)(CALLABLE callable, ARGS ar
 }
 
 ///
-unittest {
+@safe unittest {
 	import vibe.core.core;
 	import vibe.core.log;
 
