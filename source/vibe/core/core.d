@@ -614,15 +614,17 @@ void runWorkerTaskDistH(HCB, FT, ARGS...)(scope HCB on_handle, FT func, auto ref
 	See_also: `runWorkerTask`, `runWorkerTaskH`, `runWorkerTaskDist`
 */
 public void setupWorkerThreads(uint num = logicalProcessorCount())
-{
+@safe {
 	static bool s_workerThreadsStarted = false;
 	if (s_workerThreadsStarted) return;
 	s_workerThreadsStarted = true;
 
-	synchronized (st_threadsMutex) {
-		if (!st_workerPool)
-			st_workerPool = new shared TaskPool(num);
-	}
+	() @trusted {
+		synchronized (st_threadsMutex) {
+			if (!st_workerPool)
+				st_workerPool = new shared TaskPool(num);
+		}
+	} ();
 }
 
 

@@ -1083,12 +1083,14 @@ struct Future(T) {
 	import vibe.internal.freelistref : FreeListRef;
 
 	private {
-		FreeListRef!(shared(T)) m_result;
+		alias ResultRef = FreeListRef!(shared(Tuple!(T, string)));
+
+		ResultRef m_result;
 		Task m_task;
 	}
 
 	/// Checks if the values was fully computed.
-	@property bool ready() const { return !m_task.running; }
+	@property bool ready() const @safe { return !m_task.running; }
 
 	/** Returns the computed value.
 
@@ -1098,17 +1100,22 @@ struct Future(T) {
 		instead.
 	*/
 	ref T getResult()
-	{
+	@safe {
 		if (!ready) m_task.join();
 		assert(ready, "Task still running after join()!?");
-		return *cast(T*)&m_result.get(); // casting away shared is safe, because this is a unique reference
+
+		if (m_result.get[1].length)
+			throw new Exception(m_result.get[1]);
+
+		// casting away shared is safe, because this is a unique reference
+		return *() @trusted { return cast(T*)&m_result.get()[0]; } ();
 	}
 
 	alias getResult this;
 
 	private void init()
-	{
-		m_result = FreeListRef!(shared(T))();
+	@safe {
+		m_result = ResultRef();
 	}
 }
 
@@ -1141,8 +1148,9 @@ Future!(ReturnType!CALLABLE) async(CALLABLE, ARGS...)(CALLABLE callable, ARGS ar
 	alias RET = ReturnType!CALLABLE;
 	Future!RET ret;
 	ret.init();
-	static void compute(FreeListRef!(shared(RET)) dst, CALLABLE callable, ARGS args) {
-		dst.get = cast(shared(RET))callable(args);
+	static void compute(Future!RET.ResultRef dst, CALLABLE callable, ARGS args) {
+		try dst.get[0] = cast(shared(RET))callable(args);
+		catch (Exception e) dst.get[1] = e.msg.length ? e.msg : "Asynchronous operation failed";
 	}
 	static if (isWeaklyIsolated!CALLABLE && isWeaklyIsolated!ARGS) {
 		ret.m_task = runWorkerTaskH(&compute, ret.m_result, callable, args);
@@ -1153,7 +1161,7 @@ Future!(ReturnType!CALLABLE) async(CALLABLE, ARGS...)(CALLABLE callable, ARGS ar
 }
 
 ///
-unittest {
+@safe unittest {
 	import vibe.core.core;
 	import vibe.core.log;
 
@@ -1197,6 +1205,26 @@ unittest {
 		assert(async(&sum2, 2, 3).getResult() == 5);
 	}
 }
+
+Future!(ReturnType!CALLABLE) asyncWork(CALLABLE, ARGS...)(CALLABLE callable, ARGS args) @safe
+	if (is(typeof(callable(args)) == ReturnType!CALLABLE) &&
+		isWeaklyIsolated!CALLABLE && isWeaklyIsolated!ARGS)
+{
+	import vibe.core.core;
+	import vibe.internal.freelistref : FreeListRef;
+	import std.functional : toDelegate;
+
+	alias RET = ReturnType!CALLABLE;
+	Future!RET ret;
+	ret.init();
+	static void compute(Future!RET.ResultRef dst, CALLABLE callable, ARGS args) {
+		try *cast(RET*)&dst.get[0] = callable(args);
+		catch (Exception e) dst.get[1] = e.msg.length ? e.msg : "Asynchronous operation failed";
+	}
+	ret.m_task = runWorkerTaskH(&compute, ret.m_result, callable, args);
+	return ret;
+}
+
 
 /******************************************************************************/
 /* std.concurrency compatible interface for message passing                   */

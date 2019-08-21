@@ -135,28 +135,14 @@ shared final class TaskPool {
 	Task runTaskH(FT, ARGS...)(FT func, auto ref ARGS args)
 		if (isFunctionPointer!FT)
 	{
-		import std.typecons : Typedef;
-
 		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
 
-		alias PrivateTask = Typedef!(Task, Task.init, __PRETTY_FUNCTION__);
-		Task caller = Task.getThis();
-
 		// workaround for runWorkerTaskH to work when called outside of a task
-		if (caller == Task.init) {
+		if (Task.getThis() == Task.init) {
 			Task ret;
-			.runTask(&runTaskHWrapper!(FT, ARGS), () @trusted { return &ret; } (), func, args).join();
+			.runTask({ ret = doRunTaskH(func, args); }).join();
 			return ret;
-		}
-
-		assert(caller != Task.init, "runWorkderTaskH can currently only be called from within a task.");
-		static void taskFun(Task caller, FT func, ARGS args) {
-			PrivateTask callee = Task.getThis();
-			caller.tid.prioritySend(callee);
-			mixin(callWithMove!ARGS("func", "args"));
-		}
-		runTask_unsafe(&taskFun, caller, func, args);
-		return cast(Task)receiveOnly!PrivateTask();
+		} else return doRunTaskH(func, args);
 	}
 	/// ditto
 	Task runTaskH(alias method, T, ARGS...)(shared(T) object, auto ref ARGS args)
@@ -166,6 +152,28 @@ shared final class TaskPool {
 			__traits(getMember, object, __traits(identifier, method))(args);
 		}
 		return runTaskH(&wrapper!(), object, args);
+	}
+
+	// NOTE: needs to be a separate function to avoid recursion for the
+	//       workaround above, which breaks @safe inference
+	private Task doRunTaskH(FT, ARGS...)(FT func, ref ARGS args)
+		if (isFunctionPointer!FT)
+	{
+		import std.typecons : Typedef;
+
+		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
+
+		alias PrivateTask = Typedef!(Task, Task.init, __PRETTY_FUNCTION__);
+		Task caller = Task.getThis();
+
+		assert(caller != Task.init, "runWorkderTaskH can currently only be called from within a task.");
+		static void taskFun(Task caller, FT func, ARGS args) {
+			PrivateTask callee = Task.getThis();
+			caller.tid.prioritySend(callee);
+			mixin(callWithMove!ARGS("func", "args"));
+		}
+		runTask_unsafe(&taskFun, caller, func, args);
+		return cast(Task)() @trusted { return receiveOnly!PrivateTask(); } ();
 	}
 
 
@@ -221,11 +229,6 @@ shared final class TaskPool {
 
 		foreach (i; 0 .. this.threadCount)
 			on_handle(receiveOnly!Task);
-	}
-
-	private void runTaskHWrapper(FT, ARGS...)(Task* ret, FT func, ARGS args)
-	{
-		*ret = runTaskH!(FT, ARGS)(func, args);
 	}
 
 	private void runTask_unsafe(CALLABLE, ARGS...)(CALLABLE callable, ref ARGS args)

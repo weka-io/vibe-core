@@ -1,12 +1,13 @@
 /**
 	File handling functions and types.
 
-	Copyright: © 2012-2018 RejectedSoftware e.K.
+	Copyright: © 2012-2019 RejectedSoftware e.K.
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 	Authors: Sönke Ludwig
 */
 module vibe.core.file;
 
+import vibe.core.concurrency : asyncWork;
 import eventcore.core : NativeEventDriver, eventDriver;
 import eventcore.driver;
 import vibe.core.internal.release;
@@ -26,6 +27,8 @@ import std.exception;
 import std.file;
 import std.path;
 import std.string;
+import std.typecons : Flag, No;
+
 
 version(Posix){
 	private extern(C) int mkstemps(char* templ, int suffixlen);
@@ -278,7 +281,12 @@ bool existsFile(string path) nothrow
 	// This was *annotated* nothrow in 2.067.
 	static if (__VERSION__ < 2067)
 		scope(failure) assert(0, "Error: existsFile should never throw");
-	return std.file.exists(path);
+
+	try return asyncWork((string p) => std.file.exists(p), path).getResult();
+	catch (Exception e) {
+		logDebug("Failed to determine file existence for '%s': %s", path, e.msg);
+		return false;
+	}
 }
 
 /** Stores information about the specified file/directory into 'info'
@@ -287,13 +295,15 @@ bool existsFile(string path) nothrow
 */
 FileInfo getFileInfo(NativePath path)
 @trusted {
-	auto ent = DirEntry(path.toNativeString());
-	return makeFileInfo(ent);
+	return getFileInfo(path.toNativeString);
 }
 /// ditto
 FileInfo getFileInfo(string path)
 {
-	return getFileInfo(NativePath(path));
+	return asyncWork((string p) {
+		auto ent = DirEntry(p);
+		return makeFileInfo(ent);
+	}, path).getResult();
 }
 
 /**
@@ -301,27 +311,77 @@ FileInfo getFileInfo(string path)
 */
 void createDirectory(NativePath path)
 {
-	() @trusted { mkdir(path.toNativeString()); } ();
+	createDirectory(path.toNativeString);
 }
 /// ditto
-void createDirectory(string path)
+void createDirectory(string path, Flag!"recursive" recursive = No.recursive)
 {
-	createDirectory(NativePath(path));
+	auto fail = asyncWork((string p, bool rec) {
+		try {
+			if (rec) mkdirRecurse(p);
+			else mkdir(p);
+		} catch (Exception e) {
+			return e.msg.length ? e.msg : "Failed to create directory.";
+		}
+		return null;
+	}, path, !!recursive);
+
+	if (fail) throw new Exception(fail);
 }
 
 /**
 	Enumerates all files in the specified directory.
 */
-void listDirectory(NativePath path, scope bool delegate(FileInfo info) del)
-@trusted {
-	foreach( DirEntry ent; dirEntries(path.toNativeString(), SpanMode.shallow) )
-		if( !del(makeFileInfo(ent)) )
-			break;
+void listDirectory(NativePath path, scope bool delegate(FileInfo info) @safe del)
+{
+	listDirectory(path.toNativeString, del);
 }
 /// ditto
-void listDirectory(string path, scope bool delegate(FileInfo info) del)
+void listDirectory(string path, scope bool delegate(FileInfo info) @safe del)
 {
-	listDirectory(NativePath(path), del);
+	import vibe.core.core : runWorkerTaskH;
+	import vibe.core.channel : Channel, createChannel;
+
+	struct S {
+		FileInfo info;
+		string error;
+	}
+
+	auto ch = createChannel!S();
+	runWorkerTaskH((string path, Channel!S ch) nothrow {
+		scope (exit) ch.close();
+		try {
+			foreach (DirEntry ent; dirEntries(path, SpanMode.shallow)) {
+				auto nfo = makeFileInfo(ent);
+				try ch.put(S(nfo, null));
+				catch (Exception e) break; // channel got closed
+			}
+		} catch (Exception e) {
+			try ch.put(S(FileInfo.init, e.msg.length ? e.msg : "Failed to iterate directory"));
+			catch (Exception e) {} // channel got closed
+		}
+	}, path, ch);
+
+	S itm;
+	while (ch.tryConsumeOne(itm)) {
+		if (itm.error.length)
+			throw new Exception(itm.error);
+
+		if (!del(itm.info)) {
+			ch.close();
+			break;
+		}
+	}
+}
+/// ditto
+void listDirectory(NativePath path, scope bool delegate(FileInfo info) @system del)
+@system {
+	listDirectory(path, (nfo) @trusted => del(nfo));
+}
+/// ditto
+void listDirectory(string path, scope bool delegate(FileInfo info) @system del)
+@system {
+	listDirectory(path, (nfo) @trusted => del(nfo));
 }
 /// ditto
 int delegate(scope int delegate(ref FileInfo)) iterateDirectory(NativePath path)
