@@ -18,8 +18,6 @@ void testEcho()
 	foreach (i; 0..100) {
 		auto procPipes = pipeProcess(["echo", "foo bar"], Redirect.stdout);
 
-		assert(!procPipes.process.exited);
-
 		auto output = procPipes.stdout.collectOutput();
 
 		assert(procPipes.process.wait() == 0);
@@ -146,7 +144,7 @@ void testIgnoreSigterm()
 
 	assert(!procPipes.process.exited);
 
-	assert(procPipes.process.waitOrForceKill(2.seconds) == 9);
+	assert(procPipes.process.waitOrForceKill(2.seconds) == -9);
 
 	assert(procPipes.process.exited);
 
