@@ -1,6 +1,7 @@
-1.7.0 - 2019-06-
+1.7.0 - 2019-08-
 ==================
 
+- Supports DMD DMD 2.077.1 up to DMD 2.087.1 and LDC 1.7.0 to LDC 1.16.0 - [pull #166][issue166]
 - Added `vibe.core.process` for task based process handling similar to `std.process` (by Benjamin Schaaf) - [pull #154][issue154]
 - Added `ConnectionPool.removeUnused` to enable closing all unused connections - [pull #143][issue143]
 - Added `logException` to log exceptions in a standard and `nothrow` way - [pull #155][issue155]
@@ -9,12 +10,16 @@
 - Fixed `TCPConnection.leastSize` to adhere to the `readTimeout` set - [pull #160][issue160]
 - Updated compiler support to DMD 2.086.0 and LDC 1.5.0
 - The logging functions now log verbatim if no additional argument is passed (by Denis Feklushkin aka dennizzzka) - [issue #87][issue87], [pull #152][issue152]
+- Made `GenericPath.parentPath` `pure` - [pull #165][issue165]
+- All remaining operations in `vibe.core.file` are now done asynchronously (using worker tasks) - [pull #172][issue172]
 - Fixed a potential range violation in `iterateDirectory`/`getFileInfo` - [pull #144][issue144]
 - Fixed thread-safety of `Task.join` and `Task.interrupt` when operating cross-thread - [pull #145][issue145]
 - Fixed `copyFile` for write protected files - failed to set file times
 - Fixed hanging `Task.yield()` calls in case of multiple waiters - [issue #161][issue161], [pull #162][issue162]
 - Fixed `Channel!T.empty` to guarantee a successful `consumeOne` for `false` in case of a single reader - [issue #157][issue157], [pull #163][issue163]
 - Fixed a crash when deleting a handle from a foreign thread after the original thread has terminated - [issue #135][issue135], [pull #164][issue164]
+- Fixed an issue in `ConnectionPool` where the pool became unusable after connection failures (by Tomáš Chaloupka) - [pull #169][issue169]
+- Fixed `FileStream` in append mode to report correct file offsets and disallow seeking (by v1ne) - [pull #168][issue168]
 
 [issue87]: https://github.com/vibe-d/vibe-core/issues/87
 [issue135]: https://github.com/vibe-d/vibe-core/issues/135
@@ -33,6 +38,11 @@
 [issue162]: https://github.com/vibe-d/vibe-core/issues/162
 [issue163]: https://github.com/vibe-d/vibe-core/issues/163
 [issue164]: https://github.com/vibe-d/vibe-core/issues/164
+[issue165]: https://github.com/vibe-d/vibe-core/issues/165
+[issue166]: https://github.com/vibe-d/vibe-core/issues/166
+[issue168]: https://github.com/vibe-d/vibe-core/issues/168
+[issue169]: https://github.com/vibe-d/vibe-core/issues/169
+[issue172]: https://github.com/vibe-d/vibe-core/issues/172
 
 
 1.6.2 - 2019-03-26
