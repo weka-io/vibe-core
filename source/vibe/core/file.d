@@ -7,7 +7,6 @@
 */
 module vibe.core.file;
 
-import vibe.core.concurrency : asyncWork;
 import eventcore.core : NativeEventDriver, eventDriver;
 import eventcore.driver;
 import vibe.core.internal.release;
@@ -282,7 +281,7 @@ bool existsFile(string path) nothrow
 	static if (__VERSION__ < 2067)
 		scope(failure) assert(0, "Error: existsFile should never throw");
 
-	try return asyncWork((string p) => std.file.exists(p), path).getResult();
+	try return performInWorker((string p) => std.file.exists(p), path);
 	catch (Exception e) {
 		logDebug("Failed to determine file existence for '%s': %s", path, e.msg);
 		return false;
@@ -300,10 +299,18 @@ FileInfo getFileInfo(NativePath path)
 /// ditto
 FileInfo getFileInfo(string path)
 {
-	return asyncWork((string p) {
-		auto ent = DirEntry(p);
-		return makeFileInfo(ent);
-	}, path).getResult();
+	import std.typecons : tuple;
+
+	auto ret = performInWorker((string p) {
+		try {
+			auto ent = DirEntry(p);
+			return tuple(makeFileInfo(ent), "");
+		} catch (Exception e) {
+			return tuple(FileInfo.init, e.msg.length ? e.msg : "Failed to get file information");
+		}
+	}, path);
+	if (ret[1].length) throw new Exception(ret[1]);
+	return ret[0];
 }
 
 /**
@@ -316,7 +323,7 @@ void createDirectory(NativePath path)
 /// ditto
 void createDirectory(string path, Flag!"recursive" recursive = No.recursive)
 {
-	auto fail = asyncWork((string p, bool rec) {
+	auto fail = performInWorker((string p, bool rec) {
 		try {
 			if (rec) mkdirRecurse(p);
 			else mkdir(p);
@@ -869,4 +876,33 @@ unittest {
 	}
 
 	assert(readFile(name) == "create, then append");
+}
+
+
+private auto performInWorker(C, ARGS...)(C callable, auto ref ARGS args)
+{
+	version (none) {
+		import vibe.core.concurrency : asyncWork;
+		return asyncWork(callable, args).getResult();
+	} else {
+		import vibe.core.core : runWorkerTask;
+		import core.atomic : atomicFence;
+		import std.concurrency : Tid, send, receiveOnly, thisTid;
+
+		struct R {}
+
+		alias RET = typeof(callable(args));
+		shared(RET) ret;
+		runWorkerTask((shared(RET)* r, Tid caller, C c, ref ARGS a) nothrow {
+			*() @trusted { return cast(RET*)r; } () = c(a);
+			// Just as a precaution, because ManualEvent is not well defined in
+			// terms of fence semantics
+			atomicFence();
+			try caller.send(R.init);
+			catch (Exception e) assert(false, e.msg);
+		}, () @trusted { return &ret; } (), thisTid, callable, args);
+		() @trusted { receiveOnly!R(); } ();
+		atomicFence();
+		return ret;
+	}
 }
