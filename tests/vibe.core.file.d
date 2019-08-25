@@ -5,6 +5,7 @@
 module test;
 
 import vibe.core.file;
+import std.exception;
 
 enum ubyte[] bytes(BYTES...) = [BYTES];
 
@@ -31,6 +32,16 @@ void main()
 	assert(f.tell == 7);
 	assert(dst[] == bytes!(3, 4, 5, 6, 7));
 	f.close();
+
+	auto fi = getFileInfo("test.dat");
+	assert(fi.name == "test.dat");
+	assert(fi.isFile);
+	assert(!fi.isDirectory);
+	assert(!fi.isSymlink);
+	assert(!fi.hidden);
+	assert(fi.size == 10);
+
+	assertThrown(getFileInfo("*impossible:file?"));
 
 	removeFile("test.dat");
 }
