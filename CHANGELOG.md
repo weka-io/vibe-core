@@ -1,7 +1,7 @@
 1.7.0 - 2019-08-
 ==================
 
-- Supports DMD DMD 2.077.1 up to DMD 2.087.1 and LDC 1.7.0 to LDC 1.16.0 - [pull #166][issue166]
+- Supports DMD DMD 2.077.1 up to DMD 2.087.1 and LDC 1.7.0 to LDC 1.17.0 - [pull #166][issue166]
 - Added `vibe.core.process` for task based process handling similar to `std.process` (by Benjamin Schaaf) - [pull #154][issue154]
 - Added `ConnectionPool.removeUnused` to enable closing all unused connections - [pull #143][issue143]
 - Added `logException` to log exceptions in a standard and `nothrow` way - [pull #155][issue155]
