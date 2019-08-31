@@ -542,7 +542,7 @@ struct GenericPath(F) {
 	string toString() const nothrow @nogc { return m_path; }
 
 	/// Computes a hash sum, enabling storage within associative arrays.
-	hash_t toHash() const nothrow @trusted
+	size_t toHash() const nothrow @trusted
 	{
 		try return typeid(string).getHash(&m_path);
 		catch (Exception e) assert(false, "getHash for string throws!?");
