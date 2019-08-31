@@ -130,7 +130,7 @@ string stripA(string s)
 }
 
 /// Finds the first occurence of any of the characters in `chars`
-sizediff_t indexOfAny(string str, string chars)
+ptrdiff_t indexOfAny(string str, string chars)
 @safe pure {
 	foreach (i, char ch; str)
 		if (chars.canFind(ch))
@@ -149,7 +149,7 @@ alias countUntilAny = indexOfAny;
 		The index of the closing bracket or -1 for unbalanced strings
 		and strings that don't start with a bracket.
 */
-sizediff_t matchBracket(string str, bool nested = true)
+ptrdiff_t matchBracket(string str, bool nested = true)
 @safe pure nothrow {
 	if (str.length < 2) return -1;
 
@@ -173,7 +173,7 @@ sizediff_t matchBracket(string str, bool nested = true)
 
 @safe unittest
 {
-	static struct Test { string str; sizediff_t res; }
+	static struct Test { string str; ptrdiff_t res; }
 	enum tests = [
 		Test("[foo]", 4), Test("<bar>", 4), Test("{baz}", 4),
 		Test("[", -1), Test("[foo", -1), Test("ab[f]", -1),
