@@ -301,7 +301,13 @@ private void init()
 private T fromValue(T)(in JSONValue val)
 {
 	import std.conv : to;
-	static if (is(T == bool)) return val.type == JSON_TYPE.TRUE;
+	static if (is(T == bool)) {
+        // JSONType.TRUE has been deprecated in v2.087.0
+        static if (is(typeof(JSONType.true_)))
+            return val.type == JSONType.true_;
+        else
+            return val.type == JSON_TYPE.TRUE;
+    }
 	else static if (is(T : long)) return val.integer.to!T;
 	else static if (is(T : double)) return val.floating.to!T;
 	else static if (is(T == string)) return val.str;
