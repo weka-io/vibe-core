@@ -36,35 +36,35 @@ Path relativeTo(Path)(Path path, Path base_path) @safe
 	if (is(Path == WindowsPath)) { // FIXME: this shouldn't be a special case here!
 		bool samePrefix(size_t n)
 		{
-			return path.bySegment.map!(n => n.name).take(n).equal(base_path.bySegment.map!(n => n.name).take(n));
+			return path.bySegment2.map!(n => n.encodedName).take(n).equal(base_path.bySegment2.map!(n => n.encodedName).take(n));
 		}
 		// a path such as ..\C:\windows is not valid, so force the path to stay absolute in this case
-		auto pref = path.bySegment;
-		if (!pref.empty && pref.front.name == "") {
+		auto pref = path.bySegment2;
+		if (!pref.empty && pref.front.encodedName == "") {
 			pref.popFront();
 			if (!pref.empty) {
 				// different drive?
-				if (pref.front.name.endsWith(':') && !samePrefix(2))
+				if (pref.front.encodedName.endsWith(':') && !samePrefix(2))
 					return path;
 				// different UNC path?
-				if (pref.front.name == "" && !samePrefix(4))
+				if (pref.front.encodedName == "" && !samePrefix(4))
 					return path;
 			}
 		}
 	}
 
-	auto nodes = path.bySegment;
-	auto base_nodes = base_path.bySegment;
+	auto nodes = path.bySegment2;
+	auto base_nodes = base_path.bySegment2;
 
 	// skip and count common prefix
 	size_t base = 0;
-	while (!nodes.empty && !base_nodes.empty && nodes.front.name == base_nodes.front.name) {
+	while (!nodes.empty && !base_nodes.empty && equal(nodes.front.name, base_nodes.front.name)) {
 		nodes.popFront();
 		base_nodes.popFront();
 		base++;
 	}
 
-	enum up = Path.Segment("..", Path.defaultSeparator);
+	enum up = Path.Segment2("..", Path.defaultSeparator);
 	auto ret = Path(base_nodes.map!(p => up).chain(nodes));
 	if (path.endsWithSlash) {
 		if (ret.empty) return Path("." ~ path.toString()[$-1]);
@@ -738,20 +738,20 @@ struct GenericPath(F) {
 	{
 		import std.array : appender, join;
 
-		Segment[] newnodes;
+		Segment2[] newnodes;
 		bool got_non_sep = false;
-		foreach (n; this.bySegment) {
+		foreach (n; this.bySegment2) {
 			if (n.hasSeparator) n.separator = Format.defaultSeparator;
 			if (!got_non_sep) {
-				if (n.name == "") newnodes ~= n;
+				if (n.encodedName == "") newnodes ~= n;
 				else got_non_sep = true;
 			}
-			switch (n.name) {
+			switch (n.encodedName) {
 				default: newnodes ~= n; break;
 				case "", ".": break;
 				case "..":
 					enforce(!this.absolute || newnodes.length > 0, "Path goes below root node.");
-					if (newnodes.length > 0 && newnodes[$-1].name != "..") newnodes = newnodes[0 .. $-1];
+					if (newnodes.length > 0 && newnodes[$-1].encodedName != "..") newnodes = newnodes[0 .. $-1];
 					else newnodes ~= n;
 					break;
 			}
@@ -802,7 +802,7 @@ struct GenericPath(F) {
 	*/
 	P opCast(P)() const if (isInstanceOf!(.GenericPath, P)) {
 		static if (is(P == GenericPath)) return this;
-		else return P(this.bySegment.map!(n => cast(P.Segment)n));
+		else return P(this.bySegment2.map!(n => cast(P.Segment2)n));
 	}
 
 	/** Concatenates two paths.
@@ -848,7 +848,7 @@ struct GenericPath(F) {
 	*/
 	bool startsWith(GenericPath prefix)
 	const nothrow {
-		return bySegment.map!(n => n.name).startsWith(prefix.bySegment.map!(n => n.name));
+		return bySegment2.map!(n => n.name).startsWith(prefix.bySegment2.map!(n => n.name));
 	}
 }
 
