@@ -1,14 +1,14 @@
 /**
 	Contains routines for high level path handling.
 
-	Copyright: © 2012-2018 Sönke Ludwig
+	Copyright: © 2012-2019 Sönke Ludwig
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 	Authors: Sönke Ludwig
 */
 module vibe.core.path;
 
 import std.algorithm.searching : commonPrefix, endsWith, startsWith;
-import std.algorithm.comparison : min;
+import std.algorithm.comparison : equal, min;
 import std.algorithm.iteration : map;
 import std.exception : enforce;
 import std.range : empty, front, popFront, popFrontExactly, takeExactly;
@@ -27,7 +27,6 @@ import std.traits : isInstanceOf;
 Path relativeTo(Path)(Path path, Path base_path) @safe
 	if (isInstanceOf!(GenericPath, Path))
 {
-	import std.algorithm.comparison : equal;
 	import std.array : array, replicate;
 	import std.range : chain, drop, take;
 
@@ -37,35 +36,35 @@ Path relativeTo(Path)(Path path, Path base_path) @safe
 	if (is(Path == WindowsPath)) { // FIXME: this shouldn't be a special case here!
 		bool samePrefix(size_t n)
 		{
-			return path.bySegment.map!(n => n.name).take(n).equal(base_path.bySegment.map!(n => n.name).take(n));
+			return path.bySegment2.map!(n => n.encodedName).take(n).equal(base_path.bySegment2.map!(n => n.encodedName).take(n));
 		}
 		// a path such as ..\C:\windows is not valid, so force the path to stay absolute in this case
-		auto pref = path.bySegment;
-		if (!pref.empty && pref.front.name == "") {
+		auto pref = path.bySegment2;
+		if (!pref.empty && pref.front.encodedName == "") {
 			pref.popFront();
 			if (!pref.empty) {
 				// different drive?
-				if (pref.front.name.endsWith(':') && !samePrefix(2))
+				if (pref.front.encodedName.endsWith(':') && !samePrefix(2))
 					return path;
 				// different UNC path?
-				if (pref.front.name == "" && !samePrefix(4))
+				if (pref.front.encodedName == "" && !samePrefix(4))
 					return path;
 			}
 		}
 	}
 
-	auto nodes = path.bySegment;
-	auto base_nodes = base_path.bySegment;
+	auto nodes = path.bySegment2;
+	auto base_nodes = base_path.bySegment2;
 
 	// skip and count common prefix
 	size_t base = 0;
-	while (!nodes.empty && !base_nodes.empty && nodes.front.name == base_nodes.front.name) {
+	while (!nodes.empty && !base_nodes.empty && equal(nodes.front.name, base_nodes.front.name)) {
 		nodes.popFront();
 		base_nodes.popFront();
 		base++;
 	}
 
-	enum up = Path.Segment("..", Path.defaultSeparator);
+	enum up = Path.Segment2("..", Path.defaultSeparator);
 	auto ret = Path(base_nodes.map!(p => up).chain(nodes));
 	if (path.endsWithSlash) {
 		if (ret.empty) return Path("." ~ path.toString()[$-1]);
@@ -214,7 +213,6 @@ struct GenericPath(F) {
 
 		private {
 			string m_name;
-			string m_encodedName;
 			char m_separator = 0;
 		}
 
@@ -319,7 +317,7 @@ struct GenericPath(F) {
 
 		private {
 			string m_path;
-			ReturnType!(Format.decodeSegment!Segment) m_fronts;
+			Segment m_front;
 		}
 
 		private this(string path)
@@ -327,36 +325,235 @@ struct GenericPath(F) {
 			m_path = path;
 			if (m_path.length) {
 				auto ap = Format.getAbsolutePrefix(m_path);
-				if (ap.length) {
-					m_fronts = Format.decodeSegment!Segment(ap);
-					m_path = m_path[ap.length .. $];
-					assert(!m_fronts.empty);
-				} else readFront();
-			} else assert(m_fronts.empty);
+				if (ap.length && !Format.isSeparator(ap[0]))
+					m_front = Segment.fromTrustedString(null, '/');
+				else readFront();
+			}
 		}
 
-		@property bool empty() const nothrow @nogc { return m_path.length == 0 && m_fronts.empty; }
+		@property bool empty() const nothrow @nogc { return m_path.length == 0 && m_front == Segment.init; }
 
 		@property PathRange save() { return this; }
 
-		@property Segment front() { return m_fronts.front; }
+		@property Segment front() { return m_front; }
 
 		void popFront()
 		nothrow {
-			assert(!m_fronts.empty);
-			m_fronts.popFront();
-			if (m_fronts.empty && m_path.length)
-				readFront();
+			assert(m_front != Segment.init);
+			if (m_path.length) readFront();
+			else m_front = Segment.init;
+		}
+
+		private void readFront()
+		nothrow {
+			import std.array : array;
+
+			auto n = Format.getFrontNode(m_path);
+			m_path = m_path[n.length .. $];
+
+			char sep = '\0';
+			if (Format.isSeparator(n[$-1])) {
+				sep = n[$-1];
+				n = n[0 .. $-1];
+			}
+			static if (is(typeof(Format.decodeSingleSegment(n)) == string))
+				string ndec = Format.decodeSingleSegment(n);
+			else
+				string ndec = Format.decodeSingleSegment(n).array;
+			m_front = Segment.fromTrustedString(ndec, sep);
+			assert(m_front != Segment.init);
+		}
+	}
+
+	/** A single path segment.
+	*/
+	static struct Segment2 {
+		@safe:
+
+		private {
+			string m_encodedName;
+			char m_separator = 0;
+		}
+
+		/** Constructs a new path segment including an optional trailing
+			separator.
+
+			Params:
+				name = The raw (unencoded) name of the path segment
+				separator = Optional trailing path separator (e.g. `'/'`)
+
+			Throws:
+				A `PathValidationException` is thrown if the name contains
+				characters that are invalid for the path type. In particular,
+				any path separator characters may not be part of the name.
+		*/
+		this(string name, char separator = '\0')
+		{
+			import std.algorithm.searching : any;
+
+			enforce!PathValidationException(separator == '\0' || Format.isSeparator(separator),
+				"Invalid path separator.");
+			auto err = Format.validateDecodedSegment(name);
+			enforce!PathValidationException(err is null, err);
+
+			m_encodedName = Format.encodeSegment(name);
+			m_separator = separator;
+		}
+
+		/** Constructs a path segment without performing validation.
+
+			Note that in debug builds, there are still assertions in place
+			that verify that the provided values are valid.
+
+			Params:
+				name = The raw (unencoded) name of the path segment
+				separator = Optional trailing path separator (e.g. `'/'`)
+		*/
+		static Segment2 fromTrustedString(string name, char separator = '\0')
+		nothrow pure {
+			import std.algorithm.searching : any;
+			assert(separator == '\0' || Format.isSeparator(separator));
+			assert(Format.validateDecodedSegment(name) is null, "Invalid path segment.");
+			return fromTrustedEncodedString(Format.encodeSegment(name), separator);
+		}
+
+		/** Constructs a path segment without performing validation.
+
+			Note that in debug builds, there are still assertions in place
+			that verify that the provided values are valid.
+
+			Params:
+				name = The encoded name of the path segment
+				separator = Optional trailing path separator (e.g. `'/'`)
+		*/
+		static Segment2 fromTrustedEncodedString(string encoded_name, char separator = '\0')
+		nothrow @nogc pure {
+			import std.algorithm.searching : any;
+			import std.utf : byCodeUnit;
+
+			assert(separator == '\0' || Format.isSeparator(separator));
+			assert(!encoded_name.byCodeUnit.any!(c => Format.isSeparator(c)));
+			assert(Format.validatePath(encoded_name) is null, "Invalid path segment.");
+
+			Segment2 ret;
+			ret.m_encodedName = encoded_name;
+			ret.m_separator = separator;
+			return ret;
+		}
+
+		/** The (file/directory) name of the path segment.
+
+			Note: Depending on the path type, this may return a generic range
+			type instead of `string`. Use `name.to!string` in that
+			case if you need an actual `string`.
+		*/
+		@property auto name() const nothrow @nogc { return Format.decodeSingleSegment(m_encodedName); }
+		/// The encoded representation of the path segment name
+		@property string encodedName() const nothrow @nogc { return m_encodedName; }
+		/// The trailing separator (e.g. `'/'`) or `'\0'`.
+		@property char separator() const nothrow @nogc { return m_separator; }
+		/// ditto
+		@property void separator(char ch) {
+			enforce!PathValidationException(ch == '\0' || Format.isSeparator(ch),
+				"Character is not a valid path separator.");
+			m_separator = ch;
+		}
+		/// Returns `true` $(I iff) the segment has a trailing path separator.
+		@property bool hasSeparator() const nothrow @nogc { return m_separator != '\0'; }
+
+		/** Converts the segment to another path type.
+
+			The segment name will be re-validated during the conversion. The
+			separator, if any, will be adopted or replaced by the default
+			separator of the target path type.
+
+			Throws:
+				A `PathValidationException` is thrown if the segment name cannot
+				be represented in the target path format.
+		*/
+		GenericPath!F.Segment2 opCast(T : GenericPath!F.Segment2, F)()
+		{
+			import std.array : array;
+
+			char dsep = '\0';
+			if (m_separator) {
+				if (F.isSeparator(m_separator)) dsep = m_separator;
+				else dsep = F.defaultSeparator;
+			}
+			static if (is(typeof(this.name) == string))
+				string n = this.name;
+			else
+				string n = this.name.array;
+			return GenericPath!F.Segment2(n, dsep);
+		}
+
+		/// Compares two path segment names
+		bool opEquals(Segment2 other)
+		const nothrow @nogc {
+			try return equal(this.name, other.name) && this.hasSeparator == other.hasSeparator;
+			catch (Exception e) assert(false, e.msg);
+		}
+		/// ditto
+		bool opEquals(string name)
+		const nothrow @nogc {
+			import std.utf : byCodeUnit;
+			try return equal(this.name, name.byCodeUnit);
+			catch (Exception e) assert(false, e.msg);
+		}
+	}
+
+	/** Represents a path as an forward range of `Segment2`s.
+
+		Note that in contrast to `PathRange`, this range allows pure `@nogc`
+		iteration over encoded path segments.
+	*/
+	static struct PathRange2 {
+		import std.traits : ReturnType;
+
+		private {
+			string m_path;
+			Segment2 m_front;
+		}
+
+		private this(string path)
+		{
+			m_path = path;
+			if (m_path.length) {
+				auto ap = Format.getAbsolutePrefix(m_path);
+				if (ap.length && !Format.isSeparator(ap[0]))
+					m_front = Segment2.fromTrustedEncodedString(null, '/');
+				else readFront();
+			}
+		}
+
+		@property bool empty() const nothrow @nogc { return m_path.length == 0 && m_front == Segment2.init; }
+
+		@property PathRange2 save() { return this; }
+
+		@property Segment2 front() { return m_front; }
+
+		void popFront()
+		nothrow {
+			assert(m_front != Segment2.init);
+			if (m_path.length) readFront();
+			else m_front = Segment2.init;
 		}
 
 		private void readFront()
 		{
 			auto n = Format.getFrontNode(m_path);
-			m_fronts = Format.decodeSegment!Segment(n);
 			m_path = m_path[n.length .. $];
-			assert(!m_fronts.empty);
+
+			char sep = '\0';
+			if (Format.isSeparator(n[$-1])) {
+				sep = n[$-1];
+				n = n[0 .. $-1];
+			}
+			m_front = Segment2.fromTrustedEncodedString(n, sep);
+			assert(m_front != Segment2.init);
 		}
 	}
+
 
 	private {
 		string m_path;
@@ -388,6 +585,12 @@ struct GenericPath(F) {
 		import std.range : only;
 		this(only(segment));
 	}
+	/// ditto
+	this(Segment2 segment)
+	{
+		import std.range : only;
+		this(only(segment));
+	}
 
 	/** Constructs a path from an input range of `Segment`s.
 
@@ -397,6 +600,15 @@ struct GenericPath(F) {
 	*/
 	this(R)(R segments)
 		if (isInputRange!R && is(ElementType!R : Segment))
+	{
+		import std.array : appender;
+		auto dst = appender!string;
+		Format.toString(segments, dst);
+		m_path = dst.data;
+	}
+	/// ditto
+	this(R)(R segments)
+		if (isInputRange!R && is(ElementType!R : Segment2))
 	{
 		import std.array : appender;
 		auto dst = appender!string;
@@ -449,16 +661,39 @@ struct GenericPath(F) {
 	/// Iterates over the path by `Segment`.
 	@property PathRange bySegment() const { return PathRange(m_path); }
 
+	/// Iterates over the path by `Segment`.
+	@property PathRange2 bySegment2() const { return PathRange2(m_path); }
+
 	/// Returns the trailing segment of the path.
 	@property Segment head()
 	const {
-		auto s = Format.decodeSegment!Segment(Format.getBackNode(m_path));
-		auto ret = s.front;
-		while (!s.empty) {
-			s.popFront();
-			if (!s.empty) ret = s.front;
+		import std.array : array;
+
+		auto n = Format.getBackNode(m_path);
+		char sep = '\0';
+		if (n.length > 0 && Format.isSeparator(n[$-1])) {
+			sep = n[$-1];
+			n = n[0 .. $-1];
 		}
-		return ret;
+
+		static if (is(typeof(Format.decodeSingleSegment(n)) == string))
+			string ndec = Format.decodeSingleSegment(n);
+		else
+			string ndec = Format.decodeSingleSegment(n).array;
+
+		return Segment.fromTrustedString(ndec, sep);
+	}
+
+	/// Returns the trailing segment of the path.
+	@property Segment2 head2()
+	const @nogc {
+		auto n = Format.getBackNode(m_path);
+		char sep = '\0';
+		if (n.length > 0 && Format.isSeparator(n[$-1])) {
+			sep = n[$-1];
+			n = n[0 .. $-1];
+		}
+		return Segment2.fromTrustedEncodedString(n, sep);
 	}
 
 	/** Determines if the `parentPath` property is valid.
@@ -503,20 +738,20 @@ struct GenericPath(F) {
 	{
 		import std.array : appender, join;
 
-		Segment[] newnodes;
+		Segment2[] newnodes;
 		bool got_non_sep = false;
-		foreach (n; this.bySegment) {
+		foreach (n; this.bySegment2) {
 			if (n.hasSeparator) n.separator = Format.defaultSeparator;
 			if (!got_non_sep) {
-				if (n.name == "") newnodes ~= n;
+				if (n.encodedName == "") newnodes ~= n;
 				else got_non_sep = true;
 			}
-			switch (n.name) {
+			switch (n.encodedName) {
 				default: newnodes ~= n; break;
 				case "", ".": break;
 				case "..":
 					enforce(!this.absolute || newnodes.length > 0, "Path goes below root node.");
-					if (newnodes.length > 0 && newnodes[$-1].name != "..") newnodes = newnodes[0 .. $-1];
+					if (newnodes.length > 0 && newnodes[$-1].encodedName != "..") newnodes = newnodes[0 .. $-1];
 					else newnodes ~= n;
 					break;
 			}
@@ -567,7 +802,7 @@ struct GenericPath(F) {
 	*/
 	P opCast(P)() const if (isInstanceOf!(.GenericPath, P)) {
 		static if (is(P == GenericPath)) return this;
-		else return P(this.bySegment.map!(n => cast(P.Segment)n));
+		else return P(this.bySegment2.map!(n => cast(P.Segment2)n));
 	}
 
 	/** Concatenates two paths.
@@ -578,7 +813,11 @@ struct GenericPath(F) {
 	/// ditto
 	GenericPath opBinary(string op : "~")(Segment subpath) const { return this ~ GenericPath(subpath); }
 	/// ditto
+	GenericPath opBinary(string op : "~")(Segment2 subpath) const { return this ~ GenericPath(subpath); }
+	/// ditto
 	GenericPath opBinary(string op : "~", F)(GenericPath!F.Segment subpath) const { return this ~ cast(Segment)(subpath); }
+	/// ditto
+	GenericPath opBinary(string op : "~", F)(GenericPath!F.Segment2 subpath) const { return this ~ cast(Segment2)(subpath); }
 	/// ditto
 	GenericPath opBinary(string op : "~")(GenericPath subpath) const nothrow {
 		assert(!subpath.absolute || m_path.length == 0, "Cannot append absolute path.");
@@ -593,6 +832,12 @@ struct GenericPath(F) {
 	{
 		return this ~ GenericPath(entries);
 	}
+	/// ditto
+	GenericPath opBinary(string op : "~", R)(R entries) const nothrow
+		if (isInputRange!R && is(ElementType!R : Segment2))
+	{
+		return this ~ GenericPath(entries);
+	}
 
 	/// Appends a relative path to this path.
 	void opOpAssign(string op : "~", T)(T op) { this = this ~ op; }
@@ -603,13 +848,11 @@ struct GenericPath(F) {
 	*/
 	bool startsWith(GenericPath prefix)
 	const nothrow {
-		return bySegment.map!(n => n.name).startsWith(prefix.bySegment.map!(n => n.name));
+		return bySegment2.map!(n => n.name).startsWith(prefix.bySegment2.map!(n => n.name));
 	}
 }
 
 unittest {
-	import std.algorithm.comparison : equal;
-
 	assert(PosixPath("hello/world").bySegment.equal([PosixPath.Segment("hello",'/'), PosixPath.Segment("world")]));
 	assert(PosixPath("/hello/world/").bySegment.equal([PosixPath.Segment("",'/'), PosixPath.Segment("hello",'/'), PosixPath.Segment("world",'/')]));
 	assert(PosixPath("hello\\world").bySegment.equal([PosixPath.Segment("hello\\world")]));
@@ -619,10 +862,18 @@ unittest {
 	assert(WindowsPath("hello/w\\orld").bySegment.equal([WindowsPath.Segment("hello",'/'), WindowsPath.Segment("w",'\\'), WindowsPath.Segment("orld")]));
 }
 
+unittest {
+	assert(PosixPath("hello/world").bySegment2.equal([PosixPath.Segment2("hello",'/'), PosixPath.Segment2("world")]));
+	assert(PosixPath("/hello/world/").bySegment2.equal([PosixPath.Segment2("",'/'), PosixPath.Segment2("hello",'/'), PosixPath.Segment2("world",'/')]));
+	assert(PosixPath("hello\\world").bySegment2.equal([PosixPath.Segment2("hello\\world")]));
+	assert(WindowsPath("hello/world").bySegment2.equal([WindowsPath.Segment2("hello",'/'), WindowsPath.Segment2("world")]));
+	assert(WindowsPath("/hello/world/").bySegment2.equal([WindowsPath.Segment2("",'/'), WindowsPath.Segment2("hello",'/'), WindowsPath.Segment2("world",'/')]));
+	assert(WindowsPath("hello\\w/orld").bySegment2.equal([WindowsPath.Segment2("hello",'\\'), WindowsPath.Segment2("w",'/'), WindowsPath.Segment2("orld")]));
+	assert(WindowsPath("hello/w\\orld").bySegment2.equal([WindowsPath.Segment2("hello",'/'), WindowsPath.Segment2("w",'\\'), WindowsPath.Segment2("orld")]));
+}
+
 unittest
 {
-	import std.algorithm.comparison : equal;
-
 	{
 		auto unc = "\\\\server\\share\\path";
 		auto uncp = WindowsPath(unc);
@@ -702,6 +953,55 @@ unittest
 	assert(PosixPath("foo/") ~ NativePath("bar") == PosixPath("foo/bar"));
 }
 
+unittest
+{
+	{
+		auto unc = "\\\\server\\share\\path";
+		auto uncp = WindowsPath(unc);
+		assert(uncp.absolute);
+		uncp.normalize();
+		version(Windows) assert(uncp.toNativeString() == unc);
+		assert(uncp.absolute);
+		assert(!uncp.endsWithSlash);
+	}
+
+	{
+		auto abspath = "/test/path/";
+		auto abspathp = PosixPath(abspath);
+		assert(abspathp.toString() == abspath);
+		version(Windows) {} else assert(abspathp.toNativeString() == abspath);
+		assert(abspathp.absolute);
+		assert(abspathp.endsWithSlash);
+		alias S = PosixPath.Segment2;
+		assert(abspathp.bySegment2.equal([S("", '/'), S("test", '/'), S("path", '/')]));
+	}
+
+	{
+		auto relpath = "test/path/";
+		auto relpathp = PosixPath(relpath);
+		assert(relpathp.toString() == relpath);
+		version(Windows) assert(relpathp.toNativeString() == "test/path/");
+		else assert(relpathp.toNativeString() == relpath);
+		assert(!relpathp.absolute);
+		assert(relpathp.endsWithSlash);
+		alias S = PosixPath.Segment2;
+		assert(relpathp.bySegment2.equal([S("test", '/'), S("path", '/')]));
+	}
+
+	{
+		auto winpath = "C:\\windows\\test";
+		auto winpathp = WindowsPath(winpath);
+		assert(winpathp.toString() == "C:\\windows\\test");
+		assert((cast(PosixPath)winpathp).toString() == "/C:/windows/test", (cast(PosixPath)winpathp).toString());
+		version(Windows) assert(winpathp.toNativeString() == winpath);
+		else assert(winpathp.toNativeString() == "/C:/windows/test");
+		assert(winpathp.absolute);
+		assert(!winpathp.endsWithSlash);
+		alias S = WindowsPath.Segment2;
+		assert(winpathp.bySegment2.equal([S("", '/'), S("C:", '\\'), S("windows", '\\'), S("test")]));
+	}
+}
+
 @safe unittest {
 	import std.array : appender;
 	auto app = appender!(PosixPath[]);
@@ -712,7 +1012,6 @@ unittest
 }
 
 unittest {
-	import std.algorithm.comparison : equal;
 	import std.exception : assertThrown, assertNotThrown;
 
 	assertThrown!PathValidationException(WindowsPath.Segment("foo/bar"));
@@ -722,6 +1021,20 @@ unittest {
 	auto p = InetPath("/foo%2fbar/");
 	assert(p.bySegment.equal([InetPath.Segment("",'/'), InetPath.Segment("foo/bar",'/')]));
 	p ~= InetPath.Segment("baz/bam");
+	assert(p.toString() == "/foo%2fbar/baz%2Fbam", p.toString);
+}
+
+unittest {
+	import std.exception : assertThrown, assertNotThrown;
+
+	assertThrown!PathValidationException(WindowsPath.Segment2("foo/bar"));
+	assertThrown!PathValidationException(PosixPath.Segment2("foo/bar"));
+	assertNotThrown!PathValidationException(InetPath.Segment2("foo/bar"));
+
+	auto p = InetPath("/foo%2fbar/");
+	import std.conv : to;
+	assert(p.bySegment2.equal([InetPath.Segment2("",'/'), InetPath.Segment2("foo/bar",'/')]), p.bySegment2.to!string);
+	p ~= InetPath.Segment2("baz/bam");
 	assert(p.toString() == "/foo%2fbar/baz%2Fbam", p.toString);
 }
 
@@ -750,6 +1063,10 @@ unittest {
 
 unittest {
 	assert(WindowsPath([WindowsPath.Segment("foo"), WindowsPath.Segment("bar")]).toString() == "foo\\bar");
+}
+
+unittest {
+	assert(WindowsPath([WindowsPath.Segment2("foo"), WindowsPath.Segment2("bar")]).toString() == "foo\\bar");
 }
 
 /// Thrown when an invalid string representation of a path is detected.
@@ -893,6 +1210,7 @@ struct WindowsPathFormat {
 		assert(getBackNode("foo\\") == "foo\\");
 	}
 
+	deprecated("Use decodeSingleSegment instead.")
 	static auto decodeSegment(S)(string segment)
 	{
 		static struct R {
@@ -922,13 +1240,26 @@ struct WindowsPathFormat {
 	}
 
 	unittest {
-		import std.algorithm.comparison : equal;
 		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
 		assert(decodeSegment!Segment("fo%20o\\").equal([Segment("fo%20o", '\\')]));
 		assert(decodeSegment!Segment("C:\\").equal([Segment("",'/'), Segment("C:", '\\')]));
 		assert(decodeSegment!Segment("bar:\\").equal([Segment("",'/'), Segment("bar:", '\\')]));
+	}
+
+	static string decodeSingleSegment(string segment)
+	@nogc {
+		assert(segment.length == 0 || segment[$-1] != '/');
+		return segment;
+	}
+
+	unittest {
+		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
+		assert(decodeSingleSegment("foo") == "foo");
+		assert(decodeSingleSegment("fo%20o") == "fo%20o");
+		assert(decodeSingleSegment("C:") == "C:");
+		assert(decodeSingleSegment("bar:") == "bar:");
 	}
 
 	static string validatePath(string path)
@@ -980,6 +1311,12 @@ struct WindowsPathFormat {
 		assert(validatePath("c:d\\foo") !is null);
 		assert(validatePath("foo\\b:ar") !is null);
 		assert(validatePath("foo\\bar:\\baz") !is null);
+	}
+
+	static string encodeSegment(string segment)
+	{
+		assert(segment.length == 0 || segment[$-1] != '/');
+		return segment;
 	}
 }
 
@@ -1095,6 +1432,7 @@ struct PosixPathFormat {
 		assert(validatePath("foo\0bar") !is null);
 	}
 
+	deprecated("Use decodeSingleSegment instead.")
 	static auto decodeSegment(S)(string segment)
 	{
 		assert(segment.length > 0, "Path segment string must not be empty.");
@@ -1106,11 +1444,28 @@ struct PosixPathFormat {
 	}
 
 	unittest {
-		import std.algorithm.comparison : equal;
 		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
 		assert(decodeSegment!Segment("fo%20o\\").equal([Segment("fo%20o\\")]));
+	}
+
+	static string decodeSingleSegment(string segment)
+	@nogc {
+		assert(segment.length == 0 || segment[$-1] != '/');
+		return segment;
+	}
+
+	unittest {
+		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
+		assert(decodeSingleSegment("foo") == "foo");
+		assert(decodeSingleSegment("fo%20o\\") == "fo%20o\\");
+	}
+
+	static string encodeSegment(string segment)
+	{
+		assert(segment.length == 0 || segment[$-1] != '/');
+		return segment;
 	}
 }
 
@@ -1122,28 +1477,14 @@ struct PosixPathFormat {
 struct InetPathFormat {
 	static void toString(I, O)(I segments, O dst)
 	{
-		import std.format : formattedWrite;
-
 		char lastsep = '\0';
 		bool first = true;
 		foreach (e; segments) {
 			if (!first || lastsep) dst.put('/');
 			else first = false;
-			foreach (char c; e.name) {
-				switch (c) {
-					default:
-						dst.formattedWrite("%%%02X", c);
-						break;
-					case 'a': .. case 'z':
-					case 'A': .. case 'Z':
-					case '0': .. case '9':
-					case '-', '.', '_', '~':
-					case '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=':
-            		case ':', '@':
-						dst.put(c);
-						break;
-				}
-			}
+			static if (is(typeof(e.encodedName)))
+				dst.put(e.encodedName);
+			else encodeSegment(dst, e.name);
 			lastsep = e.separator;
 		}
 		if (lastsep) dst.put('/');
@@ -1203,10 +1544,13 @@ struct InetPathFormat {
 
 	static string getBackNode(string path)
 	@nogc {
+		import std.string : lastIndexOf;
+
 		if (!path.length) return path;
-		foreach_reverse (i; 0 .. path.length-1)
-			if (path[i] == '/')
-				return path[i+1 .. $];
+		ptrdiff_t idx;
+		try idx = path[0 .. $-1].lastIndexOf('/');
+		catch (Exception e) assert(false, e.msg);
+		if (idx >= 0) return path[idx+1 .. $];
 		return path;
 	}
 
@@ -1273,11 +1617,38 @@ struct InetPathFormat {
 		assert(validatePath("föö") !is null);
 	}
 
+	deprecated("Use decodeSingleSegment instead.")
 	static auto decodeSegment(S)(string segment)
 	{
-		import std.array : appender;
-		import std.format : formattedRead;
+		import std.algorithm.searching : any;
+		import std.array : array;
+		import std.exception : assumeUnique;
 		import std.range : only;
+		import std.utf : byCodeUnit;
+
+		if (!segment.length) return only(S.fromTrustedString(null));
+		char sep = '\0';
+		if (segment[$-1] == '/') {
+			sep = '/';
+			segment = segment[0 .. $-1];
+		}
+
+		if (!segment.byCodeUnit.any!(c => c == '%'))
+			return only(S(segment, sep));
+		string n = decodeSingleSegment(segment).array;
+		return only(S(n, sep));
+	}
+
+	unittest {
+		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
+		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
+		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
+		assert(decodeSegment!Segment("fo%20o\\").equal([Segment("fo o\\")]));
+		assert(decodeSegment!Segment("foo%20").equal([Segment("foo ")]));
+	}
+
+	static auto decodeSingleSegment(string segment)
+	@nogc {
 		import std.string : indexOf;
 
 		static int hexDigit(char ch) @safe nothrow @nogc {
@@ -1287,40 +1658,105 @@ struct InetPathFormat {
 			else return ch - 'A' + 10;
 		}
 
-		static string urlDecode(string s) @safe nothrow {
-			auto idx = s.indexOf('%');
-			if (idx < 0) return s;
+		static struct R {
+			@safe pure nothrow @nogc:
 
-			auto ret = appender!string;
-			ret.put(s[0 .. idx]);
-
-			for (size_t i = idx; i < s.length; i++) {
-				if (s[i] == '%') {
-					assert(i+2 < s.length, "segment string not validated!?");
-					ret.put(cast(char)(hexDigit(s[i+1]) << 4 | hexDigit(s[i+2])));
-					i += 2;
-				} else ret.put(s[i]);
+			private {
+				string m_str;
+				size_t m_index;
 			}
 
-			return ret.data;
+			this(string s)
+			{
+				m_str = s;
+			}
+
+			@property bool empty() const { return m_index >= m_str.length; }
+
+			@property char front()
+			const {
+				auto ch = m_str[m_index];
+				if (ch != '%') return ch;
+
+				auto a = m_str[m_index+1];
+				auto b = m_str[m_index+2];
+				return cast(char)(16 * hexDigit(a) + hexDigit(b));
+			}
+
+			@property void popFront()
+			{
+				assert(!empty);
+				if (m_str[m_index] == '%') m_index += 3;
+				else m_index++;
+			}
 		}
 
-		if (!segment.length) return only(S.fromTrustedString(null));
-		if (segment[$-1] == '/')
-			return only(S.fromTrustedString(urlDecode(segment[0 .. $-1]), '/'));
-		return only(S.fromTrustedString(urlDecode(segment)));
+		return R(segment);
 	}
 
 	unittest {
-		import std.algorithm.comparison : equal;
-		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
-		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
-		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
-		assert(decodeSegment!Segment("fo%20o\\").equal([Segment("fo o\\")]));
-		assert(decodeSegment!Segment("foo%20").equal([Segment("foo ")]));
+		scope (failure) assert(false);
+
+		assert(decodeSingleSegment("foo").equal("foo"));
+		assert(decodeSingleSegment("fo%20o\\").equal("fo o\\"));
+		assert(decodeSingleSegment("foo%20").equal("foo "));
+	}
+
+
+	static string encodeSegment(string segment)
+	{
+		import std.array : appender;
+
+		foreach (i, char c; segment) {
+			switch (c) {
+				default:
+					auto ret = appender!string;
+					ret.put(segment[0 .. i]);
+					encodeSegment(ret, segment[i .. $]);
+					return ret.data;
+				case 'a': .. case 'z':
+				case 'A': .. case 'Z':
+				case '0': .. case '9':
+				case '-', '.', '_', '~':
+				case '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=':
+        		case ':', '@':
+					break;
+			}
+		}
+
+		return segment;
+	}
+
+	unittest {
+		assert(encodeSegment("foo") == "foo");
+		assert(encodeSegment("foo bar") == "foo%20bar");
+	}
+
+	static void encodeSegment(R)(ref R dst, string segment)
+	{
+		static immutable char[16] digit = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F'];
+
+		foreach (char c; segment) {
+			switch (c) {
+				default:
+					dst.put('%');
+					dst.put(digit[uint(c) / 16]);
+					dst.put(digit[uint(c) % 16]);
+					break;
+				case 'a': .. case 'z':
+				case 'A': .. case 'Z':
+				case '0': .. case '9':
+				case '-', '.', '_', '~':
+				case '!', '$', '&', '\'', '(', ')', '*', '+', ',', ';', '=':
+        		case ':', '@':
+					dst.put(c);
+					break;
+			}
+		}
 	}
 }
 
 unittest { // regression tests
 	assert(NativePath("").bySegment.empty);
+	assert(NativePath("").bySegment2.empty);
 }
