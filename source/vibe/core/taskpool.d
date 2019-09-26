@@ -10,7 +10,7 @@ module vibe.core.taskpool;
 import vibe.core.concurrency : isWeaklyIsolated;
 import vibe.core.core : exitEventLoop, logicalProcessorCount, runEventLoop, runTask, runTask_internal;
 import vibe.core.log;
-import vibe.core.sync : ManualEvent, Monitor, SpinLock, createSharedManualEvent, createMonitor;
+import vibe.core.sync : ManualEvent, Monitor, createSharedManualEvent, createMonitor;
 import vibe.core.task : Task, TaskFuncInfo, callWithMove;
 import core.sync.mutex : Mutex;
 import core.thread : Thread;
@@ -27,7 +27,7 @@ shared final class TaskPool {
 			TaskQueue queue;
 			bool term;
 		}
-		vibe.core.sync.Monitor!(State, shared(SpinLock)) m_state;
+		vibe.core.sync.Monitor!(State, shared(Mutex)) m_state;
 		shared(ManualEvent) m_signal;
 		immutable size_t m_threadCount;
 	}
@@ -43,6 +43,7 @@ shared final class TaskPool {
 
 		m_threadCount = thread_count;
 		m_signal = createSharedManualEvent();
+		m_state = createMonitor!State(new shared Mutex);
 
 		with (m_state.lock) {
 			queue.setup();

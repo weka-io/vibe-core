@@ -342,6 +342,7 @@ final package class TaskFiber : Fiber {
 	this()
 	@trusted nothrow {
 		super(&run, ms_taskStackSize);
+		m_onExit = createSharedManualEvent();
 		m_thread = Thread.getThis();
 	}
 
