@@ -1201,12 +1201,12 @@ private struct TimerCallbackHandler(CALLABLE) {
 auto yieldLock()
 @safe nothrow {
 	static struct YieldLock {
-		@safe nothrow:
+	@safe nothrow:
+		private bool m_initialized;
 
-		private this(bool) { inc(); }
-		@disable this();
+		private this(bool) { m_initialized = true; inc(); }
 		@disable this(this);
-		~this() { dec(); }
+		~this() { if (m_initialized) dec(); }
 
 		private void inc()
 		{
@@ -1215,6 +1215,7 @@ auto yieldLock()
 
 		private void dec()
 		{
+			assert(TaskFiber.getThis().m_yieldLockCount > 0);
 			TaskFiber.getThis().m_yieldLockCount--;
 		}
 	}
@@ -1233,6 +1234,12 @@ unittest {
 			assert(tf.m_yieldLockCount == 2);
 		}
 		assert(tf.m_yieldLockCount == 1);
+	}
+	assert(tf.m_yieldLockCount == 0);
+
+	{
+		typeof(yieldLock()) l;
+		assert(tf.m_yieldLockCount == 0);
 	}
 	assert(tf.m_yieldLockCount == 0);
 }
