@@ -502,59 +502,6 @@ struct GenericPath(F) {
 		}
 	}
 
-	/** Represents a path as an forward range of `Segment2`s.
-
-		Note that in contrast to `PathRange`, this range allows pure `@nogc`
-		iteration over encoded path segments.
-	*/
-	static struct PathRange2 {
-		import std.traits : ReturnType;
-
-		private {
-			string m_path;
-			Segment2 m_front;
-		}
-
-		private this(string path)
-		{
-			m_path = path;
-			if (m_path.length) {
-				auto ap = Format.getAbsolutePrefix(m_path);
-				if (ap.length && !Format.isSeparator(ap[0]))
-					m_front = Segment2.fromTrustedEncodedString(null, '/');
-				else readFront();
-			}
-		}
-
-		@property bool empty() const nothrow @nogc { return m_path.length == 0 && m_front == Segment2.init; }
-
-		@property PathRange2 save() { return this; }
-
-		@property Segment2 front() { return m_front; }
-
-		void popFront()
-		nothrow {
-			assert(m_front != Segment2.init);
-			if (m_path.length) readFront();
-			else m_front = Segment2.init;
-		}
-
-		private void readFront()
-		{
-			auto n = Format.getFrontNode(m_path);
-			m_path = m_path[n.length .. $];
-
-			char sep = '\0';
-			if (Format.isSeparator(n[$-1])) {
-				sep = n[$-1];
-				n = n[0 .. $-1];
-			}
-			m_front = Segment2.fromTrustedEncodedString(n, sep);
-			assert(m_front != Segment2.init);
-		}
-	}
-
-
 	private {
 		string m_path;
 	}
@@ -662,8 +609,61 @@ struct GenericPath(F) {
 	@property PathRange bySegment() const { return PathRange(m_path); }
 
 
-	/// Iterates over the path by `Segment`.
-	@property PathRange2 bySegment2() const { return PathRange2(m_path); }
+	/** Iterates over the individual segments of the path.
+
+		Returns a forward range of `Segment2`s.
+	*/
+	@property auto bySegment2()
+	const {
+		static struct R {
+			import std.traits : ReturnType;
+
+			private {
+				string m_path;
+				Segment2 m_front;
+			}
+
+			private this(string path)
+			{
+				m_path = path;
+				if (m_path.length) {
+					auto ap = Format.getAbsolutePrefix(m_path);
+					if (ap.length && !Format.isSeparator(ap[0]))
+						m_front = Segment2.fromTrustedEncodedString(null, '/');
+					else readFront();
+				}
+			}
+
+			@property bool empty() const nothrow @nogc { return m_path.length == 0 && m_front == Segment2.init; }
+
+			@property R save() { return this; }
+
+			@property Segment2 front() { return m_front; }
+
+			void popFront()
+			nothrow {
+				assert(m_front != Segment2.init);
+				if (m_path.length) readFront();
+				else m_front = Segment2.init;
+			}
+
+			private void readFront()
+			{
+				auto n = Format.getFrontNode(m_path);
+				m_path = m_path[n.length .. $];
+
+				char sep = '\0';
+				if (Format.isSeparator(n[$-1])) {
+					sep = n[$-1];
+					n = n[0 .. $-1];
+				}
+				m_front = Segment2.fromTrustedEncodedString(n, sep);
+				assert(m_front != Segment2.init);
+			}
+		}
+
+		return R(m_path);
+	}
 
 	///
 	unittest {
