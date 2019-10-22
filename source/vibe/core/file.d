@@ -118,7 +118,9 @@ string readFileUTF8(NativePath path)
 {
 	import vibe.internal.string;
 
-	return stripUTF8Bom(sanitizeUTF8(readFile(path)));
+	auto data = readFile(path);
+	auto idata = () @trusted { return data.assumeUnique; } ();
+	return stripUTF8Bom(sanitizeUTF8(idata));
 }
 /// ditto
 string readFileUTF8(string path)
