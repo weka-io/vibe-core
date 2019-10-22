@@ -25,24 +25,20 @@ import core.exception;
 	Takes a string with possibly invalid UTF8 sequences and outputs a valid UTF8 string as near to
 	the original as possible.
 */
-string sanitizeUTF8(in ubyte[] str)
+string sanitizeUTF8(immutable(ubyte)[] str)
 @safe pure {
-	import std.utf;
-	auto ret = appender!string();
-	ret.reserve(str.length);
-
-	size_t i = 0;
-	while (i < str.length) {
-		dchar ch = str[i];
-		try ch = std.utf.decode(cast(const(char[]))str, i);
-		catch( UTFException ){ i++; }
-		//catch( AssertError ){ i++; }
-		char[4] dst;
-		auto len = std.utf.encode(dst, ch);
-		ret.put(dst[0 .. len]);
-	}
-
-	return ret.data;
+	import std.encoding : sanitize;
+	auto ustr = cast(immutable(char)[])str;
+	return () @trusted { return sanitize(ustr); } ();
+}
+/// ditto
+string sanitizeUTF8(in ubyte[] str)
+@trusted pure {
+	import std.encoding : sanitize;
+	auto ustr = cast(immutable(char)[])str;
+	auto ret = sanitize(ustr);
+	if (ret.ptr is ustr.ptr) return ustr.idup;
+	else return ret;
 }
 
 /**
