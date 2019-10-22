@@ -661,8 +661,92 @@ struct GenericPath(F) {
 	/// Iterates over the path by `Segment`.
 	@property PathRange bySegment() const { return PathRange(m_path); }
 
+
 	/// Iterates over the path by `Segment`.
 	@property PathRange2 bySegment2() const { return PathRange2(m_path); }
+
+	///
+	unittest {
+		InetPath p = "foo/bar/baz";
+		assert(p.bySegment2.equal([
+			InetPath.Segment2("foo", '/'),
+			InetPath.Segment2("bar", '/'),
+			InetPath.Segment2("baz")
+		]));
+	}
+
+
+	/** Iterates over the path by segment, each time returning the sub path
+		leading to that segment.
+	*/
+	@property auto byPrefix()
+	const nothrow @nogc {
+		static struct R {
+			import std.traits : ReturnType;
+
+			private {
+				string m_path;
+				string m_remainder;
+			}
+
+			private this(string path)
+			{
+				m_path = path;
+				m_remainder = path;
+				if (m_path.length) {
+					auto ap = Format.getAbsolutePrefix(m_path);
+					if (ap.length && !Format.isSeparator(ap[0]))
+						m_remainder = m_remainder[ap.length .. $];
+					else popFront();
+				}
+			}
+
+			@property bool empty() const nothrow @nogc
+			{
+				return m_path.length == 0;
+			}
+
+			@property R save() { return this; }
+
+			@property GenericPath front()
+			{
+				return GenericPath.fromTrustedString(m_path[0 .. $-m_remainder.length]);
+			}
+
+			void popFront()
+			nothrow {
+				assert(m_remainder.length > 0 || m_path.length > 0);
+				if (m_remainder.length) readFront();
+				else m_path = "";
+			}
+
+			private void readFront()
+			{
+				auto n = Format.getFrontNode(m_remainder);
+				m_remainder = m_remainder[n.length .. $];
+			}
+		}
+
+		return R(m_path);
+	}
+
+	///
+	unittest {
+		assert(InetPath("foo/bar/baz").byPrefix
+			.equal([
+				InetPath("foo/"),
+				InetPath("foo/bar/"),
+				InetPath("foo/bar/baz")
+			]));
+
+		assert(InetPath("/foo/bar").byPrefix
+			.equal([
+				InetPath("/"),
+				InetPath("/foo/"),
+				InetPath("/foo/bar"),
+			]));
+	}
+
 
 	/// Returns the trailing segment of the path.
 	@property Segment head()
@@ -870,6 +954,10 @@ unittest {
 	assert(WindowsPath("/hello/world/").bySegment2.equal([WindowsPath.Segment2("",'/'), WindowsPath.Segment2("hello",'/'), WindowsPath.Segment2("world",'/')]));
 	assert(WindowsPath("hello\\w/orld").bySegment2.equal([WindowsPath.Segment2("hello",'\\'), WindowsPath.Segment2("w",'/'), WindowsPath.Segment2("orld")]));
 	assert(WindowsPath("hello/w\\orld").bySegment2.equal([WindowsPath.Segment2("hello",'/'), WindowsPath.Segment2("w",'\\'), WindowsPath.Segment2("orld")]));
+
+	assert(PosixPath("hello/world").byPrefix.equal([PosixPath("hello/"), PosixPath("hello/world")]));
+	assert(PosixPath("/hello/world/").byPrefix.equal([PosixPath("/"), PosixPath("/hello/"), PosixPath("/hello/world/")]));
+	assert(WindowsPath("C:\\Windows").byPrefix.equal([WindowsPath("C:\\"), WindowsPath("C:\\Windows")]));
 }
 
 unittest
@@ -1239,7 +1327,7 @@ struct WindowsPathFormat {
 		return R(S.fromTrustedString(segment, sep));
 	}
 
-	unittest {
+	deprecated unittest {
 		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
@@ -1443,7 +1531,7 @@ struct PosixPathFormat {
 		return only(S.fromTrustedString(segment));
 	}
 
-	unittest {
+	deprecated unittest {
 		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
@@ -1639,7 +1727,7 @@ struct InetPathFormat {
 		return only(S(n, sep));
 	}
 
-	unittest {
+	deprecated unittest {
 		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
