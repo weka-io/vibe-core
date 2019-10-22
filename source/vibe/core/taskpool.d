@@ -305,19 +305,19 @@ private final class WorkerThread : Thread {
 		import std.algorithm.searching : count;
 		import std.array : array;
 
-		logDebug("worker thread enter");
+		logTrace("worker thread enter");
 		TaskFuncInfo taskfunc;
 		auto emit_count = m_pool.m_signal.emitCount;
 		while(true) {
 			with (m_pool.m_state.lock) {
-				logDebug("worker thread check");
+				logTrace("worker thread check");
 
 				if (term) break;
 
 				if (m_queue.consume(taskfunc)) {
-					logDebug("worker thread got specific task");
+					logTrace("worker thread got specific task");
 				} else if (queue.consume(taskfunc)) {
-					logDebug("worker thread got unspecific task");
+					logTrace("worker thread got unspecific task");
 				}
 			}
 
@@ -326,7 +326,7 @@ private final class WorkerThread : Thread {
 			else emit_count = m_pool.m_signal.waitUninterruptible(emit_count);
 		}
 
-		logDebug("worker thread exit");
+		logTrace("worker thread exit");
 
 		if (!m_queue.empty)
 			logWarn("Worker thread shuts down with specific worker tasks left in its queue.");
