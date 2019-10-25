@@ -502,59 +502,6 @@ struct GenericPath(F) {
 		}
 	}
 
-	/** Represents a path as an forward range of `Segment2`s.
-
-		Note that in contrast to `PathRange`, this range allows pure `@nogc`
-		iteration over encoded path segments.
-	*/
-	static struct PathRange2 {
-		import std.traits : ReturnType;
-
-		private {
-			string m_path;
-			Segment2 m_front;
-		}
-
-		private this(string path)
-		{
-			m_path = path;
-			if (m_path.length) {
-				auto ap = Format.getAbsolutePrefix(m_path);
-				if (ap.length && !Format.isSeparator(ap[0]))
-					m_front = Segment2.fromTrustedEncodedString(null, '/');
-				else readFront();
-			}
-		}
-
-		@property bool empty() const nothrow @nogc { return m_path.length == 0 && m_front == Segment2.init; }
-
-		@property PathRange2 save() { return this; }
-
-		@property Segment2 front() { return m_front; }
-
-		void popFront()
-		nothrow {
-			assert(m_front != Segment2.init);
-			if (m_path.length) readFront();
-			else m_front = Segment2.init;
-		}
-
-		private void readFront()
-		{
-			auto n = Format.getFrontNode(m_path);
-			m_path = m_path[n.length .. $];
-
-			char sep = '\0';
-			if (Format.isSeparator(n[$-1])) {
-				sep = n[$-1];
-				n = n[0 .. $-1];
-			}
-			m_front = Segment2.fromTrustedEncodedString(n, sep);
-			assert(m_front != Segment2.init);
-		}
-	}
-
-
 	private {
 		string m_path;
 	}
@@ -661,8 +608,145 @@ struct GenericPath(F) {
 	/// Iterates over the path by `Segment`.
 	@property PathRange bySegment() const { return PathRange(m_path); }
 
-	/// Iterates over the path by `Segment`.
-	@property PathRange2 bySegment2() const { return PathRange2(m_path); }
+
+	/** Iterates over the individual segments of the path.
+
+		Returns a forward range of `Segment2`s.
+	*/
+	@property auto bySegment2()
+	const {
+		static struct R {
+			import std.traits : ReturnType;
+
+			private {
+				string m_path;
+				Segment2 m_front;
+			}
+
+			private this(string path)
+			{
+				m_path = path;
+				if (m_path.length) {
+					auto ap = Format.getAbsolutePrefix(m_path);
+					if (ap.length && !Format.isSeparator(ap[0]))
+						m_front = Segment2.fromTrustedEncodedString(null, '/');
+					else readFront();
+				}
+			}
+
+			@property bool empty() const nothrow @nogc { return m_path.length == 0 && m_front == Segment2.init; }
+
+			@property R save() { return this; }
+
+			@property Segment2 front() { return m_front; }
+
+			void popFront()
+			nothrow {
+				assert(m_front != Segment2.init);
+				if (m_path.length) readFront();
+				else m_front = Segment2.init;
+			}
+
+			private void readFront()
+			{
+				auto n = Format.getFrontNode(m_path);
+				m_path = m_path[n.length .. $];
+
+				char sep = '\0';
+				if (Format.isSeparator(n[$-1])) {
+					sep = n[$-1];
+					n = n[0 .. $-1];
+				}
+				m_front = Segment2.fromTrustedEncodedString(n, sep);
+				assert(m_front != Segment2.init);
+			}
+		}
+
+		return R(m_path);
+	}
+
+	///
+	unittest {
+		InetPath p = "foo/bar/baz";
+		assert(p.bySegment2.equal([
+			InetPath.Segment2("foo", '/'),
+			InetPath.Segment2("bar", '/'),
+			InetPath.Segment2("baz")
+		]));
+	}
+
+
+	/** Iterates over the path by segment, each time returning the sub path
+		leading to that segment.
+	*/
+	@property auto byPrefix()
+	const nothrow @nogc {
+		static struct R {
+			import std.traits : ReturnType;
+
+			private {
+				string m_path;
+				string m_remainder;
+			}
+
+			private this(string path)
+			{
+				m_path = path;
+				m_remainder = path;
+				if (m_path.length) {
+					auto ap = Format.getAbsolutePrefix(m_path);
+					if (ap.length && !Format.isSeparator(ap[0]))
+						m_remainder = m_remainder[ap.length .. $];
+					else popFront();
+				}
+			}
+
+			@property bool empty() const nothrow @nogc
+			{
+				return m_path.length == 0;
+			}
+
+			@property R save() { return this; }
+
+			@property GenericPath front()
+			{
+				return GenericPath.fromTrustedString(m_path[0 .. $-m_remainder.length]);
+			}
+
+			void popFront()
+			nothrow {
+				assert(m_remainder.length > 0 || m_path.length > 0);
+				if (m_remainder.length) readFront();
+				else m_path = "";
+			}
+
+			private void readFront()
+			{
+				auto n = Format.getFrontNode(m_remainder);
+				m_remainder = m_remainder[n.length .. $];
+			}
+		}
+
+		return R(m_path);
+	}
+
+	///
+	unittest {
+		assert(InetPath("foo/bar/baz").byPrefix
+			.equal([
+				InetPath("foo/"),
+				InetPath("foo/bar/"),
+				InetPath("foo/bar/baz")
+			]));
+
+		assert(InetPath("/foo/bar").byPrefix
+			.equal([
+				InetPath("/"),
+				InetPath("/foo/"),
+				InetPath("/foo/bar"),
+			]));
+	}
+
 
 	/// Returns the trailing segment of the path.
 	@property Segment head()
@@ -870,6 +954,10 @@ unittest {
 	assert(WindowsPath("/hello/world/").bySegment2.equal([WindowsPath.Segment2("",'/'), WindowsPath.Segment2("hello",'/'), WindowsPath.Segment2("world",'/')]));
 	assert(WindowsPath("hello\\w/orld").bySegment2.equal([WindowsPath.Segment2("hello",'\\'), WindowsPath.Segment2("w",'/'), WindowsPath.Segment2("orld")]));
 	assert(WindowsPath("hello/w\\orld").bySegment2.equal([WindowsPath.Segment2("hello",'/'), WindowsPath.Segment2("w",'\\'), WindowsPath.Segment2("orld")]));
+
+	assert(PosixPath("hello/world").byPrefix.equal([PosixPath("hello/"), PosixPath("hello/world")]));
+	assert(PosixPath("/hello/world/").byPrefix.equal([PosixPath("/"), PosixPath("/hello/"), PosixPath("/hello/world/")]));
+	assert(WindowsPath("C:\\Windows").byPrefix.equal([WindowsPath("C:\\"), WindowsPath("C:\\Windows")]));
 }
 
 unittest
@@ -1239,7 +1327,7 @@ struct WindowsPathFormat {
 		return R(S.fromTrustedString(segment, sep));
 	}
 
-	unittest {
+	deprecated unittest {
 		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
@@ -1443,7 +1531,7 @@ struct PosixPathFormat {
 		return only(S.fromTrustedString(segment));
 	}
 
-	unittest {
+	deprecated unittest {
 		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
@@ -1639,7 +1727,7 @@ struct InetPathFormat {
 		return only(S(n, sep));
 	}
 
-	unittest {
+	deprecated unittest {
 		struct Segment { string name; char separator = 0; static Segment fromTrustedString(string str, char sep = 0) pure nothrow @nogc { return Segment(str, sep); }}
 		assert(decodeSegment!Segment("foo").equal([Segment("foo")]));
 		assert(decodeSegment!Segment("foo/").equal([Segment("foo", '/')]));
