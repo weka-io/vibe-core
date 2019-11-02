@@ -25,6 +25,7 @@ d:
 env:
     - CONFIG=select
     - CONFIG=epoll
+    - CONFIG=kqueue
     # disabled until the libasync driver of eventcore is more than a stub
     #- CONFIG=libasync
 
@@ -32,6 +33,11 @@ matrix:
   allow_failures:
     - env: CONFIG=libasync
     - d: dmd-beta
+  exclude:
+      - os: linux
+        env: CONFIG=kqueue
+      - os: osx
+        env: CONFIG=epoll
   include:
     - d: dmd
       env: CONFIG='select' DUB_FLAGS='--build unittest-cov --build-mode=singleFile'
