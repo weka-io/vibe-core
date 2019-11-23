@@ -26,7 +26,7 @@ if [ ${BUILD_EXAMPLE=1} -eq 1 ]; then
 fi
 if [ ${RUN_TEST=1} -eq 1 ]; then
     for ex in `\ls -1 tests/*.d`; do
-        script="${ex:0:-2}.sh"
+        script="${ex%.d}.sh"
         if [ -e "$script" ]; then
             echo "[INFO] Running test scipt $script"
             (cd tests && "./${script:6}")

@@ -47,7 +47,9 @@ void main()
 		catch (Exception e) assert(false, "Receiver thread failed: "~e.msg);
 
 		logInfo("Receive loop finished.");
-		if (wc < 6*4-1) {
+		version (OSX) enum tolerance = 4; // macOS CI VMs have particularly bad timing behavior
+		else enum tolerance = 1;
+		if (wc < 6 * 4 - tolerance) {
 			logError("Receiver watchdog failure.");
 			exit(1);
 		}

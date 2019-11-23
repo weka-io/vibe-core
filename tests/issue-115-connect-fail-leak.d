@@ -19,15 +19,19 @@ void main()
 
 	auto initial = determineSocketCount();
 
+	foreach (i; 0 .. 3)
+		test();
+
+	assert(determineSocketCount() <= initial + 1, "Sockets leaked!");
+}
+
+void test()
+{
 	TCPConnection conn;
 	try {
 		conn = connectTCP("127.0.0.1", 16565);
-		logError("Connection: %s", conn);
-		conn.close();
 		assert(false, "Didn't expect TCP connection on port 16565 to succeed");
 	} catch (Exception) { }
-
-	assert(determineSocketCount() == initial, "Sockets leaked!");
 }
 
 size_t determineSocketCount()

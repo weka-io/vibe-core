@@ -26,8 +26,11 @@ void main()
 			assert(false, "Timeout did not occur.");
 		} catch (Exception e) {
 			auto duration = MonoTime.currTime() - start;
+			version (OSX) enum maxtolerance = 150.msecs;
+			else enum maxtolerance = 50.msecs;
 			assert(duration >= 99.msecs, "Timeout occurred too early");
-			assert(duration >= 99.msecs && duration < 150.msecs, "Timeout occurred too late.");
+			assert(duration >= 99.msecs && duration < 100.msecs + maxtolerance,
+				"Timeout occurred too late.");
 			logInfo("UDP receive timeout test was successful.");
 			exitEventLoop();
 		}

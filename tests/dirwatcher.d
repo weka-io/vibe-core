@@ -20,6 +20,11 @@ import std.typecons : No, Yes;
 import core.exception : AssertError;
 import core.time : msecs, seconds;
 
+
+version (OSX) enum sleepTime = 3.seconds;
+else enum sleepTime = 500.msecs;
+
+
 void runTest()
 {
 	auto dir = buildPath(tempDir, format("dirwatcher_test_%d", thisProcessID()));
@@ -41,7 +46,7 @@ void runTest()
 	static DirectoryChange dc(Type t, string p) { return DirectoryChange(t, Path(p)); }
 	void check(DirectoryChange[] expected)
 	{
-		sleep(1500.msecs);
+		sleep(sleepTime);
 		assert(watcher.readChanges(changes, 100.msecs), "Could not read changes for " ~ expected.to!string);
 		assert(expected.all!((a)=> changes.canFind(a))(), "Change is not what was expected, got: " ~ changes.to!string ~ " but expected: " ~ expected.to!string);
 		assert(!watcher.readChanges(changes, 0.msecs), "Changes were returned when they shouldn't have, for " ~ expected.to!string);
@@ -49,15 +54,15 @@ void runTest()
 
 	write(foo, null);
 	check([dc(Type.added, foo)]);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	write(foo, [0, 1]);
 	check([dc(Type.modified, foo)]);
 	remove(foo);
 	check([dc(Type.removed, foo)]);
 	write(foo, null);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	write(foo, [0, 1]);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	remove(foo);
 	check([dc(Type.added, foo), dc(Type.modified, foo), dc(Type.removed, foo)]);
 
@@ -70,23 +75,23 @@ void runTest()
 	remove(bar);
 	watcher = Path(dir).watchDirectory(Yes.recursive);
 	write(foo, null);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	write(foo, [0, 1]);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	remove(foo);
 
 	write(bar, null);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	write(bar, [0, 1]);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	remove(bar);
 	check([dc(Type.added, foo), dc(Type.modified, foo), dc(Type.removed, foo),
 		 dc(Type.added, bar), dc(Type.modified, bar), dc(Type.removed, bar)]);
 
 	write(foo, null);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	rename(foo, bar);
-	sleep(1500.msecs);
+	sleep(sleepTime);
 	remove(bar);
 	check([dc(Type.added, foo), dc(Type.removed, foo), dc(Type.added, bar), dc(Type.removed, bar)]);
 
