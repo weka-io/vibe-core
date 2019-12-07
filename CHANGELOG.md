@@ -1,3 +1,19 @@
+1.8.0 - 2019-12-07
+==================
+
+- Adds a new path segment API that works without GC allocations (`GenericPath.bySegment2`/`.head2`) - this will replace the old API in version 2.x.x of the library - [pull #179][issue179]
+- Added `GenericPath.byPrefix` to iterate over all acestor paths from root to leaf - [pull #181][issue181]
+- Fixed a bug with unitialized `YieldLock` instances (which can happen even with `@disable this()`) - [pull #180][issue180]
+- Heavily improved performance of `readFileUTF8` for large files by using a more efficient `sanitizyUTF8` implementation - [pull #182][issue182]
+- CI tests now also run on macOS in addition to Linux and Windows - [pull #183][issue183]
+
+[issue179]: https://github.com/vibe-d/vibe-core/issues/179
+[issue180]: https://github.com/vibe-d/vibe-core/issues/180
+[issue181]: https://github.com/vibe-d/vibe-core/issues/181
+[issue182]: https://github.com/vibe-d/vibe-core/issues/182
+[issue183]: https://github.com/vibe-d/vibe-core/issues/183
+
+
 1.7.0 - 2019-09-17
 ==================
 
