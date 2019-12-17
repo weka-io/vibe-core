@@ -423,7 +423,7 @@ struct GenericPath(F) {
 			that verify that the provided values are valid.
 
 			Params:
-				name = The encoded name of the path segment
+				encoded_name = The encoded name of the path segment
 				separator = Optional trailing path separator (e.g. `'/'`)
 		*/
 		static Segment2 fromTrustedEncodedString(string encoded_name, char separator = '\0')
