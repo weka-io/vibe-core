@@ -1,3 +1,11 @@
+1.8.1 - 2019-12-17
+==================
+
+- Fixes a documentation generation error (by Mathias Lang aka Geod24) - [pull #187][issue187]
+
+[issue187]: https://github.com/vibe-d/vibe-core/issues/187
+
+
 1.8.0 - 2019-12-07
 ==================
 
