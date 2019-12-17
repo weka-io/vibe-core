@@ -39,3 +39,25 @@ void disposeGCSafe(T, Allocator)(Allocator allocator, T obj)
 		GC.removeRange(cast(void*)obj);
 	allocator.dispose(obj);
 }
+
+void ensureNotInGC(T)(string info = null) nothrow
+{
+    import core.exception : InvalidMemoryOperationError;
+    try
+    {
+        import core.memory : GC;
+        cast(void) GC.malloc(1);
+        return;
+    }
+    catch(InvalidMemoryOperationError e)
+    {
+        import core.stdc.stdio : fprintf, stderr;
+        import core.stdc.stdlib : exit;
+        fprintf(stderr,
+                "Error: clean-up of %s incorrectly depends on destructors called by the GC.\n",
+                T.stringof.ptr);
+        if (info)
+            fprintf(stderr, "Info: %s\n", info.ptr);
+        assert(false);
+    }
+}
