@@ -365,16 +365,16 @@ struct NetworkAddress {
 
 	@property inout(sockaddr_in)* sockAddrInet4() inout pure nothrow
 		in { assert (family == AF_INET); }
-		body { return &addr_ip4; }
+		do { return &addr_ip4; }
 
 	@property inout(sockaddr_in6)* sockAddrInet6() inout pure nothrow
 		in { assert (family == AF_INET6); }
-		body { return &addr_ip6; }
+		do { return &addr_ip6; }
 
 	version (Posix) {
 		@property inout(sockaddr_un)* sockAddrUnix() inout pure nothrow
 			in { assert (family == AddressFamily.UNIX); }
-			body { return &addr_unix; }
+			do { return &addr_unix; }
 	}
 
 	/** Returns a string representation of the IP address
