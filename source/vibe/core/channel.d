@@ -1,6 +1,6 @@
 /** Implements a thread-safe, typed producer-consumer queue.
 
-	Copyright: © 2017-2019 RejectedSoftware e.K.
+	Copyright: © 2017-2019 Sönke Ludwig
 	Authors: Sönke Ludwig
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 */
