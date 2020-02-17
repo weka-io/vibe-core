@@ -68,7 +68,5 @@ before_install:
 
 script: ./travis-ci.sh
 
-sudo: false
-
 after_success:
  - bash <(curl -s https://codecov.io/bash)
