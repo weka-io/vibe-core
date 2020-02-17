@@ -14,8 +14,6 @@ d:
   - ldc-1.17.0
   - ldc-1.16.0
   - ldc-1.15.0
-  - ldc-1.14.0
-  - ldc-1.9.0
   - dmd-2.087.1
   - dmd-2.086.1
   - dmd-2.085.1
@@ -44,10 +42,6 @@ matrix:
       - d: ldc-1.16.0
         os: osx
       - d: ldc-1.15.0
-        os: osx
-      - d: ldc-1.14.0
-        os: osx
-      - d: ldc-1.9.0
         os: osx
   include:
     - d: dmd
