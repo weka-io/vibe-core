@@ -23,6 +23,9 @@ void main()
 		t.join();
 	});
 
+	// let the outer task run and start the inner task
+	yield();
+	// let the outer task get another execution slice to write to t
 	yield();
 
 	assert(t && t.running);
