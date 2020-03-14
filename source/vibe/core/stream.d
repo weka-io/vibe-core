@@ -27,12 +27,12 @@ public import eventcore.driver : IOMode;
 
 /** Pipes an InputStream directly into this OutputStream.
 
-	The number of bytes written is either the whole input stream when `nbytes == 0`, or exactly
-	`nbytes` for `nbytes > 0`. If the input stream contains less than `nbytes` of data, an
-	exception is thrown.
+	The number of bytes written is either the whole input stream when
+	`nbytes == ulong.max`, or exactly `nbytes` for `nbytes < ulong.max`. If the
+	input stream contains less than `nbytes` of data, an exception is thrown.
 
 	Returns:
-		The actual number of bytes written is returned. If `nbytes` is  given
+		The actual number of bytes written is returned. If `nbytes` is given
 		and not equal to `ulong.max`, íts value will be returned.
 */
 ulong pipe(InputStream, OutputStream)(InputStream source, OutputStream sink, ulong nbytes)

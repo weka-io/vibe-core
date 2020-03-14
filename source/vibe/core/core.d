@@ -1145,7 +1145,7 @@ struct Timer {
 	/** Resets the timer to the specified timeout
 	*/
 	void rearm(Duration dur, bool periodic = false) nothrow
-		in { assert(dur > 0.seconds, "Negative timer duration specified."); }
+		in { assert(dur >= 0.seconds, "Negative timer duration specified."); }
 		body { m_driver.timers.set(m_id, dur, periodic ? dur : 0.seconds); }
 
 	/** Resets the timer and avoids any firing.
