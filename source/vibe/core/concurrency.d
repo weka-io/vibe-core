@@ -769,7 +769,7 @@ private mixin template isolatedArrayMethods(T, bool mutableRef = true)
 		@property void length(size_t value) pure { m_array.length = value; }
 
 
-		void opCatAssign(T item) pure
+		void opOpAssign(string op = "~")(T item) pure
 		{
 			static if( isCopyable!T ) m_array ~= item;
 			else {
@@ -778,7 +778,7 @@ private mixin template isolatedArrayMethods(T, bool mutableRef = true)
 			}
 		}
 
-		void opCatAssign(IsolatedArray!T array) pure
+		void opOpAssign(string op = "~")(IsolatedArray!T array) pure
 		{
 			static if( isCopyable!T ) m_array ~= array.m_array;
 			else {
