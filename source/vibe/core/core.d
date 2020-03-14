@@ -656,6 +656,19 @@ void runWorkerTaskDist(alias method, T, ARGS...)(shared(T) object, ARGS args)
 	setupWorkerThreads();
 	return st_workerPool.runTaskDist!method(object, args);
 }
+/// ditto
+void runWorkerTaskDist(FT, ARGS...)(TaskSettings settings, FT func, auto ref ARGS args)
+	if (is(typeof(*func) == function))
+{
+	setupWorkerThreads();
+	return st_workerPool.runTaskDist(settings, func, args);
+}
+/// ditto
+void runWorkerTaskDist(alias method, T, ARGS...)(TaskSettings settings, shared(T) object, ARGS args)
+{
+	setupWorkerThreads();
+	return st_workerPool.runTaskDist!method(settings, object, args);
+}
 
 
 /** Runs a new asynchronous task in all worker threads and returns the handles.
@@ -670,6 +683,13 @@ void runWorkerTaskDistH(HCB, FT, ARGS...)(scope HCB on_handle, FT func, auto ref
 {
 	setupWorkerThreads();
 	st_workerPool.runTaskDistH(on_handle, func, args);
+}
+/// ditto
+void runWorkerTaskDistH(HCB, FT, ARGS...)(TaskSettings settings, scope HCB on_handle, FT func, auto ref ARGS args)
+	if (is(typeof(*func) == function))
+{
+	setupWorkerThreads();
+	st_workerPool.runTaskDistH(settings, on_handle, func, args);
 }
 
 

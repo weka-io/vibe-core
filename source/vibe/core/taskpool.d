@@ -261,6 +261,12 @@ shared final class TaskPool {
 		See_also: `runTaskDist`
 	*/
 	void runTaskDistH(HCB, FT, ARGS...)(scope HCB on_handle, FT func, auto ref ARGS args)
+		if (!is(HCB == TaskSettings))
+	{
+		runTaskDistH(TaskSettings.init, on_handle, func, args);
+	}
+	/// ditto
+	void runTaskDistH(HCB, FT, ARGS...)(TaskSettings settings, scope HCB on_handle, FT func, auto ref ARGS args)
 	{
 		// TODO: support non-copyable argument types using .move
 		import std.concurrency : send, receiveOnly;
@@ -277,7 +283,7 @@ shared final class TaskPool {
 			t.tid.send(Task.getThis());
 			func(args);
 		}
-		runTaskDist(&call, caller, func, args);
+		runTaskDist(settings, &call, caller, func, args);
 
 		foreach (i; 0 .. this.threadCount)
 			on_handle(receiveOnly!Task);
