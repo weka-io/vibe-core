@@ -3,7 +3,7 @@ module vibe.internal.async;
 import std.traits : ParameterTypeTuple, ReturnType;
 import std.typecons : tuple;
 import vibe.core.core : hibernate, switchToTask;
-import vibe.core.task : InterruptException, Task;
+import vibe.core.task : InterruptException, Task, TaskSwitchPriority;
 import vibe.core.log;
 import core.time : Duration, seconds;
 
@@ -131,7 +131,10 @@ void asyncAwaitAny(bool interruptible, Waitables...)(string func = __FUNCTION__)
 					fired[%1$s] = true;
 					any_fired = true;
 					Waitables[%1$s].done(%3$s);
-					if (t != Task.init) switchToTask(t);
+					if (t != Task.init) {
+						version (VibeHighEventPriority) switchToTask(t);
+						else switchToTask(t, TaskSwitchPriority.normal);
+					}
 				};
 
 				debug(VibeAsyncLog) logDebugV("Starting operation %%s", %1$s);
