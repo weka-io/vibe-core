@@ -1089,6 +1089,7 @@ private struct TaskFiberQueue {
 			if (!max_skip-- || pred(t)) {
 				task.m_queue = &this;
 				task.m_next = t.m_next;
+				if (task.m_next) task.m_next.m_prev = task;
 				t.m_next = task;
 				task.m_prev = t;
 				if (!task.m_next) last = task;
@@ -1151,18 +1152,52 @@ unittest {
 	auto f3 = new TaskFiber;
 	auto f4 = new TaskFiber;
 	auto f5 = new TaskFiber;
-
+	auto f6 = new TaskFiber;
 	TaskFiberQueue q;
+
+	void checkQueue()
+	{
+		TaskFiber p;
+		for (auto t = q.front; t; t = t.m_next) {
+			assert(t.m_prev is p);
+			assert(t.m_next || t is q.last);
+			p = t;
+		}
+
+		TaskFiber n;
+		for (auto t = q.last; t; t = t.m_prev) {
+			assert(t.m_next is n);
+			assert(t.m_prev || t is q.first);
+			n = t;
+		}
+	}
+
 	q.insertBackPred(f1, 0, delegate bool(tf) { assert(false); });
-	assert(q.first == f1 && q.last == f1);
+	assert(q.first is f1 && q.last is f1);
+	checkQueue();
+
 	q.insertBackPred(f2, 0, delegate bool(tf) { assert(false); });
-	assert(q.first == f1 && q.last == f2);
+	assert(q.first is f1 && q.last is f2);
+	checkQueue();
+
 	q.insertBackPred(f3, 1, (tf) => false);
-	assert(q.first == f1 && q.last == f2);
+	assert(q.first is f1 && q.last is f2);
+	assert(f1.m_next is f3);
+	assert(f3.m_prev is f1);
+	checkQueue();
+
 	q.insertBackPred(f4, 10, (tf) => false);
-	assert(q.first == f4 && q.last == f2);
+	assert(q.first is f4 && q.last is f2);
+	checkQueue();
+
 	q.insertBackPred(f5, 10, (tf) => true);
-	assert(q.first == f4 && q.last == f5);
+	assert(q.first is f4 && q.last is f5);
+	checkQueue();
+
+	q.insertBackPred(f6, 10, (tf) => tf is f4);
+	assert(q.first is f4 && q.last is f5);
+	assert(f4.m_next is f6);
+	checkQueue();
 }
 
 private struct FLSInfo {
