@@ -996,7 +996,7 @@ package struct TaskScheduler {
 
 	private void doYieldAndReschedule(Task task)
 	{
-		auto tf = () @trusted { return task.taskFiber; } ();
+		import std.algorithm.comparison : min;
 
 		// insert according to priority, limited to a priority
 		// factor of 1:10 in case of heavy concurrency
@@ -1006,7 +1006,7 @@ package struct TaskScheduler {
 
 			// increase dynamic priority each time a task gets overtaken to
 			// ensure a fair schedule
-			t.m_dynamicPriority += t.m_staticPriority;
+			t.m_dynamicPriority += min(t.m_staticPriority, uint.max - t.m_dynamicPriority);
 			return false;
 		});
 
