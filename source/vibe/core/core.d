@@ -1,7 +1,7 @@
 /**
 	This module contains the core functionality of the vibe.d framework.
 
-	Copyright: © 2012-2019 Sönke Ludwig
+	Copyright: © 2012-2020 Sönke Ludwig
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 	Authors: Sönke Ludwig
 */
@@ -319,7 +319,7 @@ Task runTask(ARGS...)(void delegate(ARGS) @safe task, auto ref ARGS args)
 {
 	return runTask_internal!((ref tfi) { tfi.set(task, args); });
 }
-///
+/// ditto
 Task runTask(ARGS...)(void delegate(ARGS) @system task, auto ref ARGS args)
 @system {
 	return runTask_internal!((ref tfi) { tfi.set(task, args); });
@@ -330,6 +330,50 @@ Task runTask(CALLABLE, ARGS...)(CALLABLE task, auto ref ARGS args)
 {
 	return runTask_internal!((ref tfi) { tfi.set(task, args); });
 }
+/// ditto
+Task runTask(ARGS...)(TaskSettings settings, void delegate(ARGS) @safe task, auto ref ARGS args)
+{
+	return runTask_internal!((ref tfi) {
+		tfi.settings = settings;
+		tfi.set(task, args);
+	});
+}
+/// ditto
+Task runTask(ARGS...)(TaskSettings settings, void delegate(ARGS) @system task, auto ref ARGS args)
+@system {
+	return runTask_internal!((ref tfi) {
+		tfi.settings = settings;
+		tfi.set(task, args);
+	});
+}
+/// ditto
+Task runTask(CALLABLE, ARGS...)(TaskSettings settings, CALLABLE task, auto ref ARGS args)
+	if (!is(CALLABLE : void delegate(ARGS)) && is(typeof(CALLABLE.init(ARGS.init))))
+{
+	return runTask_internal!((ref tfi) {
+		tfi.settings = settings;
+		tfi.set(task, args);
+	});
+}
+
+
+unittest { // test proportional priority scheduling
+	auto tm = setTimer(1000.msecs, { assert(false, "Test timeout"); });
+	scope (exit) tm.stop();
+
+	size_t a, b;
+	auto t1 = runTask(TaskSettings(1), { while (a + b < 100) { a++; yield(); } });
+	auto t2 = runTask(TaskSettings(10), { while (a + b < 100) { b++; yield(); } });
+	runTask({
+		t1.join();
+		t2.join();
+		exitEventLoop();
+	});
+	runEventLoop();
+	assert(a + b == 100);
+	assert(b.among(90, 91, 92)); // expect 1:10 ratio +-1
+}
+
 
 /**
 	Runs an asyncronous task that is guaranteed to finish before the caller's
@@ -429,6 +473,21 @@ void runWorkerTask(alias method, T, ARGS...)(shared(T) object, auto ref ARGS arg
 	setupWorkerThreads();
 	st_workerPool.runTask!method(object, args);
 }
+/// ditto
+void runWorkerTask(FT, ARGS...)(TaskSettings settings, FT func, auto ref ARGS args)
+	if (isFunctionPointer!FT)
+{
+	setupWorkerThreads();
+	st_workerPool.runTask(settings, func, args);
+}
+
+/// ditto
+void runWorkerTask(alias method, T, ARGS...)(TaskSettings settings, shared(T) object, auto ref ARGS args)
+	if (is(typeof(__traits(getMember, object, __traits(identifier, method)))))
+{
+	setupWorkerThreads();
+	st_workerPool.runTask!method(settings, object, args);
+}
 
 /**
 	Runs a new asynchronous task in a worker thread, returning the task handle.
@@ -451,6 +510,20 @@ Task runWorkerTaskH(alias method, T, ARGS...)(shared(T) object, auto ref ARGS ar
 {
 	setupWorkerThreads();
 	return st_workerPool.runTaskH!method(object, args);
+}
+/// ditto
+Task runWorkerTaskH(FT, ARGS...)(TaskSettings settings, FT func, auto ref ARGS args)
+	if (isFunctionPointer!FT)
+{
+	setupWorkerThreads();
+	return st_workerPool.runTaskH(settings, func, args);
+}
+/// ditto
+Task runWorkerTaskH(alias method, T, ARGS...)(TaskSettings settings, shared(T) object, auto ref ARGS args)
+	if (is(typeof(__traits(getMember, object, __traits(identifier, method)))))
+{
+	setupWorkerThreads();
+	return st_workerPool.runTaskH!method(settings, object, args);
 }
 
 /// Running a worker task using a function
@@ -583,6 +656,19 @@ void runWorkerTaskDist(alias method, T, ARGS...)(shared(T) object, ARGS args)
 	setupWorkerThreads();
 	return st_workerPool.runTaskDist!method(object, args);
 }
+/// ditto
+void runWorkerTaskDist(FT, ARGS...)(TaskSettings settings, FT func, auto ref ARGS args)
+	if (is(typeof(*func) == function))
+{
+	setupWorkerThreads();
+	return st_workerPool.runTaskDist(settings, func, args);
+}
+/// ditto
+void runWorkerTaskDist(alias method, T, ARGS...)(TaskSettings settings, shared(T) object, ARGS args)
+{
+	setupWorkerThreads();
+	return st_workerPool.runTaskDist!method(settings, object, args);
+}
 
 
 /** Runs a new asynchronous task in all worker threads and returns the handles.
@@ -597,6 +683,13 @@ void runWorkerTaskDistH(HCB, FT, ARGS...)(scope HCB on_handle, FT func, auto ref
 {
 	setupWorkerThreads();
 	st_workerPool.runTaskDistH(on_handle, func, args);
+}
+/// ditto
+void runWorkerTaskDistH(HCB, FT, ARGS...)(TaskSettings settings, scope HCB on_handle, FT func, auto ref ARGS args)
+	if (is(typeof(*func) == function))
+{
+	setupWorkerThreads();
+	st_workerPool.runTaskDistH(settings, on_handle, func, args);
 }
 
 

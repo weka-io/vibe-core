@@ -1,7 +1,7 @@
 /**
 	Multi-threaded task pool implementation.
 
-	Copyright: © 2012-2017 Sönke Ludwig
+	Copyright: © 2012-2020 Sönke Ludwig
 	License: Subject to the terms of the MIT license, as written in the included LICENSE.txt file.
 	Authors: Sönke Ludwig
 */
@@ -11,7 +11,7 @@ import vibe.core.concurrency : isWeaklyIsolated;
 import vibe.core.core : exitEventLoop, logicalProcessorCount, runEventLoop, runTask, runTask_internal;
 import vibe.core.log;
 import vibe.core.sync : ManualEvent, Monitor, createSharedManualEvent, createMonitor;
-import vibe.core.task : Task, TaskFuncInfo, callWithMove;
+import vibe.core.task : Task, TaskFuncInfo, TaskSettings, callWithMove;
 import core.sync.mutex : Mutex;
 import core.thread : Thread;
 import std.concurrency : prioritySend, receiveOnly;
@@ -113,16 +113,30 @@ shared final class TaskPool {
 		if (isFunctionPointer!FT)
 	{
 		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
-		runTask_unsafe(func, args);
+		runTask_unsafe(TaskSettings.init, func, args);
 	}
-
 	/// ditto
 	void runTask(alias method, T, ARGS...)(shared(T) object, auto ref ARGS args)
 		if (is(typeof(__traits(getMember, object, __traits(identifier, method)))))
 	{
 		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
 		auto func = &__traits(getMember, object, __traits(identifier, method));
-		runTask_unsafe(func, args);
+		runTask_unsafe(TaskSettings.init, func, args);
+	}
+	/// ditto
+	void runTask(FT, ARGS...)(TaskSettings settings, FT func, auto ref ARGS args)
+		if (isFunctionPointer!FT)
+	{
+		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
+		runTask_unsafe(settings, func, args);
+	}
+	/// ditto
+	void runTask(alias method, T, ARGS...)(TaskSettings settings, shared(T) object, auto ref ARGS args)
+		if (is(typeof(__traits(getMember, object, __traits(identifier, method)))))
+	{
+		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
+		auto func = &__traits(getMember, object, __traits(identifier, method));
+		runTask_unsafe(settings, func, args);
 	}
 
 	/** Runs a new asynchronous task in a worker thread, returning the task handle.
@@ -141,9 +155,9 @@ shared final class TaskPool {
 		// workaround for runWorkerTaskH to work when called outside of a task
 		if (Task.getThis() == Task.init) {
 			Task ret;
-			.runTask({ ret = doRunTaskH(func, args); }).join();
+			.runTask({ ret = doRunTaskH(TaskSettings.init, func, args); }).join();
 			return ret;
-		} else return doRunTaskH(func, args);
+		} else return doRunTaskH(TaskSettings.init, func, args);
 	}
 	/// ditto
 	Task runTaskH(alias method, T, ARGS...)(shared(T) object, auto ref ARGS args)
@@ -154,10 +168,32 @@ shared final class TaskPool {
 		}
 		return runTaskH(&wrapper!(), object, args);
 	}
+	/// ditto
+	Task runTaskH(FT, ARGS...)(TaskSettings settings, FT func, auto ref ARGS args)
+		if (isFunctionPointer!FT)
+	{
+		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
+
+		// workaround for runWorkerTaskH to work when called outside of a task
+		if (Task.getThis() == Task.init) {
+			Task ret;
+			.runTask({ ret = doRunTaskH(settings, func, args); }).join();
+			return ret;
+		} else return doRunTaskH(settings, func, args);
+	}
+	/// ditto
+	Task runTaskH(alias method, T, ARGS...)(TaskSettings settings, shared(T) object, auto ref ARGS args)
+		if (is(typeof(__traits(getMember, object, __traits(identifier, method)))))
+	{
+		static void wrapper()(shared(T) object, ref ARGS args) {
+			__traits(getMember, object, __traits(identifier, method))(args);
+		}
+		return runTaskH(settings, &wrapper!(), object, args);
+	}
 
 	// NOTE: needs to be a separate function to avoid recursion for the
 	//       workaround above, which breaks @safe inference
-	private Task doRunTaskH(FT, ARGS...)(FT func, ref ARGS args)
+	private Task doRunTaskH(FT, ARGS...)(TaskSettings settings, FT func, ref ARGS args)
 		if (isFunctionPointer!FT)
 	{
 		import std.typecons : Typedef;
@@ -173,7 +209,7 @@ shared final class TaskPool {
 			caller.tid.prioritySend(callee);
 			mixin(callWithMove!ARGS("func", "args"));
 		}
-		runTask_unsafe(&taskFun, caller, func, args);
+		runTask_unsafe(settings, &taskFun, caller, func, args);
 		return cast(Task)() @trusted { return receiveOnly!PrivateTask(); } ();
 	}
 
@@ -191,7 +227,7 @@ shared final class TaskPool {
 		if (is(typeof(*func) == function))
 	{
 		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
-		runTaskDist_unsafe(func, args);
+		runTaskDist_unsafe(TaskSettings.init, func, args);
 	}
 	/// ditto
 	void runTaskDist(alias method, T, ARGS...)(shared(T) object, auto ref ARGS args)
@@ -199,7 +235,22 @@ shared final class TaskPool {
 		auto func = &__traits(getMember, object, __traits(identifier, method));
 		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
 
-		runTaskDist_unsafe(func, args);
+		runTaskDist_unsafe(TaskSettings.init, func, args);
+	}
+	/// ditto
+	void runTaskDist(FT, ARGS...)(TaskSettings settings, FT func, auto ref ARGS args)
+		if (is(typeof(*func) == function))
+	{
+		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
+		runTaskDist_unsafe(settings, func, args);
+	}
+	/// ditto
+	void runTaskDist(alias method, T, ARGS...)(TaskSettings settings, shared(T) object, auto ref ARGS args)
+	{
+		auto func = &__traits(getMember, object, __traits(identifier, method));
+		foreach (T; ARGS) static assert(isWeaklyIsolated!T, "Argument type "~T.stringof~" is not safe to pass between threads.");
+
+		runTaskDist_unsafe(settings, func, args);
 	}
 
 	/** Runs a new asynchronous task in all worker threads and returns the handles.
@@ -210,6 +261,12 @@ shared final class TaskPool {
 		See_also: `runTaskDist`
 	*/
 	void runTaskDistH(HCB, FT, ARGS...)(scope HCB on_handle, FT func, auto ref ARGS args)
+		if (!is(HCB == TaskSettings))
+	{
+		runTaskDistH(TaskSettings.init, on_handle, func, args);
+	}
+	/// ditto
+	void runTaskDistH(HCB, FT, ARGS...)(TaskSettings settings, scope HCB on_handle, FT func, auto ref ARGS args)
 	{
 		// TODO: support non-copyable argument types using .move
 		import std.concurrency : send, receiveOnly;
@@ -226,13 +283,13 @@ shared final class TaskPool {
 			t.tid.send(Task.getThis());
 			func(args);
 		}
-		runTaskDist(&call, caller, func, args);
+		runTaskDist(settings, &call, caller, func, args);
 
 		foreach (i; 0 .. this.threadCount)
 			on_handle(receiveOnly!Task);
 	}
 
-	private void runTask_unsafe(CALLABLE, ARGS...)(CALLABLE callable, ref ARGS args)
+	private void runTask_unsafe(CALLABLE, ARGS...)(TaskSettings settings, CALLABLE callable, ref ARGS args)
 	{
 		import std.traits : ParameterTypeTuple;
 		import vibe.internal.traits : areConvertibleTo;
@@ -242,11 +299,11 @@ shared final class TaskPool {
 		static assert(areConvertibleTo!(Group!ARGS, Group!FARGS),
 			"Cannot convert arguments '"~ARGS.stringof~"' to function arguments '"~FARGS.stringof~"'.");
 
-		m_state.lock.queue.put(callable, args);
+		m_state.lock.queue.put(settings, callable, args);
 		m_signal.emitSingle();
 	}
 
-	private void runTaskDist_unsafe(CALLABLE, ARGS...)(ref CALLABLE callable, ARGS args) // NOTE: no ref for args, to disallow non-copyable types!
+	private void runTaskDist_unsafe(CALLABLE, ARGS...)(TaskSettings settings, ref CALLABLE callable, ARGS args) // NOTE: no ref for args, to disallow non-copyable types!
 	{
 		import std.traits : ParameterTypeTuple;
 		import vibe.internal.traits : areConvertibleTo;
@@ -260,7 +317,7 @@ shared final class TaskPool {
 			auto st = m_state.lock;
 			foreach (thr; st.threads) {
 				// create one TFI per thread to properly account for elaborate assignment operators/postblit
-				thr.m_queue.put(callable, args);
+				thr.m_queue.put(settings, callable, args);
 			}
 		}
 		m_signal.emit();
@@ -355,12 +412,13 @@ nothrow @safe:
 
 	@property size_t length() const { return m_queue.length; }
 
-	void put(CALLABLE, ARGS...)(ref CALLABLE c, ref ARGS args)
+	void put(CALLABLE, ARGS...)(TaskSettings settings, ref CALLABLE c, ref ARGS args)
 	{
 		import std.algorithm.comparison : max;
 		if (m_queue.full) m_queue.capacity = max(16, m_queue.capacity * 3 / 2);
 		assert(!m_queue.full);
 
+		m_queue.peekDst[0].settings = settings;
 		m_queue.peekDst[0].set(c, args);
 		m_queue.putN(1);
 	}
