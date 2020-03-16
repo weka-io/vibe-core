@@ -429,7 +429,7 @@ package Task runTask_internal(alias TFI_SETUP)()
 		() @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.preStart, handle); } ();
 	}
 
-	s_scheduler.switchTo(handle, TaskFiber.getThis().m_yieldLockCount > 0 ? Flag!"defer".yes : Flag!"defer".no);
+	switchToTask(handle);
 
 	debug if (TaskFiber.ms_taskEventCallback) {
 		() @trusted { TaskFiber.ms_taskEventCallback(TaskEvent.postStart, handle); } ();
@@ -808,13 +808,27 @@ void hibernate(scope void delegate() @safe nothrow on_interrupt = null)
 	This function can be used in conjunction with `hibernate` to wake up a
 	task. The task must live in the same thread as the caller.
 
-	See_Also: `hibernate`
+	If no priority is specified, `TaskSwitchPriority.prioritized` or
+	`TaskSwitchPriority.immediate` will be used, depending on whether a
+	yield lock is currently active.
+
+	Note that it is illegal to use `TaskSwitchPriority.immediate` if a yield
+	lock is active.
+
+	This function must only be called on tasks that belong to the calling
+	thread and have previously been hibernated!
+
+	See_Also: `hibernate`, `yieldLock`
 */
 void switchToTask(Task t)
 @safe nothrow {
-	import std.typecons : Yes, No;
-	auto defer = TaskFiber.getThis().m_yieldLockCount > 0 ? Yes.defer : No.defer;
-	s_scheduler.switchTo(t, defer);
+	auto defer = TaskFiber.getThis().m_yieldLockCount > 0;
+	s_scheduler.switchTo(t, defer ? TaskSwitchPriority.prioritized : TaskSwitchPriority.immediate);
+}
+/// ditto
+void switchToTask(Task t, TaskSwitchPriority priority)
+@safe nothrow {
+	s_scheduler.switchTo(t, priority);
 }
 
 
