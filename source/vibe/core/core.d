@@ -1507,20 +1507,6 @@ private void setupSignalHandlers()
 // per process setup
 shared static this()
 {
-	version(Windows){
-		version(VibeLibeventDriver) enum need_wsa = true;
-		else version(VibeWin32Driver) enum need_wsa = true;
-		else enum need_wsa = false;
-		static if (need_wsa) {
-			logTrace("init winsock");
-			// initialize WinSock2
-			import core.sys.windows.winsock2;
-			WSADATA data;
-			WSAStartup(0x0202, &data);
-
-		}
-	}
-
 	s_isMainThread = true;
 
 	// COMPILER BUG: Must be some kind of module constructor order issue:
