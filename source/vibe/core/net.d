@@ -770,8 +770,13 @@ mixin(tracer);
 		switch (res[1]) {
 			default:
 				throw new Exception("Error writing data to socket.");
-			case IOStatus.ok: break;
-			case IOStatus.disconnected: break;
+			case IOStatus.ok:
+				assert(mode != IOMode.all || res[2] == bytes.length);
+				break;
+			case IOStatus.disconnected:
+				if (mode == IOMode.all && res[2] != bytes.length)
+					throw new Exception("Connection closed while writing data.");
+				break;
 		}
 
 		return res[2];
