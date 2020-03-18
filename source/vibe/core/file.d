@@ -13,6 +13,7 @@ import vibe.core.internal.release;
 import vibe.core.log;
 import vibe.core.path;
 import vibe.core.stream;
+import vibe.core.task : Task, TaskSettings;
 import vibe.internal.async : asyncAwait, asyncAwaitUninterruptible;
 
 import core.stdc.stdio;
@@ -357,7 +358,9 @@ void listDirectory(string path, scope bool delegate(FileInfo info) @safe del)
 	}
 
 	auto ch = createChannel!S();
-	runWorkerTaskH((string path, Channel!S ch) nothrow {
+	TaskSettings ts;
+	ts.priority = 10 * Task.basePriority;
+	runWorkerTaskH(ioTaskSettings, (string path, Channel!S ch) nothrow {
 		scope (exit) ch.close();
 		try {
 			foreach (DirEntry ent; dirEntries(path, SpanMode.shallow)) {
@@ -895,7 +898,7 @@ private auto performInWorker(C, ARGS...)(C callable, auto ref ARGS args)
 
 		alias RET = typeof(callable(args));
 		shared(RET) ret;
-		runWorkerTask((shared(RET)* r, Tid caller, C c, ref ARGS a) nothrow {
+		runWorkerTask(ioTaskSettings, (shared(RET)* r, Tid caller, C c, ref ARGS a) nothrow {
 			*() @trusted { return cast(RET*)r; } () = c(a);
 			// Just as a precaution, because ManualEvent is not well defined in
 			// terms of fence semantics
@@ -908,3 +911,5 @@ private auto performInWorker(C, ARGS...)(C callable, auto ref ARGS args)
 		return ret;
 	}
 }
+
+private immutable TaskSettings ioTaskSettings = { priority: 20 * Task.basePriority };
