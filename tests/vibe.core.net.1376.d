@@ -2,7 +2,6 @@
 	name "tests"
 	description "TCP disconnect task issue"
 	dependency "vibe-core" path="../"
-	versions "VibeDefaultMain"
 +/
 module test;
 
@@ -10,7 +9,7 @@ import vibe.core.core;
 import vibe.core.net;
 import core.time : msecs;
 
-shared static this()
+void main()
 {
 	auto l = listenTCP(0, (conn) {
 		auto td = runTask!TCPConnection((conn) {
@@ -39,4 +38,8 @@ shared static this()
 		sleep(50.msecs);
 		exitEventLoop();
 	});
+
+	runApplication();
+
+	l.stopListening();
 }

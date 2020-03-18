@@ -438,7 +438,6 @@ final class InterruptibleTaskMutex : Lockable {
 	void unlock() nothrow { m_impl.unlock(); }
 }
 
-version (VibeLibevDriver) {} else // timers are not implemented for libev, yet
 unittest {
 	runMutexUnitTests!InterruptibleTaskMutex();
 }
@@ -475,7 +474,6 @@ final class RecursiveTaskMutex : core.sync.mutex.Mutex, Lockable {
 	override void unlock() { m_impl.unlock(); }
 }
 
-version (VibeLibevDriver) {} else // timers are not implemented for libev, yet
 unittest {
 	runMutexUnitTests!RecursiveTaskMutex();
 }
@@ -507,7 +505,6 @@ final class InterruptibleRecursiveTaskMutex : Lockable {
 	void unlock() { m_impl.unlock(); }
 }
 
-version (VibeLibevDriver) {} else // timers are not implemented for libev, yet
 unittest {
 	runMutexUnitTests!InterruptibleRecursiveTaskMutex();
 }

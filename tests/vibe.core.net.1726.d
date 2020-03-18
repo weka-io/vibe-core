@@ -30,7 +30,11 @@ void performTest(bool reverse)
 		auto wt = runTask!TCPConnection((conn) {
 			sleep(reverse ? 100.msecs : 20.msecs); // give the connection time to establish
 			try {
-				conn.write(buf);
+				// write enough to let the connection block long enough to let
+				// the remote end close the connection
+				// NOTE: on Windows, the first write() can actually complete
+				//       immediately, but the second one blocks
+				foreach (i; 0 .. 2) conn.write(buf);
 				assert(false, "Expected write() to throw an exception.");
 			} catch (Exception) {
 				write_ex = true;

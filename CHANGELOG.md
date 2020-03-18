@@ -1,3 +1,16 @@
+1.9.0 - 2020-
+==================
+
+- Implemented priority based task scheduling - [pull #196][issue196], [pull #197][issue197]
+	- Each task can be given a non-default priority that controls the relative frequency with which the task gets resumed in concurrent situations
+	- Events are now handled according to the calling task's priority instead of being handled immediately (can be reverted by defining a `VibeHighEventPriority` version)
+- Fixeed a bogus contract violation error in `Timer.rearm` - [pull #195][issue195]
+
+[issue195]: https://github.com/vibe-d/vibe-core/issues/195
+[issue196]: https://github.com/vibe-d/vibe-core/issues/196
+[issue197]: https://github.com/vibe-d/vibe-core/issues/197
+
+
 1.8.1 - 2019-12-17
 ==================
 
@@ -9,7 +22,7 @@
 1.8.0 - 2019-12-07
 ==================
 
-- Adds a new path segment API that works without GC allocations (`GenericPath.bySegment2`/`.head2`) - this will replace the old API in version 2.x.x of the library - [pull #179][issue179]
+- Added a new path segment API that works without GC allocations (`GenericPath.bySegment2`/`.head2`) - this will replace the old API in version 2.x.x of the library - [pull #179][issue179]
 - Added `GenericPath.byPrefix` to iterate over all acestor paths from root to leaf - [pull #181][issue181]
 - Fixed a bug with unitialized `YieldLock` instances (which can happen even with `@disable this()`) - [pull #180][issue180]
 - Heavily improved performance of `readFileUTF8` for large files by using a more efficient `sanitizyUTF8` implementation - [pull #182][issue182]
