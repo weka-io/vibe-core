@@ -1,10 +1,10 @@
-1.9.0 - 2020-
+1.9.0 - 2020-03-18
 ==================
 
 - Implemented priority based task scheduling - [pull #196][issue196], [pull #197][issue197]
 	- Each task can be given a non-default priority that controls the relative frequency with which the task gets resumed in concurrent situations
 	- Events are now handled according to the calling task's priority instead of being handled immediately (can be reverted by defining a `VibeHighEventPriority` version)
-- Fixeed a bogus contract violation error in `Timer.rearm` - [pull #195][issue195]
+- Fixed a bogus contract violation error in `Timer.rearm` - [pull #195][issue195]
 
 [issue195]: https://github.com/vibe-d/vibe-core/issues/195
 [issue196]: https://github.com/vibe-d/vibe-core/issues/196
