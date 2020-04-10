@@ -588,33 +588,8 @@ final class SyslogLogger(OutputStream) : Logger {
 		Facility m_facility;
 	}
 
-	/// Facilities
-	enum Facility {
-		kern,        /// kernel messages
-		user,        /// user-level messages
-		mail,        /// mail system
-		daemon,      /// system daemons
-		auth,        /// security/authorization messages
-		syslog,      /// messages generated internally by syslogd
-		lpr,         /// line printer subsystem
-		news,        /// network news subsystem
-		uucp,        /// UUCP subsystem
-		clockDaemon, /// clock daemon
-		authpriv,    /// security/authorization messages
-		ftp,         /// FTP daemon
-		ntp,         /// NTP subsystem
-		logAudit,    /// log audit
-		logAlert,    /// log alert
-		cron,        /// clock daemon
-		local0,      /// local use 0
-		local1,      /// local use 1
-		local2,      /// local use 2
-		local3,      /// local use 3
-		local4,      /// local use 4
-		local5,      /// local use 5
-		local6,      /// local use 6
-		local7,      /// local use 7
-	}
+	deprecated("Use `SyslogFacility` instead.")
+	alias Facility = SyslogFacility;
 
 	/// Severities
 	private enum Severity {
@@ -696,9 +671,8 @@ final class SyslogLogger(OutputStream) : Logger {
 
 		auto text = msg.text;
 		import std.format : formattedWrite;
-		import vibe.stream.wrapper : StreamOutputRange;
-		auto str = StreamOutputRange(m_ostream);
-		(&str).formattedWrite(SYSLOG_MESSAGE_FORMAT_VERSION1, priVal,
+		auto str = StreamOutputRange!OutputStream(m_ostream);
+		str.formattedWrite(SYSLOG_MESSAGE_FORMAT_VERSION1, priVal,
 			timestamp, m_hostName, BOM ~ m_appName, procId, msgId,
 			structuredData, BOM);
 	}
@@ -714,40 +688,117 @@ final class SyslogLogger(OutputStream) : Logger {
 		m_ostream.flush();
 	}
 
-	unittest
+	private struct StreamOutputRange(OutputStream)
 	{
-		import vibe.core.file;
-		auto fstream = createTempFile();
-		auto logger = new SyslogLogger(fstream, Facility.local1, "appname", null);
-		LogLine msg;
-		import std.datetime;
-		import core.thread;
-		static if (is(typeof(SysTime.init.fracSecs))) auto fs = 1.dur!"usecs";
-		else auto fs = FracSec.from!"usecs"(1);
-		msg.time = SysTime(DateTime(0, 1, 1, 0, 0, 0), fs);
-
-		foreach (lvl; [LogLevel.debug_, LogLevel.diagnostic, LogLevel.info, LogLevel.warn, LogLevel.error, LogLevel.critical, LogLevel.fatal]) {
-			msg.level = lvl;
-			logger.beginLine(msg);
-			logger.put("αβγ");
-			logger.endLine();
+		private {
+			OutputStream m_stream;
+			size_t m_fill = 0;
+			char[256] m_data = void;
 		}
-		fstream.close();
 
-		import std.file;
-		import std.string;
-		auto lines = splitLines(readText(fstream.path().toNativeString()), KeepTerminator.yes);
-		assert(lines.length == 7);
-		assert(lines[0] == "<143>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
-		assert(lines[1] == "<142>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
-		assert(lines[2] == "<141>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
-		assert(lines[3] == "<140>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
-		assert(lines[4] == "<139>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
-		assert(lines[5] == "<138>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
-		assert(lines[6] == "<137>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
-		removeFile(fstream.path().toNativeString());
+		@safe:
+
+		@disable this(this);
+
+		this(OutputStream stream) { m_stream = stream; }
+		~this() { flush(); }
+		void flush()
+		{
+			if (m_fill == 0) return;
+			m_stream.write(m_data[0 .. m_fill]);
+			m_fill = 0;
+		}
+
+		void put(char bt)
+		{
+			m_data[m_fill++] = bt;
+			if (m_fill >= m_data.length) flush();
+		}
+
+		void put(const(char)[] bts)
+		{
+			// avoid writing more chunks than necessary
+			if (bts.length + m_fill >= m_data.length * 2) {
+				flush();
+				m_stream.write(bts);
+				return;
+			}
+
+			while (bts.length) {
+				auto len = min(m_data.length - m_fill, bts.length);
+				m_data[m_fill .. m_fill + len] = bts[0 .. len];
+				m_fill += len;
+				bts = bts[len .. $];
+				if (m_fill >= m_data.length) flush();
+			}
+		}
 	}
 }
+
+/// Syslog facilities
+enum SyslogFacility {
+	kern,        /// kernel messages
+	user,        /// user-level messages
+	mail,        /// mail system
+	daemon,      /// system daemons
+	auth,        /// security/authorization messages
+	syslog,      /// messages generated internally by syslogd
+	lpr,         /// line printer subsystem
+	news,        /// network news subsystem
+	uucp,        /// UUCP subsystem
+	clockDaemon, /// clock daemon
+	authpriv,    /// security/authorization messages
+	ftp,         /// FTP daemon
+	ntp,         /// NTP subsystem
+	logAudit,    /// log audit
+	logAlert,    /// log alert
+	cron,        /// clock daemon
+	local0,      /// local use 0
+	local1,      /// local use 1
+	local2,      /// local use 2
+	local3,      /// local use 3
+	local4,      /// local use 4
+	local5,      /// local use 5
+	local6,      /// local use 6
+	local7,      /// local use 7
+}
+
+unittest
+{
+	import vibe.core.file;
+	auto fstream = createTempFile();
+	auto logger = new SyslogLogger!FileStream(fstream, SyslogFacility.local1, "appname", null);
+	LogLine msg;
+	import std.datetime;
+	import core.thread;
+	static if (is(typeof(SysTime.init.fracSecs))) auto fs = 1.dur!"usecs";
+	else auto fs = FracSec.from!"usecs"(1);
+	msg.time = SysTime(DateTime(0, 1, 1, 0, 0, 0), fs);
+
+	foreach (lvl; [LogLevel.debug_, LogLevel.diagnostic, LogLevel.info, LogLevel.warn, LogLevel.error, LogLevel.critical, LogLevel.fatal]) {
+		msg.level = lvl;
+		logger.beginLine(msg);
+		logger.put("αβγ");
+		logger.endLine();
+	}
+	auto path = fstream.path;
+	fstream.close();
+
+	import std.file;
+	import std.string;
+	auto lines = splitLines(readText(path.toString()), KeepTerminator.yes);
+	alias BOM = SyslogLogger!FileStream.BOM;
+	assert(lines.length == 7);
+	assert(lines[0] == "<143>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
+	assert(lines[1] == "<142>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
+	assert(lines[2] == "<141>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
+	assert(lines[3] == "<140>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
+	assert(lines[4] == "<139>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
+	assert(lines[5] == "<138>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
+	assert(lines[6] == "<137>1 0000-01-01T00:00:00.000001 - " ~ BOM ~ "appname - - - " ~ BOM ~ "αβγ\n");
+	removeFile(path.toString());
+}
+
 
 /// Returns: this host's host name.
 ///
