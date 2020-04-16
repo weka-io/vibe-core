@@ -67,7 +67,7 @@ Path relativeTo(Path)(Path path, Path base_path) @safe
 	enum up = Path.Segment2("..", Path.defaultSeparator);
 	auto ret = Path(base_nodes.map!(p => up).chain(nodes));
 	if (path.endsWithSlash) {
-		if (ret.empty) return Path("." ~ path.toString()[$-1]);
+		if (ret.empty) return Path.fromTrustedString("." ~ path.toString()[$-1]);
 		else ret.endsWithSlash = true;
 	}
 	return ret;
@@ -140,6 +140,12 @@ unittest {
 		assert(p1.relativeTo(p2).toString() == "");
 		assert(p2.relativeTo(p2).toString() == "./");
 	}
+}
+
+nothrow unittest {
+	auto p1 = PosixPath.fromTrustedString("/foo/bar/baz");
+	auto p2 = PosixPath.fromTrustedString("/foo/baz/bam");
+	assert(p2.relativeTo(p1).toString == "../../baz/bam");
 }
 
 
