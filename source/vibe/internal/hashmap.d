@@ -250,7 +250,7 @@ struct HashMap(TKey, TValue, Traits = DefaultHashMapTraits!TKey)
 	}
 }
 
-unittest {
+nothrow unittest {
 	import std.conv;
 
 	HashMap!(string, string) map;
