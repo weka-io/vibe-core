@@ -107,11 +107,11 @@ struct Channel(T, size_t buffer_size = 100) {
 	*/
 	bool consumeAll(ref FixedRingBuffer!(T, buffer_size) dst)
 		in { assert(dst.empty); }
-		body { return m_impl.consumeAll(dst); }
+		do { return m_impl.consumeAll(dst); }
 	/// ditto
 	bool consumeAll(ref FixedRingBuffer!(T, buffer_size) dst) shared
 		in { assert(dst.empty); }
-		body { return m_impl.consumeAll(dst); }
+		do { return m_impl.consumeAll(dst); }
 
 	/** Enqueues an element.
 

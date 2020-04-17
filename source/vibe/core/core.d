@@ -1019,7 +1019,7 @@ nothrow {
 */
 @property size_t workerThreadCount()
 	out(count) { assert(count > 0, "No worker threads started after setupWorkerThreads!?"); }
-body {
+do {
 	setupWorkerThreads();
 	synchronized (st_threadsMutex)
 		return st_workerPool.threadCount;
@@ -1253,7 +1253,7 @@ struct Timer {
 	*/
 	void rearm(Duration dur, bool periodic = false) nothrow
 		in { assert(dur >= 0.seconds, "Negative timer duration specified."); }
-		body { m_driver.timers.set(m_id, dur, periodic ? dur : 0.seconds); }
+	    do { m_driver.timers.set(m_id, dur, periodic ? dur : 0.seconds); }
 
 	/** Resets the timer and avoids any firing.
 	*/

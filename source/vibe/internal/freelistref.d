@@ -190,7 +190,7 @@ in {
 	assert((cast(size_t) chunk.ptr) % T.alignof == 0,
 		   format("emplace: Misaligned memory block (0x%X): it must be %s-byte aligned for type %s", &chunk[0], T.alignof, T.stringof));
 
-} body {
+} do {
 	enum classSize = __traits(classInstanceSize, T);
 	auto result = () @trusted { return cast(T) chunk.ptr; } ();
 
@@ -226,7 +226,7 @@ in {
 	assert((cast(size_t) chunk.ptr) % T.alignof == 0,
 		   format("emplace: Misaligned memory block (0x%X): it must be %s-byte aligned for type %s", &chunk[0], T.alignof, T.stringof));
 
-} body {
+} do {
 	return emplace(() @trusted { return cast(T*)chunk.ptr; } (), args);
 }
 
