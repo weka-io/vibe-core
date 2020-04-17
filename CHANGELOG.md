@@ -1,3 +1,16 @@
+1.9.1 - 2020-03-18
+==================
+
+- Compiler support updated to DMD 2.078.3-2.091.0 and LDC 1.15.0-1.20.1 - [pull #192][issue192]
+- Fixed SysLogger to compile again (was broken since the first vibe-core release) - [issue #203][issue203], [pull #204][issue204]
+- Fixed `relativeTo` to be `nothrow` - [pull #206][issue206]
+
+[issue192]: https://github.com/vibe-d/vibe-core/issues/192
+[issue203]: https://github.com/vibe-d/vibe-core/issues/203
+[issue204]: https://github.com/vibe-d/vibe-core/issues/204
+[issue206]: https://github.com/vibe-d/vibe-core/issues/206
+
+
 1.9.0 - 2020-03-18
 ==================
 
@@ -23,8 +36,8 @@
 ==================
 
 - Added a new path segment API that works without GC allocations (`GenericPath.bySegment2`/`.head2`) - this will replace the old API in version 2.x.x of the library - [pull #179][issue179]
-- Added `GenericPath.byPrefix` to iterate over all acestor paths from root to leaf - [pull #181][issue181]
-- Fixed a bug with unitialized `YieldLock` instances (which can happen even with `@disable this()`) - [pull #180][issue180]
+- Added `GenericPath.byPrefix` to iterate over all ancestor paths from root to leaf - [pull #181][issue181]
+- Fixed a bug with uninitialized `YieldLock` instances (which can happen even with `@disable this()`) - [pull #180][issue180]
 - Heavily improved performance of `readFileUTF8` for large files by using a more efficient `sanitizyUTF8` implementation - [pull #182][issue182]
 - CI tests now also run on macOS in addition to Linux and Windows - [pull #183][issue183]
 
@@ -38,7 +51,7 @@
 1.7.0 - 2019-09-17
 ==================
 
-- Supports DMD DMD 2.077.1 up to DMD 2.088.0 and LDC 1.7.0 to LDC 1.17.0 - [pull #166][issue166], [pull #177][issue177]
+- Supports DMD 2.077.1 up to DMD 2.088.0 and LDC 1.7.0 to LDC 1.17.0 - [pull #166][issue166], [pull #177][issue177]
 - Added `vibe.core.process` for task based process handling similar to `std.process` (by Benjamin Schaaf) - [pull #154][issue154]
 - Added `ConnectionPool.removeUnused` to enable closing all unused connections - [pull #143][issue143]
 - Added `logException` to log exceptions in a standard and `nothrow` way - [pull #155][issue155]
