@@ -453,7 +453,14 @@ struct PipeInputStream {
     */
     void close()
     nothrow {
-        eventDriver.pipes.close(m_pipe);
+		if (m_pipe == PipeFD.invalid) return;
+
+		asyncAwaitUninterruptible!(PipeCloseCallback,
+			cb => eventDriver.pipes.close(m_pipe, cb)
+		);
+
+		eventDriver.pipes.releaseRef(m_pipe);
+		m_pipe = PipeFD.invalid;
     }
 }
 
@@ -528,7 +535,14 @@ struct PipeOutputStream {
     */
     void close()
     nothrow {
-        eventDriver.pipes.close(m_pipe);
+		if (m_pipe == PipeFD.invalid) return;
+
+		asyncAwaitUninterruptible!(PipeCloseCallback,
+			cb => eventDriver.pipes.close(m_pipe, cb)
+		);
+
+		eventDriver.pipes.releaseRef(m_pipe);
+		m_pipe = PipeFD.invalid;
     }
 }
 

@@ -1,6 +1,7 @@
 module vibe.core.internal.release;
 
 import eventcore.core;
+import std.stdint : intptr_t;
 
 /// Release a handle in a thread-safe way
 void releaseHandle(string subsys, H)(H handle, shared(NativeEventDriver) drv)
@@ -19,8 +20,8 @@ void releaseHandle(string subsys, H)(H handle, shared(NativeEventDriver) drv)
 
 		// in case the destructor was called from a foreign thread,
 		// perform the release in the owner thread
-		drv.core.runInOwnerThread((h) {
-			__traits(getMember, eventDriver, subsys).releaseRef(cast(H)h);
-		}, cast(size_t)handle);
+		drv.core.runInOwnerThread((H handle) {
+			__traits(getMember, eventDriver, subsys).releaseRef(handle);
+		}, handle);
 	}
 }
