@@ -40,7 +40,10 @@ Process adoptProcessID(Pid pid)
 /// ditto
 Process adoptProcessID(int pid)
 {
-	return Process(eventDriver.processes.adopt(pid));
+	auto p = eventDriver.processes.adopt(pid);
+	if (p == ProcessID.invalid)
+		throw new Exception("Failed to adopt process ID");
+	return Process(p);
 }
 
 /**
@@ -81,15 +84,19 @@ Process spawnProcess(
 	Config config = Config.none,
 	scope NativePath workDir = NativePath.init)
 @trusted {
-	return Process(eventDriver.processes.spawn(
+	auto process = eventDriver.processes.spawn(
 		args,
 		ProcessStdinFile(ProcessRedirect.inherit),
 		ProcessStdoutFile(ProcessRedirect.inherit),
 		ProcessStderrFile(ProcessRedirect.inherit),
 		env,
 		config,
-		workDir.toNativeString()).pid
-	);
+		workDir.toNativeString());
+
+	if (process.pid == ProcessID.invalid)
+		throw new Exception("Failed to spawn process");
+
+	return Process(process.pid);
 }
 
 /// ditto
@@ -637,6 +644,9 @@ ProcessPipes pipeProcess(
 		env,
 		config,
 		workDir.toNativeString());
+
+	if (process.pid == ProcessID.invalid)
+		throw new Exception("Failed to spawn process");
 
 	return ProcessPipes(
 		Process(process.pid),
