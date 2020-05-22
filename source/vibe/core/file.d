@@ -190,16 +190,21 @@ void moveFile(NativePath from, NativePath to, bool copy_fallback = false)
 /// ditto
 void moveFile(string from, string to, bool copy_fallback = false)
 {
-	if (!copy_fallback) {
-		std.file.rename(from, to);
-	} else {
+	auto fail = performInWorker((string from, string to) {
 		try {
 			std.file.rename(from, to);
-		} catch (FileException e) {
-			copyFile(from, to);
-			std.file.remove(from);
+		} catch (Exception e) {
+			return e.msg.length ? e.msg : "Failed to move file.";
 		}
-	}
+		return null;
+	}, from, to);
+
+	if (!fail.length) return;
+
+	if (!copy_fallback) throw new Exception(fail);
+
+	copyFile(from, to);
+	removeFile(from);
 }
 
 /**
@@ -236,6 +241,7 @@ void copyFile(NativePath from, NativePath to, bool overwrite = false)
 		enforce(overwrite || !existsFile(to), "Destination file already exists.");
 		auto dst = openFile(to, FileMode.createTrunc);
 		scope(exit) dst.close();
+		dst.truncate(src.size);
 		dst.write(src);
 	}
 
@@ -267,7 +273,16 @@ void removeFile(NativePath path)
 /// ditto
 void removeFile(string path)
 {
-	std.file.remove(path);
+	auto fail = performInWorker((string path) {
+		try {
+			std.file.remove(path);
+		} catch (Exception e) {
+			return e.msg.length ? e.msg : "Failed to delete file.";
+		}
+		return null;
+	}, path);
+
+	if (fail.length) throw new Exception(fail);
 }
 
 /**
@@ -567,12 +582,18 @@ struct FileStream {
 	/// Closes the file handle.
 	void close()
 	{
-		if (m_fd != FileFD.init) {
-			eventDriver.files.close(m_fd); // FIXME: may leave dangling references!
-			releaseHandle!"files"(m_fd, m_ctx.driver);
-			m_fd = FileFD.init;
-			m_ctx = null;
-		}
+		if (m_fd == FileFD.invalid) return;
+		if (!eventDriver.files.isValid(m_fd)) return;
+
+		auto res = asyncAwaitUninterruptible!(FileCloseCallback,
+			cb => eventDriver.files.close(m_fd, cb)
+		);
+		releaseHandle!"files"(m_fd, m_ctx.driver);
+		m_fd = FileFD.invalid;
+		m_ctx = null;
+
+		if (res[1] != CloseStatus.ok)
+			throw new Exception("Failed to close file");
 	}
 
 	@property bool empty() const { assert(this.readable); return ctx.ptr >= ctx.size; }

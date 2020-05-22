@@ -7,6 +7,7 @@ module test;
 
 import vibe.core.core;
 import vibe.core.log;
+import std.algorithm;
 import std.concurrency;
 import core.atomic;
 import core.time;
@@ -18,9 +19,16 @@ shared watchdog_count = 0;
 void main()
 {
 	t1 = spawn({
-		// ensure that asynchronous operations run in parallel to receive()
+		// ensure that asynchronous operations can run in parallel to receive()
 		int wc = 0;
-		runTask({ while (true) { sleep(250.msecs); wc++; logInfo("Watchdog receiver %s", wc); } });
+		MonoTime stime = MonoTime.currTime;
+		runTask({
+			while (true) {
+				sleepUntil((wc + 1) * 250.msecs, stime, 200.msecs);
+				wc++;
+				logInfo("Watchdog receiver %s", wc);
+			}
+		});
 
 		bool finished = false;
 		try while (!finished) {
@@ -57,28 +65,30 @@ void main()
 	});
 
 	t2 = spawn({
+		MonoTime stime = MonoTime.currTime;
+
 		scope (failure) assert(false);
-		sleep(1.seconds());
+		sleepUntil(1.seconds, stime, 900.msecs);
 		logInfo("send Hello World");
 		t1.send("Hello, World!");
 
-		sleep(1.seconds());
+		sleepUntil(2.seconds, stime, 900.msecs);
 		logInfo("send int 1");
 		t1.send(1);
 
-		sleep(1.seconds());
+		sleepUntil(3.seconds, stime, 900.msecs);
 		logInfo("send double 1.2");
 		t1.send(1.2);
 
-		sleep(1.seconds());
+		sleepUntil(4.seconds, stime, 900.msecs);
 		logInfo("send int 2");
 		t1.send(2);
 
-		sleep(1.seconds());
+		sleepUntil(5.seconds, stime, 900.msecs);
 		logInfo("send 3xint 1 2 3");
 		t1.send(1, 2, 3);
 
-		sleep(1.seconds());
+		sleepUntil(6.seconds, stime, 900.msecs);
 		logInfo("send string Bye bye");
 		t1.send("Bye bye");
 
@@ -88,4 +98,13 @@ void main()
 	});
 
 	runApplication();
+}
+
+// corrects for small timing inaccuracies to avoid the counter
+// getting systematically out of sync when sleep timing is inaccurate
+void sleepUntil(Duration until, MonoTime start_time, Duration min_sleep)
+{
+	auto tm = MonoTime.currTime;
+	auto timeout = max(start_time - tm + until, min_sleep);
+	sleep(timeout);
 }
