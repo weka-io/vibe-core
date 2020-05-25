@@ -24,7 +24,7 @@ d:
 env:
     - CONFIG=select
     - CONFIG=epoll
-    - CONFIG=kqueue
+    - CONFIG=cfrunloop
     # disabled until the libasync driver of eventcore is more than a stub
     #- CONFIG=libasync
 
@@ -35,7 +35,7 @@ matrix:
     - d: ldc-latest-ci
   exclude:
       - os: linux
-        env: CONFIG=kqueue
+        env: CONFIG=cfrunloop
       - os: osx
         env: CONFIG=epoll
       # see https://github.com/ldc-developers/ldc/issues/2187
@@ -44,6 +44,12 @@ matrix:
       - d: ldc-1.15.0
         os: osx
   include:
+    - d: dmd
+      os: osx
+      env: CONFIG=kqueue
+    - d: ldc
+      os: osx
+      env: CONFIG=kqueue
     - d: dmd
       env: CONFIG='select' DUB_FLAGS='--build unittest-cov --build-mode=singleFile'
     - d: dmd
