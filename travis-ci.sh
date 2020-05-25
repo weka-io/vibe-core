@@ -20,8 +20,7 @@ dub test --compiler=$DC -c $CONFIG $DUB_FLAGS
 if [ ${BUILD_EXAMPLE=1} -eq 1 ]; then
     for ex in $(\ls -1 examples/); do
         echo "[INFO] Building example $ex"
-        # --override-config vibe-core/$CONFIG
-        (cd examples/$ex && dub build --compiler=$DC && dub clean)
+        (cd examples/$ex && dub build --compiler=$DC --override-config vibe-core/$CONFIG && dub clean)
     done
 fi
 if [ ${RUN_TEST=1} -eq 1 ]; then
@@ -32,7 +31,7 @@ if [ ${RUN_TEST=1} -eq 1 ]; then
             (cd tests && "./${script:6}")
         else
             echo "[INFO] Running test $ex"
-            dub --temp-build --compiler=$DC --single $ex # --override-config vibe-core/$CONFIG
+            dub --temp-build --compiler=$DC --single $ex --override-config vibe-core/$CONFIG
         fi
     done
 fi
