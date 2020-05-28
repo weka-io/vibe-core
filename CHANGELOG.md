@@ -1,3 +1,15 @@
+1.9.2 - 2020-05-
+==================
+
+- Updated tested compiler range to DMD 2.078.3-2.092.0 and LDC 1.15.0-1.21.0
+- Added support for a `CFRunLoop` based configuration on macOS to enable efficient UI integration - [pull #211][issue211]
+- Removed potentially blocking file I/O code - [pull #210][issue210]
+- Added error handling for process creation - [pull #210][issue210]
+
+[issue210]: https://github.com/vibe-d/vibe-core/issues/210
+[issue211]: https://github.com/vibe-d/vibe-core/issues/211
+
+
 1.9.1 - 2020-03-18
 ==================
 
