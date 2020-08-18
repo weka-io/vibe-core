@@ -27,12 +27,12 @@ import core.time : Duration;
 	Setting use_dns to false will only allow IP address strings but also guarantees
 	that the call will not block.
 */
-NetworkAddress resolveHost(string host, AddressFamily address_family = AddressFamily.UNSPEC, bool use_dns = true)
+NetworkAddress resolveHost(string host, AddressFamily address_family = AddressFamily.UNSPEC, bool use_dns = true, Duration timeout = Duration.max)
 {
-	return resolveHost(host, cast(ushort)address_family, use_dns);
+	return resolveHost(host, cast(ushort)address_family, use_dns, timeout);
 }
 /// ditto
-NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = true)
+NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = true, Duration timeout = Duration.max)
 {
 	import std.socket : parseAddress;
 	version (Windows) import core.sys.windows.winsock2 : sockaddr_in, sockaddr_in6;
@@ -66,7 +66,7 @@ NetworkAddress resolveHost(string host, ushort address_family, bool use_dns = tr
 			}
 		);
 
-		asyncAwaitAny!(true, waitable);
+		asyncAwaitAny!(true, waitable)(timeout);
 
 		enforce(success, "Failed to lookup host '"~host~"'.");
 		return res;
