@@ -32,7 +32,7 @@ void runTest()
 	scope(exit) rmdirRecurse(dir);
 
 	DirectoryWatcher watcher;
-	try watcher = Path(dir).watchDirectory(No.recursive);
+	try watcher = NativePath(dir).watchDirectory(No.recursive);
 	catch (AssertError e) {
 		logInfo("DirectoryWatcher not yet implemented. Skipping test.");
 		return;
@@ -43,7 +43,7 @@ void runTest()
 	auto foo = dir.buildPath("foo");
 
 	alias Type = DirectoryChangeType;
-	static DirectoryChange dc(Type t, string p) { return DirectoryChange(t, Path(p)); }
+	static DirectoryChange dc(Type t, string p) { return DirectoryChange(t, NativePath(p)); }
 	void check(DirectoryChange[] expected)
 	{
 		sleep(sleepTime);
@@ -73,7 +73,7 @@ void runTest()
 	write(bar, null);
 	assert(!watcher.readChanges(changes, 100.msecs));
 	remove(bar);
-	watcher = Path(dir).watchDirectory(Yes.recursive);
+	watcher = NativePath(dir).watchDirectory(Yes.recursive);
 	write(foo, null);
 	sleep(sleepTime);
 	write(foo, [0, 1]);

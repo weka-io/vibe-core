@@ -14,7 +14,7 @@ ubyte[] buf;
 
 void performTest(bool reverse)
 {
-	auto l = listenTCP(11375, (conn) {
+	auto l = listenTCP(11375, (conn) @safe nothrow {
 		bool read_ex = false;
 		bool write_ex = false;
 		auto rt = runTask!TCPConnection((conn) {
@@ -43,8 +43,11 @@ void performTest(bool reverse)
 			} // expected
 		}, conn);
 
-		rt.join();
-		wt.join();
+		try {
+			rt.join();
+			wt.join();
+		} catch (Exception e)
+			assert(0, e.msg);
 		assert(read_ex, "No read exception thrown");
 		assert(write_ex, "No write exception thrown");
 		logInfo("Test has finished successfully.");

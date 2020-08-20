@@ -11,16 +11,20 @@ import core.time : msecs;
 
 void main()
 {
-	auto l = listenTCP(0, (conn) {
-		auto td = runTask!TCPConnection((conn) {
-			ubyte [3] buf;
-			try {
-				conn.read(buf);
-				assert(false, "Expected read() to throw an exception.");
-			} catch (Exception) {} // expected
-		}, conn);
-		sleep(10.msecs);
-		conn.close();
+	auto l = listenTCP(0, (conn) @safe nothrow {
+		try {
+			auto td = runTask!TCPConnection((conn) {
+				ubyte [3] buf;
+				try {
+					conn.read(buf);
+					assert(false, "Expected read() to throw an exception.");
+				} catch (Exception) {} // expected
+			}, conn);
+			sleep(10.msecs);
+			conn.close();
+		}
+		catch (Exception e)
+			assert(0, e.msg);
 	}, "127.0.0.1");
 
 	runTask({
