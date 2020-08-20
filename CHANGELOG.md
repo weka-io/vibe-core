@@ -1,3 +1,18 @@
+1.9.4 - 2020-08-21
+==================
+
+- Add optional timeout parameter to resolveHost - [pull #220][issue220]
+- Fix exclusion list to properly exclude broken LDC releases - [pull #221][issue221]
+- Workaround dub build by using `--single` in the test - [pull #223][issue223]
+- Cleanup deprecations in test-suite and update release notes - [pull #222][issue222]
+
+
+[issue220]: https://github.com/vibe-d/vibe-core/issues/220
+[issue221]: https://github.com/vibe-d/vibe-core/issues/221
+[issue222]: https://github.com/vibe-d/vibe-core/issues/222
+[issue223]: https://github.com/vibe-d/vibe-core/issues/223
+
+
 1.9.3 - 2020-08-02
 ==================
 
