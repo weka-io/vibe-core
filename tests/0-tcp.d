@@ -25,7 +25,7 @@ void test1()
 	Test test;
 	Task lt;
 
-	auto l = listenTCP(0, (conn) {
+	auto l = listenTCP(0, (conn) @safe nothrow {
 		lt = Task.getThis();
 		try {
 			while (!conn.empty) {
@@ -111,7 +111,7 @@ void test2()
 {
 	Task lt;
 	logInfo("Perform test \"disconnect with pending data\"");
-	auto l = listenTCP(0, (conn) {
+	auto l = listenTCP(0, (conn) @safe nothrow {
 		try {
 			lt = Task.getThis();
 			sleep(1.seconds);
@@ -156,13 +156,13 @@ void main()
 	runEventLoop();
 }
 
-string readLine(TCPConnection c)
+string readLine(TCPConnection c) @safe
 {
 	import std.string : indexOf;
 
 	string ret;
 	while (!c.empty) {
-		auto buf = cast(char[])c.peek();
+		auto buf = () @trusted { return cast(char[])c.peek(); }();
 		auto idx = buf.indexOf('\n');
 		if (idx < 0) {
 			ret ~= buf;
@@ -176,7 +176,7 @@ string readLine(TCPConnection c)
 	return ret;
 }
 
-string readAll(TCPConnection c)
+string readAll(TCPConnection c) @safe
 {
 	import std.algorithm.comparison : min;
 
@@ -186,5 +186,5 @@ string readAll(TCPConnection c)
 		ret.length += len;
 		c.read(ret[$-len .. $]);
 	}
-	return cast(string)ret;
+	return () @trusted { return cast(string) ret; }();
 }

@@ -49,38 +49,47 @@ void runTest()
 	import std.socket : AddressFamily;
 
 	// server for a simple line based protocol
-	auto l1 = listenTCP(0, (client) {
-		while (!client.empty) {
-			auto ln = client.readLine();
-			if (ln == "quit") {
-				client.write("Bye bye!\n");
-				client.close();
-				break;
-			}
+	auto l1 = listenTCP(0, (client) @safe nothrow {
+		try
+		{
+			while (!client.empty) {
+				auto ln = client.readLine();
+				if (ln == "quit") {
+					client.write("Bye bye!\n");
+					client.close();
+					break;
+				}
 
-			client.write(format("Hash: %08X\n", typeid(string).getHash(&ln)));
+				client.write(format("Hash: %08X\n",
+									() @trusted { return typeid(string).getHash(&ln); }()));
+			}
 		}
+		catch (Exception e)
+			assert(0, e.msg);
 	}, "127.0.0.1");
 	scope (exit) l1.stopListening;
 
 	// proxy server
-	auto l2 = listenTCP(0, (client) {
-		auto server = connectTCP(l1.bindAddress);
+	auto l2 = listenTCP(0, (client) @safe nothrow {
+		try {
+			auto server = connectTCP(l1.bindAddress);
 
-		// pipe server to client as long as the server connection is alive
-		auto t = runTask!(TCPConnection, TCPConnection)((client, server) {
-			scope (exit) client.close();
-			pipe(server, client);
-			logInfo("Proxy 2 out");
-		}, client, server);
+			// pipe server to client as long as the server connection is alive
+			auto t = runTask!(TCPConnection, TCPConnection)((client, server) {
+					scope (exit) client.close();
+					pipe(server, client);
+					logInfo("Proxy 2 out");
+				}, client, server);
 
-		// pipe client to server as long as the client connection is alive
-		scope (exit) {
-			server.close();
-			t.join();
-		}
-		pipe(client, server);
-		logInfo("Proxy out");
+			// pipe client to server as long as the client connection is alive
+			scope (exit) {
+				server.close();
+				t.join();
+			}
+			pipe(client, server);
+			logInfo("Proxy out");
+		} catch (Exception e)
+			assert(0, e.msg);
 	}, "127.0.0.1");
 	scope (exit) l2.stopListening;
 
@@ -112,13 +121,13 @@ int main()
 	return ret;
 }
 
-string readLine(TCPConnection c)
+string readLine(TCPConnection c) @safe
 {
 	import std.string : indexOf;
 
 	string ret;
 	while (!c.empty) {
-		auto buf = cast(char[])c.peek();
+		auto buf = () @trusted { return cast(char[])c.peek(); }();
 		auto idx = buf.indexOf('\n');
 		if (idx < 0) {
 			ret ~= buf;
@@ -131,4 +140,3 @@ string readLine(TCPConnection c)
 	}
 	return ret;
 }
-
