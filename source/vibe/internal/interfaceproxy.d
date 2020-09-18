@@ -97,14 +97,24 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 	}
 
 	this(O)(O object) @trusted
+		if (is(O == struct) || is(O == class) || is(O == interface))
 	{
 		static assert(O.sizeof % m_value[0].sizeof == 0, "Sizeof object ("~O.stringof~") must be a multiple of a pointer size.");
 		static assert(O.sizeof <= maxSize, "Object ("~O.stringof~") is too big to be stored in an InterfaceProxy.");
 		import std.conv : emplace;
+
+		static if (is(O == class) || is(O == interface)) {
+			if (!object) return;
+		}
+
 		m_intf = ProxyImpl!O.get();
 		static if (is(O == struct))
 			emplace!O(m_value[0 .. O.sizeof/m_value[0].sizeof]);
 		swap((cast(O[])m_value[0 .. O.sizeof/m_value[0].sizeof])[0], object);
+	}
+
+	this(typeof(null))
+	{
 	}
 
 	~this() @safe
@@ -302,6 +312,12 @@ struct InterfaceProxy(I) if (is(I == interface)) {
 			mixin(impl());
 		}
 	}
+}
+
+unittest {
+	static interface I {}
+	assert(!InterfaceProxy!I(null));
+	assert(!InterfaceProxy!I(cast(I)null));
 }
 
 private string parameterDecls(alias F, size_t idx)()
