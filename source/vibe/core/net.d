@@ -612,7 +612,10 @@ mixin(tracer);
 		asyncAwaitAny!(true, waiter)(timeout);
 
 		if (!m_context) return WaitForDataStatus.noMoreData;
-		if (cancelled) return WaitForDataStatus.timeout;
+		// NOTE: for IOMode.immediate, no actual timeout occurrs, but the read
+		//       fails immediately with wouldBlock
+		if (cancelled || status == IOStatus.wouldBlock)
+			return WaitForDataStatus.timeout;
 
 		logTrace("Socket %s, read %s bytes: %s", m_socket, nbytes, status);
 
