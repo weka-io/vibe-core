@@ -1,11 +1,19 @@
+1.10.3 - 2020-10-15
+===================
+
+- Fixed `waitForDataEx` to return `WaitForDataStatus.timeout` for zero-timeouts if the connection is still alive [pull #232][issue232]
+
+[issue232]: https://github.com/vibe-d/vibe-core/issues/232
+
+
 1.10.2 - 2020-09-18
 ===================
 
-- Fixed a critical data corruption bug caused by eventcore's `cancelRead`/`cancelWrite` - note that this fix makes `File.read` and `write` uninterruptible - [pull #227][pull 227]
-- Fixed `InterfaceProxy!T` to behave correctly for `null` target instances - [pull #228][pull228]
+- Fixed a critical data corruption bug caused by eventcore's `cancelRead`/`cancelWrite` - note that this fix makes `File.read` and `write` uninterruptible - [pull #227][issue227]
+- Fixed `InterfaceProxy!T` to behave correctly for `null` target instances - [pull #228][issue228]
 
-[pull227]: https://github.com/vibe-d/vibe-core/issues/227
-[pull228]: https://github.com/vibe-d/vibe-core/issues/228
+[issue227]: https://github.com/vibe-d/vibe-core/issues/227
+[issue228]: https://github.com/vibe-d/vibe-core/issues/228
 
 
 1.10.1 - 2020-08-31
