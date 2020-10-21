@@ -242,7 +242,7 @@ void copyFile(NativePath from, NativePath to, bool overwrite = false)
 		auto dst = openFile(to, FileMode.createTrunc);
 		scope(exit) dst.close();
 		dst.truncate(src.size);
-		dst.write(src);
+		src.pipe(dst, PipeMode.concurrent);
 	}
 
 	// TODO: also retain creation time on windows
@@ -651,7 +651,7 @@ struct FileStream {
 	void write(InputStream)(InputStream stream, ulong nbytes = ulong.max)
 		if (isInputStream!InputStream)
 	{
-		writeDefault(this, stream, nbytes);
+		pipe(stream, this, nbytes, PipeMode.concurrent);
 	}
 
 	void flush()
@@ -668,38 +668,6 @@ struct FileStream {
 }
 
 mixin validateRandomAccessStream!FileStream;
-
-
-private void writeDefault(OutputStream, InputStream)(ref OutputStream dst, InputStream stream, ulong nbytes = ulong.max)
-	if (isOutputStream!OutputStream && isInputStream!InputStream)
-{
-	import vibe.internal.allocator : theAllocator, make, dispose;
-	import std.algorithm.comparison : min;
-
-	static struct Buffer { ubyte[64*1024] bytes = void; }
-	auto bufferobj = () @trusted { return theAllocator.make!Buffer(); } ();
-	scope (exit) () @trusted { theAllocator.dispose(bufferobj); } ();
-	auto buffer = bufferobj.bytes[];
-
-	//logTrace("default write %d bytes, empty=%s", nbytes, stream.empty);
-	if (nbytes == ulong.max) {
-		while (!stream.empty) {
-			size_t chunk = min(stream.leastSize, buffer.length);
-			assert(chunk > 0, "leastSize returned zero for non-empty stream.");
-			//logTrace("read pipe chunk %d", chunk);
-			stream.read(buffer[0 .. chunk]);
-			dst.write(buffer[0 .. chunk]);
-		}
-	} else {
-		while (nbytes > 0) {
-			size_t chunk = min(nbytes, buffer.length);
-			//logTrace("read pipe chunk %d", chunk);
-			stream.read(buffer[0 .. chunk]);
-			dst.write(buffer[0 .. chunk]);
-			nbytes -= chunk;
-		}
-	}
-}
 
 
 /**
