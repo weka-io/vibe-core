@@ -73,7 +73,10 @@ void runTest()
 	write(bar, null);
 	assert(!watcher.readChanges(changes, 100.msecs));
 	remove(bar);
+	assert(!watcher.readChanges(changes, 1500.msecs));
+
 	watcher = NativePath(dir).watchDirectory(Yes.recursive);
+	assert(!watcher.readChanges(changes, 1500.msecs));
 	write(foo, null);
 	sleep(sleepTime);
 	write(foo, [0, 1]);

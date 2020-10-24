@@ -1,3 +1,11 @@
+1.11.0 - 2020-10-24
+===================
+
+- Added a concurrent mode to `pipe()` using `PipeMode.concurrent` to improve throughput in I/O limited situations - [pull #233][issue233]
+
+[issue233]: https://github.com/vibe-d/vibe-core/issues/233
+
+
 1.10.3 - 2020-10-15
 ===================
 
